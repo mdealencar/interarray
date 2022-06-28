@@ -1,0 +1,2 @@
+# Do not count jupyter notebooks in the programming language statistics
+*.ipynb linguist-documentation
