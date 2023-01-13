@@ -39,7 +39,7 @@ def file2graph(filename, rotation=None):
         return None
     # read wind power plant YAML file
     elif fpath.suffix == '.yaml':
-        scrapped = yaml.safe_load(open(fpath, 'r'))
+        scrapped = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
         for key, scrapped_key in (('WT coordinates', 'TURBINES'),
                                   ('OSS coordinates', 'SUBSTATIONS'),
                                   ('WF area limits', 'EXTENTS')):
