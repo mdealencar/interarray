@@ -85,7 +85,7 @@ def file2graph(filename, rotation=None):
                 data[key] = coords, labels
     # read Matlab mat file
     elif fpath.suffix == '.mat':
-        windfarm = scipy.io.loadmat('MSdAFarm.mat',
+        windfarm = scipy.io.loadmat(fpath,
                                     struct_as_record=False,
                                     squeeze_me=True)['WindFarm']
         data['WT coordinates'] = (np.r_[[windfarm.Coord.x[1:]],
