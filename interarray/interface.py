@@ -99,7 +99,7 @@ def T_from_G(G):
             # OSS index starts at 1
             s = (u + M + 1) if u >= 0 else abs(u)
             t = (v + M + 1) if v >= 0 else abs(v)
-            print(u, v, '->', s, t)
+            # print(u, v, '->', s, t)
             yield (s, t, data['length'], data['load'], data['cable'])
 
     T = np.fromiter(edge_parser(G.edges(data=True)),
