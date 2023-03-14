@@ -1,3 +1,8 @@
+# files not to be sent to repo
+sandbox.ipynb
+example_Gwynt_y_Mor-popper.ipynb
+example_London_Array-popper.ipynb
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
