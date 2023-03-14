@@ -5,6 +5,7 @@ import numpy as np
 from collections import namedtuple
 from interarray.fileio import file2graph
 from interarray.synthetic import synthfarm2graph, equidistant
+from pathlib import Path
 
 
 def namedtuplify(namedtuple_typename='', **kwargs):
@@ -32,28 +33,29 @@ def tess3sm(radius, spacing=1000):
     RootC = 2.5*spacing*np.array(((-0.5, -h), (-0.5, h), (1., 0.)))
     return synthfarm2graph(RootC, NodeC, name='SynthTess small (3 OSS)')
 
+datapath = Path(__file__).resolve().parent.parent / 'data'
 
 g = namedtuplify(
     namedtuple_typename='FarmGraphs',
     # .xlsx files
     # 100 WTG
-    thanet=file2graph('data/Thanet.xlsx'),
+    thanet=file2graph(datapath / 'Thanet.xlsx'),
     # 80 WTG
-    dantysk=file2graph('data/DanTysk.xlsx'),
+    dantysk=file2graph(datapath / 'DanTysk.xlsx'),
     # 80 WTG
-    horns=file2graph('data/Horns Rev 1.xlsx'),
+    horns=file2graph(datapath / 'Horns Rev 1.xlsx'),
     # 111 WTG
-    anholt=file2graph('data/Anholt.xlsx'),
+    anholt=file2graph(datapath / 'Anholt.xlsx'),
     # 108 WTG
-    sands=file2graph('data/West of Duddon Sands.xlsx'),
+    sands=file2graph(datapath / 'West of Duddon Sands.xlsx'),
     # 30 WTG
-    ormonde=file2graph('data/Ormonde.xlsx'),
+    ormonde=file2graph(datapath / 'Ormonde.xlsx'),
     # 175 WTG, 2 OSS
-    london=file2graph('data/London Array.xlsx'),
+    london=file2graph(datapath / 'London Array.xlsx'),
     # 27 WTG
-    rbn=file2graph('data/BIG Ronne Bank North.xlsx'),
+    rbn=file2graph(datapath / 'BIG Ronne Bank North.xlsx'),
     # 53 WTG
-    rbs=file2graph('data/BIG Ronne Bank South.xlsx'),
+    rbs=file2graph(datapath / 'BIG Ronne Bank South.xlsx'),
 
     # synthetic farms
     # 114 WTG
