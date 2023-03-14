@@ -4,6 +4,8 @@
 import numpy as np
 from functools import partial
 
+from interarray.heuristics import CPEW, OBEW, ClassicEW
+
 heuristics = {
     'CPEW': CPEW,
     'OBEW': OBEW,
