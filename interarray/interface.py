@@ -123,6 +123,7 @@ def heuristic_wrapper(X, Y, cables, M=1, heuristic='CPEW', return_graph=False):
     Y: y coordinates of vertices
     cables: [(«cross section», «capacity», «cost»), ...] in increasing capacity order
     M: number of OSSs
+    heuristic: {'CPEW', 'OBEW'}
     '''
     G_base = G_from_XYM(X, Y, M)
     G = heuristics[heuristic](G_base, capacity=cables[-1][1])
