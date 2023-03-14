@@ -23,7 +23,7 @@ class LayoutPlotter():
     node_tag = 'label'
     colors = plt.cm.get_cmap('tab20', 20).colors
 
-    def __init__(self, G_base, ax=None, dpi=None):
+    def __init__(self, G_base, ax=None, dpi=None, node_tag='label'):
         # fail early if graph does not have a log
         loglist = G_base.graph['log']
         if 'has_loads' not in G_base.graph:
@@ -32,6 +32,7 @@ class LayoutPlotter():
         if dpi is None:
             dpi = plt.rcParams['figure.dpi']
         # self.mm = mm = 25.4*dpi
+        self.node_tag = node_tag
         self.G_base = G_base
         self.root_node_size = 28 if self.node_tag is not None else 18
         self.node_size = 70 if self.node_tag is not None else 18
@@ -285,12 +286,12 @@ class LayoutPlotter():
         return redraw
 
 
-def animate(G, interval=250, blit=True, workpath='./tmp/',
+def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
             savepath='./videos/', remove_apng=True, use_apng2gif=False):
     # old_dpi = plt.rcParams['figure.dpi']
     # dpi = plt.rcParams['figure.dpi'] = 192
     # layplt = LayoutPlotter(G, dpi=dpi)
-    layplt = LayoutPlotter(G, dpi=192)
+    layplt = LayoutPlotter(G, dpi=192, node_tag=node_tag)
     savefig_kwargs = {'facecolor': '#1b1c17'}
     anim = animation.FuncAnimation(
         layplt.fig, layplt.update, frames=layplt.log, interval=interval,

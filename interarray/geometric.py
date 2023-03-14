@@ -50,6 +50,7 @@ def rotate(coords, angle):
 
 
 def point_d2line(p, u, v):
+    '''calculates the distance from point `p` to the line defined by points `u` and `v`'''
     x0, y0 = p
     x1, y1 = u
     x2, y2 = v
