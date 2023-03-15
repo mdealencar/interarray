@@ -5,11 +5,12 @@ import numpy as np
 import networkx as nx
 from functools import partial
 
-from interarray.heuristics import CPEW, OBEW, ClassicEW
+from interarray.heuristics import CPEW, NBEW, OBEW, ClassicEW
 from interarray.interarraylib import calcload, F, make_graph_metrics
 
 heuristics = {
     'CPEW': CPEW,
+    'NBEW': NBEW,
     'OBEW': OBEW,
     'OBEW_0.6': partial(OBEW, rootlust='0.6*cur_capacity/capacity'),
 }
