@@ -11,6 +11,7 @@ from interarray.interarraylib import calcload, F, make_graph_metrics
 heuristics = {
     'CPEW': CPEW,
     'OBEW': OBEW,
+    'OBEW_0.6': partial(OBEW, rootlust='0.6*cur_capacity/capacity'),
 }
 
 
