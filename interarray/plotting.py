@@ -8,7 +8,7 @@ from collections import defaultdict
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from interarray.interarraylib import cost, calcload, make_graph_metrics, NodeStr
+from interarray.interarraylib import calcload, make_graph_metrics, NodeStr
 from matplotlib import animation
 import numpy as np
 # from numpngw import AnimatedPNGWriter
@@ -473,8 +473,8 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                                    for _, _, data in G.edges.data()]) else None
             legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
                           ' m' if field == 'length' else '')
-    if ('has_loads' in G.graph) and ('cables' in G.graph):
-        legend.append('{:.0f} €'.format(cost(G)))
+    if ('has_costs' in G.graph):
+        legend.append('{:.0f} €'.format(G.size(weight='cost')))
     if 'capacity' in G.graph:
         infobox = ax.legend([], fontsize=7, title='\n'.join(legend),
                             labelspacing=0)  # ,   loc='upper right',

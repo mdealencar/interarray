@@ -50,8 +50,9 @@ def assign_cables(G, cables):
             print(f'ERROR: Load for edge ⟨{u, v}⟩: {data["load"]} '
                   f'exceeds maximum cable capacity {κ_[-1]}.')
         data['cable'] = i
-        data['weight'] = data['length']*cable_['cost'][i]
+        data['cost'] = data['length']*cable_['cost'][i]
     G.graph['cables'] = cable_
+    G.graph['has_costs'] = True
 
 
 def G_from_XYM(X, Y, M=1, name='unnamed', boundary = None):
@@ -90,7 +91,7 @@ def T_from_G(G):
     G: networkx graph
 
     returns:
-    T: [ («u», «v», «length», «load (WT number)», «cable type»), ...]
+    T: [ («u», «v», «length», «load (WT number)», «cable type», «edge cost»), ...]
 
     (T is a numpy record array)
     '''
@@ -106,16 +107,66 @@ def T_from_G(G):
             s = (u + M + 1) if u >= 0 else abs(u)
             t = (v + M + 1) if v >= 0 else abs(v)
             # print(u, v, '->', s, t)
-            yield (s, t, data['length'], data['load'], data['cable'])
+            yield (s, t, data['length'], data['load'], data['cable'], data['cost'])
 
     T = np.fromiter(edge_parser(G.edges(data=True)),
                     dtype=[('u', int),
                            ('v', int),
                            ('length', float),
                            ('load', int),
-                           ('cable', int)],
+                           ('cable', int),
+                           ('cost', float)],
                     count=Ne)
     return T
+
+
+class HeuristicFactory():
+    '''
+    Initializes a heuristic algorithm.
+    Inputs:
+    N: number of nodes
+    M: number of roots
+    rootC: 2D nympy array (M, 2) of the XY coordinates of the roots
+    boundaryC: 2D numpy array (_, 2) of the XY coordinates of the boundary
+    cables: [(«cross section», «capacity», «cost»), ...] in increasing capacity order
+    name: site name
+    '''
+
+    def __init__(self, N, M, rootC, boundaryC, heuristic, cables, name='unnamed'):
+        self.N = N
+        self.M = M
+        self.cables = cables
+        self.k = cables[-1][1]
+        self.VertexC = np.empty((N + M, 2), dtype=float)
+        self.VertexC[N:] = rootC
+        # create networkx graph
+        self.G_base = nx.Graph(M=M,
+                               VertexC=self.VertexC,
+                               boundary=boundaryC,
+                               name=name)
+        self.G_base.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+                                    for n in range(N)))
+        self.G_base.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+                                    for r in range(-M, 0)))
+        self.heuristic = heuristics[heuristic]
+
+    def calccost(self, X, Y):
+        assert len(X) == len(Y) == self.N
+        self.VertexC[:self.N, 0] = X
+        self.VertexC[:self.N, 1] = Y
+        make_graph_metrics(self.G_base)
+        self.G = self.heuristic(self.G_base, capacity=self.k)
+        calcload(self.G)
+        assign_cables(self.G, self.cables)
+        return self.G.size(weight='cost')
+
+    def get_table(self):
+        '''
+        Must have called cost() at least once. Only the last call's layout is available.
+        returns:
+        T: [ («u», «v», «length», «load (WT number)», «cable type», «edge cost»), ...]
+        '''
+        return T_from_G(self.G)
 
 
 def heuristic_wrapper(X, Y, cables, M=1, heuristic='CPEW', return_graph=False):
