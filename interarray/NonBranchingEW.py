@@ -104,6 +104,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
     # <gates2upd8>: deque for components that need to go through
     # gates2upd8 = deque()
     gates2upd8 = set()
+    gates2retry = []
     # <edges2ban>: deque for edges that should not be considered anymore
     # edges2ban = deque()
     # TODO: this is not being used, decide what to do about it
@@ -162,9 +163,14 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         edges2discard = []
         for u in set((gate, Tail[gate])):
             for v in A[u]:
+                if v == F.B:
+                    print(i, F[u], [F[jds] for jds in A[u]])
+                    print('tail[B] = ', F[Tail[v]])
                 if (Gate[v] in forbidden
-                        or len(subtrees[v]) > capacity_left
-                        or v != Tail[v]):
+                        or len(subtrees[v]) > capacity_left):
+                    # useless edges
+                    edges2discard.append((u, v))
+                elif v != Tail[v]:
                     if v != Gate[v]:
                         # useless edges
                         edges2discard.append((u, v))
@@ -175,6 +181,8 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                         # useful edges
                         tiebreaker = d2rootsRank[v, A[u][v]['root']]
                         weighted_edges.append((W, tiebreaker, u, v))
+        if i == 153:
+            print(weighted_edges)
         return weighted_edges, edges2discard
 
     def sort_union_choices(weighted_edges):
@@ -288,9 +296,14 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                 # definitive gates at iteration 0 do not cross any other edges
                 # they are not included in Final_G because the algorithm
                 # considers the gates extending to infinity (not really)
-                root = A.nodes[gate]['root']
-                make_gate_final(root, gate)
-                check_heap4crossings(root, gate)
+                if len(A.edges(gate)):
+                    # there is at least one usable edge
+                    # maybe its target will become a tail later
+                    gates2retry.append(gate)
+                else:
+                    root = A.nodes[gate]['root']
+                    make_gate_final(root, gate)
+                    check_heap4crossings(root, gate)
             debug and print('<cancelling>', F[gate])
             if gate in pq.tags:
                 # i=0 gates and check_heap4crossings reverse_entry
@@ -311,8 +324,8 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                 prevented_crossings += 1
                 ban_queued_edge(g2drop, u, v)
 
-    def ban_queued_edge(g2drop, u, v):
-        if (u, v) in A.edges:
+    def ban_queued_edge(g2drop, u, v, remove_from_A=True):
+        if ((u, v) in A.edges) and remove_from_A:
             A.remove_edge(u, v)
         else:
             debug and print('<<<< UNLIKELY <ban_queued_edge()> '
@@ -377,6 +390,11 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         if gates2upd8:
             debug and print('gates2upd8:', ', '.join(F[gate] for gate in
                                                      gates2upd8))
+        retrylist = gates2retry.copy()
+        gates2retry.clear()
+        for gate in retrylist:
+            if gate in A:
+                find_option4gate(gate)
         while gates2upd8:
             # find_option4gate(gates2upd8.popleft())
             find_option4gate(gates2upd8.pop())
@@ -441,7 +459,8 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
             continue
 
         if v != Tail[v]:
-            ban_queued_edge(g2drop, u, v)
+            #find_option4gate(g2drop)
+            ban_queued_edge(g2drop, u, v, remove_from_A=False)
             continue
 
         g2keep = Gate[v]
@@ -509,6 +528,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
             continue
 
         # edge addition starts here
+        # newTail = Tail[g2drop] if u == g2drop else Tail[u]
         newTail = Tail[g2drop] if u == g2drop else g2drop
         for n in subtrees[v]:
             Tail[n] = newTail
