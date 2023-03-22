@@ -509,7 +509,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
             continue
 
         # edge addition starts here
-        newTail = Tail[g2drop] if u == g2drop else Tail[u]
+        newTail = Tail[g2drop] if u == g2drop else g2drop
         for n in subtrees[v]:
             Tail[n] = newTail
 
@@ -532,7 +532,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
 
         if u != g2drop:
             for n in subtrees[u]:
-                Tail[u] = newTail
+                Tail[n] = newTail
         # assign root, gate and subtree to the newly added nodes
         for n in subtrees[u]:
             A.nodes[n]['root'] = root
