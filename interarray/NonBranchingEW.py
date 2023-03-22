@@ -163,9 +163,6 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         edges2discard = []
         for u in set((gate, Tail[gate])):
             for v in A[u]:
-                if v == F.B:
-                    print(i, F[u], [F[jds] for jds in A[u]])
-                    print('tail[B] = ', F[Tail[v]])
                 if (Gate[v] in forbidden
                         or len(subtrees[v]) > capacity_left):
                     # useless edges
@@ -181,8 +178,6 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                         # useful edges
                         tiebreaker = d2rootsRank[v, A[u][v]['root']]
                         weighted_edges.append((W, tiebreaker, u, v))
-        if i == 153:
-            print(weighted_edges)
         return weighted_edges, edges2discard
 
     def sort_union_choices(weighted_edges):
