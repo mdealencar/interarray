@@ -26,7 +26,7 @@ def namedtuplify(namedtuple_typename='', **kwargs):
 
 
 def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
-         delaunay_base=True, debug=False):
+         delaunay_base=True, debug=False, rootlust=0.):
     '''Non-branching Esau-Williams heuristic for C-MST
     inputs:
     G_base: networkx.Graph
@@ -159,6 +159,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         forbidden.add(gate)
         d2root = d2roots[gate, A.nodes[gate]['root']]
         capacity_left = capacity - len(subtrees[gate])
+        root_lust = rootlust*len(subtrees[gate])/capacity
         weighted_edges = []
         edges2discard = []
         for u in set((gate, Tail[gate])):
@@ -175,9 +176,12 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                     W = A[u][v]['weight']
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
+                        d2rGain = d2root - d2roots[Gate[v], A.nodes[Gate[v]]['root']]
                         # useful edges
                         tiebreaker = d2rootsRank[v, A[u][v]['root']]
-                        weighted_edges.append((W, tiebreaker, u, v))
+                        weighted_edges.append((W - d2rGain*root_lust,
+                                               tiebreaker, u, v))
+                        # weighted_edges.append((W, tiebreaker, u, v))
         return weighted_edges, edges2discard
 
     def sort_union_choices(weighted_edges):
