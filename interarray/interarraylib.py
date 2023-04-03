@@ -2,6 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import inspect
+import itertools
 import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
@@ -419,7 +420,7 @@ def poisson_disc_filler(N, min_dist, boundary, exclude=None,
         return True
 
     # list of indices of empty cells.
-    empty_cell_idc = list(product(range(i_len), range(j_len)))
+    empty_cell_idc = list(itertools.product(range(i_len), range(j_len)))
 
     dart = np.empty((2,), dtype=float)
     pos = np.empty((N, 2), dtype=float)
@@ -448,7 +449,7 @@ def poisson_disc_filler(N, min_dist, boundary, exclude=None,
         pos = pos[:out_count]
         msg = f'Only {out_count} points generated (requested: {N}, iterations: {iter_count}).'
         if partial_fulfilment:
-            print(f'WARNING:', msg)
+            print('WARNING:', msg)
         else:
             raise ValueError(msg)
     return pos
