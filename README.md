@@ -18,3 +18,8 @@ Requirements
 ------------
 
 See [requirements.txt](interarray/requirements.txt) file.
+
+Documentation
+-------------
+
+The algorithms implemented in this repository (release 0.0.1) are presented and analysed in the MSc thesis [Optimization heuristics for offshore wind power plant collection systems design](https://findit.dtu.dk/en/catalog/62dddf80a41ba354e4ed35bc) (DTU Wind - Technical University of Denmark, July 4, 2022)
