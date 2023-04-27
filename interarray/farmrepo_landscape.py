@@ -39,23 +39,23 @@ g = namedtuplify(
     namedtuple_typename='FarmGraphs',
     # .xlsx files
     # 100 WTG
-    thanet=file2graph(datapath / 'Thanet.xlsx', rotate=49),
+    thanet=file2graph(datapath / 'Thanet.xlsx', rotation=49),
     # 80 WTG
-    dantysk=file2graph(datapath / 'DanTysk.xlsx', rotate=90),
+    dantysk=file2graph(datapath / 'DanTysk.xlsx', rotation=90),
     # 80 WTG
     horns=file2graph(datapath / 'Horns Rev 1.xlsx'),
     # 111 WTG
-    anholt=file2graph(datapath / 'Anholt.xlsx', rotate=84),
+    anholt=file2graph(datapath / 'Anholt.xlsx', rotation=84),
     # 108 WTG
-    sands=file2graph(datapath / 'West of Duddon Sands.xlsx', rotate=55),
+    sands=file2graph(datapath / 'West of Duddon Sands.xlsx', rotation=55),
     # 30 WTG
-    ormonde=file2graph(datapath / 'Ormonde.xlsx', rotate=45),
+    ormonde=file2graph(datapath / 'Ormonde.xlsx', rotation=45),
     # 175 WTG, 2 OSS
-    london=file2graph(datapath / 'London Array.xlsx', rotate=-95),
+    london=file2graph(datapath / 'London Array.xlsx', rotation=-95),
     # 27 WTG
-    rbn=file2graph(datapath / 'BIG Ronne Bank North.xlsx', rotate=-4),
+    rbn=file2graph(datapath / 'BIG Ronne Bank North.xlsx', rotation=-4),
     # 53 WTG
-    rbs=file2graph(datapath / 'BIG Ronne Bank South.xlsx', rotate=-2),
+    rbs=file2graph(datapath / 'BIG Ronne Bank South.xlsx', rotation=-2),
 
     # synthetic farms
     # 114 WTG
