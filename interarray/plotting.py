@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import subprocess
-import os
 from collections.abc import Sequence
 from collections import defaultdict
 import networkx as nx
@@ -14,6 +12,18 @@ import numpy as np
 # from numpngw import AnimatedPNGWriter
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from pygifsicle import gifsicle
+
+
+FONTSIZE_LABEL = 6
+FONTSIZE_LOAD = 8
+FONTSIZE_ROOT_LABEL = 6
+FONTSIZE_LEGEND_BOX = 7
+FONTSIZE_LEGEND_STRIP = 6
+NODESIZE = 18
+NODESIZE_LABELED = 70
+NODESIZE_LABELED_ROOT = 28
+NODESIZE_DETOUR = 80
+NODESIZE_LABELED_DETOUR = 150
 
 
 class LayoutPlotter():
@@ -34,8 +44,8 @@ class LayoutPlotter():
         # self.mm = mm = 25.4*dpi
         self.node_tag = node_tag
         self.G_base = G_base
-        self.root_node_size = 28 if self.node_tag is not None else 18
-        self.node_size = 70 if self.node_tag is not None else 18
+        self.root_node_size = NODESIZE_LABELED_ROOT if self.node_tag is not None else NODESIZE
+        self.node_size = NODESIZE_LABELED if self.node_tag is not None else NODESIZE
 
         log = [(0, [['nop', None]])]
         iprev = 0
@@ -141,7 +151,7 @@ class LayoutPlotter():
         self.SubtreeA = SubtreeA
 
         # draw labels
-        font_size = {'load': 8, 'label': 6}
+        font_size = {'load': FONTSIZE_LOAD, 'label': FONTSIZE_LABEL}
         node_tag = self.node_tag
         if node_tag is not None:
             if node_tag == 'load' and 'has_loads' not in G.graph:
@@ -155,7 +165,7 @@ class LayoutPlotter():
                 labels=labels)
             redraw.extend(self.labelsA.values())
         # root nodes' labels
-        redraw.extend(nx.draw_networkx_labels(G, pos, ax=ax, font_size=5,
+        redraw.extend(nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
                                               labels=RootL).values())
         redraw.append(self.draw_edges())
 
@@ -221,7 +231,7 @@ class LayoutPlotter():
                 pos[new] = VertexC[t_]
                 self.DetourNodeA[new] = nx.draw_networkx_nodes(
                     G, pos, ax=self.ax, nodelist=[new], alpha=0.4,
-                    edgecolors='orange', node_color='none', node_size=150)
+                    edgecolors='orange', node_color='none', node_size=NODESIZE_LABELED_DETOUR)
                 redraw.append(self.DetourNodeA[new])
             elif oper == 'movDN':
                 hook, corner, hook_, corner_ = args
@@ -232,7 +242,7 @@ class LayoutPlotter():
                     redraw.append(self.DetourNodeA[corner])
                     self.DetourNodeA[corner] = nx.draw_networkx_nodes(
                         G, pos, ax=self.ax, nodelist=[corner], alpha=0.4,
-                        edgecolors='orange', node_color='none', node_size=150)
+                        edgecolors='orange', node_color='none', node_size=NODESIZE_LABELED_DETOUR)
                     redraw.append(self.DetourNodeA[corner])
                 hook2cornerL = np.hypot(*(VertexC[hook_] -
                                           VertexC[corner_]).T)
@@ -335,9 +345,9 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
         else:
             figsize = (limX, limX/d)
 
-    root_size = 28
-    detour_size = 150 if node_tag is not None else 80
-    node_size = 60 if node_tag is not None else 28
+    root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
+    detour_size = NODESIZE_LABELED_DETOUR if node_tag is not None else NODESIZE_DETOUR
+    node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
     type2color = {}
     type2style = {}
@@ -429,7 +439,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                            linewidths=0.2, label='WTG')
 
     # draw labels
-    font_size = {'load': 7, 'label': 5}
+    font_size = {'load': FONTSIZE_LOAD, 'label': FONTSIZE_LABEL}
     if node_tag is not None:
         if node_tag == 'load' and 'has_loads' not in G.graph:
             node_tag = 'label'
@@ -445,7 +455,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                                 labels=labels)
     # root nodes' labels
     if node_tag is not None:
-        nx.draw_networkx_labels(G, pos, ax=ax, font_size=5,
+        nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
                                 labels=RootL)
     else:
         pass
@@ -457,8 +467,8 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
         ax.add_artist(bar)
 
     if 'capacity' in G.graph:
-        legend = [f'$\\kappa = {G.graph["capacity"]}$, '
-                  f'$N = {N}$']
+        legend = [f'$\\kappa$ = {G.graph["capacity"]}, '
+                  f'$N$ = {N}']
         feeder_info = [f'$\\phi_{{{rootL}}}$ = {len(G[r])}'
                        for r, rootL in RootL.items()]
         if 'overfed' in G.graph:
@@ -476,7 +486,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
     if ('has_costs' in G.graph):
         legend.append('{:.0f} €'.format(G.size(weight='cost')))
     if 'capacity' in G.graph:
-        infobox = ax.legend([], fontsize=7, title='\n'.join(legend),
+        infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX, title='\n'.join(legend),
                             labelspacing=0)  # ,   loc='upper right',
                             # bbox_to_anchor=(-0.04, 0.80, 1.08, 0))
                             # bbox_to_anchor=(-0.04, 1.03, 1.08, 0))
@@ -486,7 +496,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
         # pyplot.legend([l[0] for l in plot_lines], parameters, loc=4)
         # ax.add_artist(legstrip)
     if not dark:
-        legstrip = ax.legend(ncol=8, fontsize=6, loc='lower center',
+        legstrip = ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
                              frameon=False, bbox_to_anchor=(0.5, -0.07),
                              columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph:
