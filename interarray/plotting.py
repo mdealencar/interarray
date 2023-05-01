@@ -128,7 +128,7 @@ class LayoutPlotter():
         RootL = {r: G.nodes[r]['label'] for r in roots[::-1]}
         redraw.append(nx.draw_networkx_nodes(
             G, pos, ax=ax, nodelist=roots, node_color=self.root_color,
-            node_size=self.root_node_size))
+            node_shape='s', node_size=self.root_node_size))
 
         # draw regular nodes, one subtree at a time
         Subtree = self.Subtree
@@ -422,7 +422,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                                label='corner')
     nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=roots, linewidths=0.2,
                            node_color=root_color, edgecolors=node_edge,
-                           node_size=root_size,
+                           node_size=root_size, node_shape='s',
                            label='OSS')
     nx.draw_networkx_nodes(G, pos, nodelist=range(N), edgecolors=node_edge,
                            ax=ax, node_color=node_colors, node_size=node_size,
