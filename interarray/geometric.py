@@ -471,6 +471,8 @@ def delaunay(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
     return G
 
 
+# TODO: get new implementation from Xings.ipynb
+# xingsmat, edge_from_Eidx, Eidx__
 def get_crossings_map(Edge, VertexC, prune=True):
     crossings = defaultdict(list)
     for i, A in enumerate(Edge[:-1]):
@@ -489,42 +491,48 @@ def get_crossings_map(Edge, VertexC, prune=True):
 
 
 # TODO: test this implementation
-def full_graph(G_base, include_roots=False, prune=True, crossings=False):
+def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The weight of each edge is the euclidean distance between its vertices.'''
-    G = nx.Graph()
     M = G_base.graph['M']
     N = G_base.number_of_nodes() - M
     VertexC = G_base.graph['VertexC']
     NodeC = VertexC[:-M]
     RootC = VertexC[-M:]
     Root = range(-M, 0)
+    V = N + (M if include_roots else 0)
+    G = nx.complete_graph(V)
+    EdgeComplete = np.column_stack(np.triu_indices(V, k=1))
+    mask = np.zeros((V,), dtype=bool)
     if include_roots:
-        G = nx.complete_graph(N + M)
+        # mask root-root edges
+        offset = 0
+        for i in range(0, M - 1):
+            for j in range(0, M - i - 1):
+                mask[offset + j] = True
+            offset += (V - i - 1)
+
+        # make node indices span -M:(N - 1)
+        EdgeComplete -= M
         nx.relabel_nodes(G, dict(zip(range(N, N + M), Root)),
                          copy=False)
         C = cdist(VertexC, VertexC)
     else:
-        G = nx.complete_graph(N)
         C = cdist(NodeC, NodeC)
-    EdgeFull = np.array(G.edges())
     if prune:
         # prune edges that cover more than 90° angle from any root
-        SrcC = VertexC[EdgeFull[:, 0]]
-        DstC = VertexC[EdgeFull[:, 1]]
-        mask = np.zeros((EdgeFull.shape[0],), dtype=bool)
+        SrcC = VertexC[EdgeComplete[:, 0]]
+        DstC = VertexC[EdgeComplete[:, 1]]
         for root in Root:
             rootC = VertexC[root]
             # calculates the dot product of vectors representing the
             # nodes of each edge wrt root; then mark the negative ones
             # (angle > pi/2) on `mask`
             mask |= ((SrcC - rootC)*(DstC - rootC)).sum(axis=1) < 0
-        # discard edges that cover an arc > pi/2 seen from any root
-        G.remove_edges_from(EdgeFull[mask])
-        Edge = EdgeFull[~mask]
-    else:
-        Edge = EdgeFull
+    Edge = EdgeComplete[~mask]
+    # discard masked edges
+    G.remove_edges_from(EdgeComplete[mask])
     if crossings:
         # get_crossings_map() takes time and space
         G.graph['crossings'] = get_crossings_map(Edge, VertexC)

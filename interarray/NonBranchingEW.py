@@ -6,7 +6,7 @@ import operator
 import time
 import numpy as np
 from interarray.geometric import (delaunay, apply_edge_exemptions, angle,
-                                  edge_crossings, is_crossing, full_graph,
+                                  edge_crossings, is_crossing, complete_graph,
                                   is_same_side)
 from interarray.interarraylib import new_graph_like, NodeTagger
 from interarray.priorityqueue import PriorityQueue
@@ -60,7 +60,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         # else:
             # apply_edge_exemptions(A)
     else:
-        A = full_graph(G_base)
+        A = complete_graph(G_base)
     for u, v, data in A.edges(data=True):
         data['weight'] = weightfun(data)
     # removing root nodes from A to speedup find_option4gate
@@ -416,7 +416,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
             # faster, but only works if using the expanded delaunay edges
             eX = edge_crossings(u, v, G, triangles, triangles_exp)
         else:
-            # when using the edges of a full graph
+            # when using the edges of a complete graph
             # alternate way - slower
             eX = []
             eXtmp = []

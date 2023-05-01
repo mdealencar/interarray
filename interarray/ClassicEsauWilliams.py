@@ -6,7 +6,7 @@ import operator
 import time
 import numpy as np
 from interarray.geometric import (delaunay, apply_edge_exemptions,
-                                  is_same_side, full_graph, angle)
+                                  is_same_side, complete_graph, angle)
 from interarray.interarraylib import new_graph_like, NodeTagger
 from interarray.priorityqueue import PriorityQueue
 
@@ -57,7 +57,7 @@ def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
         # else:
             # apply_edge_exemptions(G_edges)
     else:
-        G_edges = full_graph(G_base)
+        G_edges = complete_graph(G_base)
     for u, v, data in G_edges.edges(data=True):
         data['weight'] = weightfun(data)
     # removing root nodes from G_edges to speedup find_option4gate
