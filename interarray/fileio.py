@@ -66,7 +66,7 @@ def file2graph(filename, rotation=None):
             for cell, header in (('A2', 'x (m)'),
                                  ('B2', 'y (m)')):
                 assert ws[cell].value == header
-            xy = [(x.value, y.value) for x, y in
+            xy = [(float(x.value), float(y.value)) for x, y in
                   ws.iter_rows(min_row=3, min_col=1, max_col=2) if
                   ((x.data_type == 'n') and
                   (y.data_type == 'n') and
@@ -81,7 +81,7 @@ def file2graph(filename, rotation=None):
                 if rotation is not None:
                     coords = rotate(np.array(xy), rotation).T
                 else:
-                    coords = np.array(tuple(zip(*xy)))
+                    coords = np.array(tuple(zip(*xy)), dtype=float)
                 data[key] = coords, labels
     # read Matlab mat file
     elif fpath.suffix == '.mat':
