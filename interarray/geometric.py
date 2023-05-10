@@ -5,7 +5,7 @@ import math
 from math import isclose
 import operator
 from collections import defaultdict
-from itertools import product
+from itertools import product, chain
 import functools
 import numpy as np
 import networkx as nx
@@ -14,6 +14,17 @@ from scipy.spatial.distance import cdist
 from interarray.interarraylib import NodeTagger, NodeStr
 
 F = NodeTagger()
+
+
+def triangle_AR(uC, vC, tC):
+    '''returns the aspect ratio of the triangle defined by the three 2D points
+    `uC`, `vC` and `tC`, which must be numpy arrays'''
+    lengths = np.hypot(*np.column_stack((vC - tC, tC - uC, uC - vC)))
+    den = (lengths.sum()/2 - lengths).prod()
+    if den == 0.:
+        return float('inf')
+    else:
+        return lengths.prod()/8/den
 
 
 def any_pairs_opposite_edge(NodesC, uC, vC, margin=0):
@@ -208,16 +219,20 @@ def is_bunch_split_by_corner(bunch, a, o, b, margin=1e-3):
     return split, np.flatnonzero(inside), np.flatnonzero(outside)
 
 
-def is_quadrilateral_convex(u, v, w, y):
-    '''(u, v) is the edge;
-    w, y are the opposing nodes;
+def is_triangle_pair_a_convex_quadrilateral(u, v, s, t):
+    '''⟨u, v⟩ is the common side;
+    ⟨s, t⟩ are the opposing vertices;
     returns False also if it is a triangle
-    only works if w and y are not on the same side of line u-v'''
-    # uw × uy
-    uwuy = np.cross(w - u, y - u)
-    # vy × vw
-    vyvw = np.cross(y - v, w - v)
-    return uwuy*vyvw > 100  # TODO: ARBITRARY - depends on scale
+    only works if ⟨s, t⟩ crosses the line defined by ⟨u, v⟩'''
+    # this used to be called `is_quadrilateral_convex()`
+    # us × ut
+    usut = np.cross(s - u, t - u)
+    # vt × vs
+    vtvs = np.cross(t - v, s - v)
+    if usut == 0 or vtvs == 0:
+        # the four vertices form a triangle
+        return False
+    return (usut > 0) == (vtvs > 0)
 
 
 def is_same_side(L1, L2, A, B, touch_is_cross=True):
@@ -246,9 +261,9 @@ def is_blocking(root, u, v, w, y):
     # w and y are necessarily on opposite sides of uv
     # (because of Delaunay – see the triangles construction)
     # hence, if (root, y) are on the same side, (w, root) are not
-    return (is_quadrilateral_convex(u, v, w, root)
+    return (is_triangle_pair_a_convex_quadrilateral(u, v, w, root)
             if is_same_side(u, v, root, y)
-            else is_quadrilateral_convex(u, v, root, y))
+            else is_triangle_pair_a_convex_quadrilateral(u, v, root, y))
 
 
 def apply_edge_exemptions(G, allow_edge_deletion=True):
@@ -309,6 +324,7 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
                   '–'.join([F[n] for n in (u, v)]), '»')
 
 
+# TODO: rewrite using G.graph['planar'] or G.graph['xings']
 def edge_crossings(u, v, G, triangles, triangles_exp):
     '''
     This only works for subgraphs of a delaunay base with add_diagonals=True.
@@ -341,7 +357,188 @@ def edge_crossings(u, v, G, triangles, triangles_exp):
     return crossings
 
 
-def delaunay(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
+def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
+             **qhull_options):
+    '''Creates a networkx graph from the Delaunay triangulation
+    of the point in coordinates. The weights of each edge is the
+    euclidean distance between its vertices.'''
+    V = G_base.number_of_nodes()
+    M = G_base.graph['M']
+    N = V - M
+    VertexC = G_base.graph['VertexC']
+
+    SwappedVertexC = np.vstack((VertexC[-M:], VertexC[:N]))
+    tri = Delaunay(SwappedVertexC)
+
+    NULL = np.iinfo(tri.simplices.dtype).min
+    mat = np.full((V, V), NULL, dtype=tri.simplices.dtype)
+
+    S = tri.simplices - M
+    mat[S[:, 0], S[:, 1]] = S[:, 2]
+    mat[S[:, 1], S[:, 2]] = S[:, 0]
+    mat[S[:, 2], S[:, 0]] = S[:, 1]
+    del S
+
+    # getting rid of nearly flat Delaunay triangles
+    # qhull (used by scipy) seems not able to do it
+    # reference: http://www.qhull.org/html/qh-faq.htm#flat
+    old_hull = [(u, v) if u < v else (v, u) for u, v in tri.convex_hull - M]
+    new_hull = []
+    while old_hull:
+        u, v = old_hull.pop()
+        t = max(mat[u, v], mat[v, u])
+        AR = triangle_AR(*VertexC[(u, v, t),])
+        if AR > MAX_ASPECT:
+            if min(u, v, t) < 0 and AR < 10*MAX_ASPECT:
+                # when considering root nodes, be less strict with AR
+                if (u, v) not in new_hull:
+                    new_hull.append((u, v))
+                continue
+            # print(ut, vt, AR)
+            ut = (u, t) if u < t else (t, u)
+            if ut not in old_hull:
+                old_hull.append(ut)
+            vt = (v, t) if v < t else (t, v)
+            if vt not in old_hull:
+                old_hull.append(vt)
+            mat[u, v] = mat[v, u] = NULL
+            for a, b, c in ((u, t, v), (t, u, v), (v, t, u), (t, v, u)):
+                if mat[a, b] == c:
+                    mat[a, b] = NULL
+        else:
+            if (u, v) not in new_hull:
+                new_hull.append((u, v))
+
+    planar = nx.PlanarEmbedding()
+    planar.add_nodes_from(range(-M, N))
+    # add planar embedding half-edges, using
+    # Delaunay triangles (vertices in ccw order)
+    # triangles are stored in `mat`
+    # i.e. mat[u, v] == t if u, v, t are vertices
+    # of a triangle in ccw order
+    # for u, next_ in enumerate(mat, start=-M):
+
+    # diagonals store an edge ⟨s, t⟩ as key (s < t)
+    # and a reference node `v` as value; to add a
+    # diagonal to a PlanarEmbedding use these two lines:
+    # PlanarEmbedding.add_half_edge_ccw(s, t, v)
+    # PlanarEmbedding.add_half_edge_cw(t, s, v)
+    #
+    # to find u, one can use:
+    # PlanarEmbedding.next_face_half_edge(v, s)[1]
+    diagonals = {}
+
+    for u, next_ in zip(chain(range(N), range(-M, 0)), mat):
+        # first rotate ccw, so next_ is a row
+        # get any of node's edge
+        # argmax() of boolean may use shortcircuiting logic
+        # which means it would stop searching on the first True
+        first = (next_ >= 0).argmax()
+        back = mat[first, u]
+        v = first
+        fwd = next_[v]
+        planar.add_half_edge_first(u, v)
+        if back != NULL and fwd != NULL:
+            uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
+            s, t = (back, fwd) if back < fwd else (fwd, back)
+            if ((s, t) not in diagonals
+                    and triangle_AR(fwdC, uC, backC) < MAX_ASPECT
+                    and triangle_AR(fwdC, vC, backC) < MAX_ASPECT
+                    and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC, fwdC)):
+                diagonals[(s, t)] = v if s == back else u
+        # start by circling vertex u in ccw direction
+        add = planar.add_half_edge_ccw
+        ccw = True
+        # when fwd == first, all triangles around vertex u
+        # have been visited
+        while fwd != first:
+            if fwd != NULL:
+                back = v
+                v = fwd
+                fwd = next_[v]
+                add(u, v, back)
+                if fwd != NULL:
+                    uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
+                    s, t = (back, fwd) if back < fwd else (fwd, back)
+                    if ((s, t) not in diagonals
+                            and triangle_AR(fwdC, uC, backC) < MAX_ASPECT
+                            and triangle_AR(fwdC, vC, backC) < MAX_ASPECT
+                            and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC, fwdC)):
+                        if ccw:
+                            diagonals[(s, t)] = v if s == back else u
+                        else:
+                            diagonals[(s, t)] = u if s == back else v
+            elif ccw:
+                # ccw direction reached the convex hull
+                # start from first again in cw direction
+                add = planar.add_half_edge_cw
+                ccw = False
+                # when going cw, next_ is a column
+                next_ = mat[:, u]
+                back = mat[u, first]
+                v = first
+                fwd = next_[v]
+            else:
+                # cw direction ended at the convex hull
+                break
+    del mat
+    # raise an exception if `planar` is not proper:
+    planar.check_structure()
+
+    # store the Delaunay edges in an array
+    delaunay_edges = np.empty((planar.number_of_edges()//2, 2), dtype=int)
+    i = 0
+    for u, v in planar.edges:
+        if u < v:
+            delaunay_edges[i] = u, v
+            i += 1
+
+    # build the undirected graph
+    A = nx.Graph(G_base)
+    A.graph['delaunay_edges'] = delaunay_edges
+    A.graph['planar'] = planar
+    A.add_edges_from(planar.to_undirected(as_view=True).edges)
+    if add_diagonals:
+        for s, t in diagonals:
+            A.add_edge(s, t)
+            # the reference vertex `v` that `diagonals` carries
+            # could be stored as edge ⟨s, t⟩'s property (that
+            # property would also mark the edge as a diagonal)
+            A.graph['diagonals'] = diagonals
+            # see `diagonals` declaration for info on usage
+
+    # TODO: update other code that uses the data below
+    # old version of delaunay() also stored these:
+    # save the convex hull node set
+    # G.graph['N_hull'] = N_hull  # only in geometric.py
+    # save the convex hull edge set
+    # G.graph['E_hull'] = E_hull  # only in geometric.py
+
+    # these two are more important, as they are used in EW
+    # variants that do crossing checks (calls to `edge_crossings()`)
+    # G.graph['triangles'] = triangles
+    # G.graph['triangles_exp'] = triangles_exp
+
+    do_graph_metrics(A)
+    return A
+
+
+def do_graph_metrics(G):
+    V = G.number_of_nodes()
+    M = G.graph['M']
+    N = V - M
+    VertexC = G.graph['VertexC']
+    RootC = VertexC[N:]
+    for u, v, edgeD in list(G.edges(data=True)):
+        # assign the edge to the root closest to the edge's middle point
+        edgeD['root'] = -M + np.argmin(
+            cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
+        # add edges' lengths
+        u2v = np.hypot(*(VertexC[u] - VertexC[v]).T)
+        edgeD['length'] = u2v
+
+
+def delaunay_deprecated(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
              threshold=2.15, **qhull_options):
     '''Creates a networkx graph from the Delaunay triangulation
     of the point in coordinates. The weights of each edge is the
@@ -454,11 +651,11 @@ def delaunay(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
                 w, y = opposites
                 uC, vC, wC, yC = VertexC[[u, v, w, y]]
                 w2y = np.hypot(*(wC - yC).T)
-                if ((not ((w in N_hull) and (y in N_hull))) and
-                        (w2y < u2v*threshold) and
-                        is_quadrilateral_convex(uC, vC, wC, yC) and
-                        (abs(np.cross(wC - uC, yC - uC)) > MIN_TRI_AREA) and
-                        (abs(np.cross(wC - vC, yC - vC)) > MIN_TRI_AREA)):
+                if ((not ((w in N_hull) and (y in N_hull)))
+                        and (w2y < u2v*threshold)
+                        and is_triangle_pair_a_convex_quadrilateral(uC, vC, wC, yC)
+                        and (abs(np.cross(wC - uC, yC - uC)) > MIN_TRI_AREA)
+                        and (abs(np.cross(wC - vC, yC - vC)) > MIN_TRI_AREA)):
                     wy_root = -M + np.argmin(
                         cdist(((VertexC[w] + VertexC[y])/2)[np.newaxis, :],
                               RootC))
@@ -547,6 +744,32 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
         edgeD['root'] = -M + np.argmin(
             cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
     return G
+
+
+def A_graph(G_base, weightfun=None, delaunay_base=True):
+    '''Return the "available edges" graph that is the base for edge search in Esau-Williams.
+    If `delaunay_base` is True, the edges are the expanded Delaunay triangulation, otherwise
+    a complete graph is returned.'''
+    if delaunay_base:
+        A = delaunay(G_base)
+        if weightfun is not None:
+            apply_edge_exemptions(A)
+    else:
+        A = complete_graph(G_base, include_roots=True)
+        # intersections
+        # I = get_crossings_list(np.array(A.edges()), VertexC)
+
+    if weightfun is None:
+        for u, v, data in A.edges(data=True):
+            data['weight'] = data['length']
+    else:
+        for u, v, data in A.edges(data=True):
+            data['weight'] = weightfun(data)
+
+    # remove all gates from A
+    # TODO: decide about this line
+    # A.remove_edges_from(list(A.edges(range(-M, 0))))
+    return A
 
 
 # TODO: MARGIN is ARBITRARY - depends on the scale

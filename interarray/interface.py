@@ -55,7 +55,7 @@ def assign_cables(G, cables):
     G.graph['has_costs'] = True
 
 
-def G_from_XYM(X, Y, M=1, name='unnamed', boundary = None):
+def G_from_XYM(X, Y, M=1, name='unnamed', boundary=None):
     '''
     This function assumes that the first M vertices are OSSs
     X: x coordinates of vertices
