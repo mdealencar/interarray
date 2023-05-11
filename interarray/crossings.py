@@ -1,8 +1,74 @@
 import operator
+import math
 import numpy as np
 from interarray.geometric import is_same_side
 from interarray.interarraylib import make_graph_metrics
 import networkx as nx
+
+
+def get_crossings_list(Edge, VertexC):
+    '''List all crossings between edges in the `Edge` E×2 numpy array.
+    Coordinates must be provided in the `VertexC` V×2 array.
+    
+    Used when edges are not limited to the expanded Delaunay set.'''
+    crossings = []
+    V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
+    for i, ((UVx, UVy), (u, v)) in enumerate(zip(V, Edge[:-1])):
+        uCx, uCy = VertexC[u]
+        vCx, vCy = VertexC[v]
+        for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:], start=i+1)):
+            if s == u or t == u or s == v or t == v:
+                # <edges have a common node>
+                continue
+            # bounding box check
+            sCx, sCy = VertexC[s]
+            tCx, tCy = VertexC[t]
+
+            # X
+            lo, hi = (vCx, uCx) if UVx < 0 else (uCx, vCx)
+            if STx > 0:
+                if hi < tCx or sCx < lo:
+                    continue
+            else:
+                if hi < sCx or tCx < lo:
+                    continue
+
+            # Y
+            lo, hi = (vCy, uCy) if UVy < 0 else (uCy, vCy)
+            if STy > 0:
+                if hi < tCy or sCy < lo:
+                    continue
+            else:
+                if hi < sCy or tCy < lo:
+                    continue
+
+            # TODO: save the edges that have interfering bounding boxes
+            #       to be checked in a vectorized implementation of
+            #       the math below
+            UV = UVx, UVy
+            ST = STx, STy
+
+            # denominator
+            f = STx*UVy - STy*UVx
+            # print('how close: ', f)
+            # TODO: arbitrary threshold
+            if math.isclose(f, 0, abs_tol=1e-3):
+                # segments are parallel
+                continue
+
+            C = uCx - sCx, uCy - sCy
+            # alpha and beta numerators
+            for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, ST), (UV, C))):
+                if f > 0:
+                    if less(num, 0) or less(f, num):
+                        continue
+                else:
+                    if less(0, num) or less(num, f):
+                        continue
+
+            # segments do cross
+            crossings.append((u, v, s, t))
+    return crossings
 
 
 def edgeXing_iter(u, v, G, A):
@@ -146,6 +212,7 @@ def gateXing_iter(A, all_gates=True, touch_is_cross=True):
     If `A` does not include gates, all nodes will be considered as gates.
     Arguments:
     - all_gates: if True, consider all nodes as gates, otherwise use A's gates
+    - touch_is_cross: if True, count as crossing a gate going over a node
 
     Used in constraint generation for MILP model.
     '''

@@ -325,6 +325,8 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
 
 
 # TODO: rewrite using G.graph['planar'] or G.graph['xings']
+# possibly deprecated, since delaunay does not create
+# triangles and triangles_exp anymore
 def edge_crossings(u, v, G, triangles, triangles_exp):
     '''
     This only works for subgraphs of a delaunay base with add_diagonals=True.
