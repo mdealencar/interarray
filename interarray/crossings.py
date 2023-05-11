@@ -6,6 +6,7 @@ import networkx as nx
 
 
 def edgeXing_iter(u, v, G, A):
+    '''This is broken, do not use!'''
     planar = A.graph['planar']
     _, s = A.next_face_half_edge(u, v)
     _, t = A.next_face_half_edge(v, u)
@@ -42,7 +43,9 @@ def layout_edgeXing_iter(G, A):
 
 
 def edgeset_edgeXing_iter(A, include_roots=False):
-    '''returns all crossings of edges in an Available edge set'''
+    '''Iterator over all edge crossings in an expanded
+    Delaunay edge set `A`. Each crossing is a 2 or 3-tuple
+    of (u, v) edges.'''
     planar = A.graph['planar']
     checked = set()
     # iterate over all Delaunay edges
@@ -88,8 +91,12 @@ def edgeset_edgeXing_iter(A, include_roots=False):
 
 
 # adapted edge_crossings() from geometric.py
+# delaunay() does not create `triangles` and `triangles_exp`
+# anymore, so this is broken
 def edgeXing_iter_deprecated(A):
     '''
+    This is broken, do not use!
+    
     Iterates over all pairs of crossing edges in `A`. This assumes `A`
     has only expanded Delaunay edges (with triangles and triangles_exp).
 
@@ -138,7 +145,6 @@ def gateXing_iter(A, all_gates=True, touch_is_cross=True):
     Iterate over all crossings between non-gate edges and gate edges of `A`.
     If `A` does not include gates, all nodes will be considered as gates.
     Arguments:
-    - directed_edges: if True, output edge crossings for both directions.
     - all_gates: if True, consider all nodes as gates, otherwise use A's gates
 
     Used in constraint generation for MILP model.
