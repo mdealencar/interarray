@@ -37,11 +37,11 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
 
     # Sets
 
+    A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     # the model uses directed edges (except for gate edges), so a duplicate
     # set of edges is created with the reversed tuples
     E = tuple(((u, v) if u < v else (v, u))
-              for u, v in 
-              nx.subgraph_view(A, filter_node=lambda n: n >= 0).edges())
+              for u, v in A_nodes.edges())
     Eʹ = tuple((v, u) for u, v in E)
 
     m.diE = pyo.Set(initialize=E + Eʹ)
@@ -164,7 +164,7 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
     m.cons_flow_conservation = pyo.Constraint(
         m.N,
         rule=lambda m, u: (sum((m.De[u, v] - m.De[v, u])
-                               for v in A.neighbors(u))
+                               for v in A_nodes.neighbors(u))
                            + sum(m.Dg[r, u] for r in m.R)) == 1
     )
 
@@ -182,7 +182,7 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
         # limited by the m.cons_one_out_edge
         m.non_branching = pyo.Constraint(
             m.N,
-            rule=lambda m, u: sum(m.Be[v, u] for v in A.neighbors(u)) <= 1
+            rule=lambda m, u: sum(m.Be[v, u] for v in A_nodes.neighbors(u)) <= 1
         )
 
     # assert all nodes are connected to some root
@@ -196,11 +196,11 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
     )
     m.cons_incoming_demand_limit = pyo.Constraint(
         m.N,
-        rule=lambda m, u: sum(m.De[v, u] for v in A.neighbors(u)) <= m.k - 1
+        rule=lambda m, u: sum(m.De[v, u] for v in A_nodes.neighbors(u)) <= m.k - 1
     )
     m.cons_one_out_edge = pyo.Constraint(
         m.N,
-        rule=lambda m, u: (sum(m.Be[u, v] for v in A.neighbors(u))
+        rule=lambda m, u: (sum(m.Be[u, v] for v in A_nodes.neighbors(u))
                            + sum(m.Bg[r, u] for r in m.R) == 1)
     )
 
