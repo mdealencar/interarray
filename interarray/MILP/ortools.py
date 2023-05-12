@@ -113,7 +113,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                 min_gates,
                 gates_limit)
     else:
-        # minimum number of gates
+        # valid inequality: number of gates is at least the minimum
         m.Add(min_gates <= sum(Bg[r, n] for r in range(-M, 0) for n in range(N)))
 
     if not branching:
