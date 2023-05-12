@@ -9,7 +9,7 @@ import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
 # from heapq import heappush, heappop
-from interarray.geometric import (delaunay, apply_edge_exemptions,
+from interarray.geometric import (delaunay_deprecated, apply_edge_exemptions,
                                   edge_crossings, is_crossing, complete_graph,
                                   angle,
                                   is_same_side, is_bunch_split_by_corner)
@@ -101,7 +101,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
 
     # crossings = G_base.graph['crossings']
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    A = delaunay(G_base)
+    A = delaunay_deprecated(G_base)
     triangles = A.graph['triangles']
     triangles_exp = A.graph['triangles_exp']
     # apply weightfun on all delaunay edges

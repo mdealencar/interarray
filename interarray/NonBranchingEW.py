@@ -5,7 +5,7 @@ from collections import namedtuple
 import operator
 import time
 import numpy as np
-from interarray.geometric import (delaunay, apply_edge_exemptions, angle,
+from interarray.geometric import (delaunay_deprecated, apply_edge_exemptions, angle,
                                   edge_crossings, is_crossing, complete_graph,
                                   is_same_side)
 from interarray.interarraylib import new_graph_like, NodeTagger
@@ -50,7 +50,7 @@ def NBEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
     if delaunay_base:
-        A = delaunay(G_base)
+        A = delaunay_deprecated(G_base)
         triangles = A.graph['triangles']
         triangles_exp = A.graph['triangles_exp']
         # apply weightfun on all delaunay edges
