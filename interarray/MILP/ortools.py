@@ -99,8 +99,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
               + sum(Dg[r, u] for r in range(-M, 0)) == 1)
 
     # gates limit
+    min_gates = math.ceil(N/k)
     if gates_limit:
-        min_gates = math.ceil(N/k)
         if isinstance(gates_limit, bool) or gates_limit == min_gates:
             # fixed number of gates
             m.Add((sum(Bg[r, u] for r in range(-M, 0) for u in range(N))
