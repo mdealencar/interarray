@@ -1,4 +1,6 @@
 # Do not count jupyter notebooks in the programming language statistics
 *.ipynb linguist-documentation
+example*.ipynb export-ignore
+videos export-ignore
 .gitattributes export-ignore
 .gitignore export-ignore
