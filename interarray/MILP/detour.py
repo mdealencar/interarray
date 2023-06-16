@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# https://github.com/mdealencar/interarray
+
 import numpy as np
 from interarray.interarraylib import NodeTagger, NodeStr
 from scipy.spatial.distance import cdist

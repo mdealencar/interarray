@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# https://github.com/mdealencar/interarray
+
 import networkx as nx
 from ortools.sat.python import cp_model
 import numpy as np

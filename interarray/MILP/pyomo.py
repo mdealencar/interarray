@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# https://github.com/mdealencar/interarray
+
 import pyomo.environ as pyo
 import networkx as nx
 import numpy as np
