@@ -76,8 +76,9 @@ def graph_from_edgeset(edgeset):
     assert abs(calc_length - edgeset.length) < 1, (
         f'{calc_length} != {edgeset.length}')
 
-    miscdict = pickle.loads(edgeset.misc)
-    G.graph['iterations'] = miscdict['iterations']
+    if edgeset.misc is not None:
+        miscdict = pickle.loads(edgeset.misc)
+        G.graph['iterations'] = miscdict.get('iterations', 1)
     # make_graph_metrics(G)
     calcload(G)
     return G
