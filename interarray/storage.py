@@ -102,7 +102,10 @@ def edgeset_from_graph(G):
     # cableset
     # misc = pickle.dumps({key: G.graph[key] for key in G.graph.keys() - misc_not})
     edgepack = dict(
-            edges=pickle.dumps(np.array([(u, v) for u, v in G.edges])),
+            #  edges=pickle.dumps(np.array([(u, v) for u, v in G.edges])),
+            edges=pickle.dumps(
+                np.array([((u, v) if u < v else (v, u))
+                          for u, v in G.edges])),
             length=G.size(weight='length'),
             gates=[len(G[root]) for root in range(-M, 0)],
             capacity=G.graph['capacity'],
