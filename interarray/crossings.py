@@ -206,14 +206,15 @@ def edgeXing_iter_deprecated(A):
                        ((c, d) if c < d else (d, c)))
 
 
-def gateXing_iter(A, all_gates=True, touch_is_cross=True):
+def gateXing_iter(A, gates=None, touch_is_cross=True):
     '''
-    Iterate over all crossings between non-gate edges and gate edges of `A`.
-    If `A` does not include gates, all nodes will be considered as gates.
+    Iterate over all crossings between non-gate edges and the edges in `gates`.
+    If `gates` is not provided, the gates that are not in `A` will be used.
     Arguments:
-    - all_gates: if True, consider all nodes as gates, otherwise use A's gates
-    - touch_is_cross: if True, count as crossing a gate going over a node
+    - `gates`: iterable returning one list of gate nodes per root; if None, use all nodes
+    - `touch_is_cross`: if True, count as crossing a gate going over a node
 
+    The order of items in `gates` must correspond to roots in range(-M, 0).
     Used in constraint generation for MILP model.
     '''
     M = A.graph['M']
@@ -227,12 +228,16 @@ def gateXing_iter(A, all_gates=True, touch_is_cross=True):
     anglesYhp = A.graph['anglesYhp']
     # iterable of non-gate edges:
     Edge = nx.subgraph_view(A, filter_node=lambda n: n >= 0).edges()
-    if all_gates or sum(A.degree(r) for r in roots) == 0:
+    if gates is None:
+        # use Ellipsis to index the entire dimension (later in the code)
+        IGate = (...,)*M
+    # if all_gates or sum(A.degree(r) for r in roots) == 0:
         # consider gates from all nodes
-        IGate = (slice(None),)*M
-    else:
+        # IGate = (slice(None),)*M
+    # else:
         # only consider as gates the nodes connected to a root
-        IGate = tuple(list(A.neighbors(r)) for r in roots)
+        # TODO: exclude from view gates that are in the expanded Delaunay graph
+        # IGate = tuple(list(A.neighbors(r)) for r in roots)
     # it is important to consider touch as crossing
     # because if a gate goes precisely through a node
     # there will be nothing to prevent it from spliting
@@ -258,9 +263,12 @@ def gateXing_iter(A, all_gates=True, touch_is_cross=True):
                 # <u, v> does not wrap across zero
                 is_rank_within = np.logical_and(less(lowRank, gaterank),
                                                 less(gaterank, highRank))
-            for n in np.flatnonzero(is_rank_within):
-                if not isinstance(iGate, slice):
-                    n = iGate[n]
+            node_subset = np.flatnonzero(is_rank_within)
+            if iGate is not ...:
+                node_subset = iGate[node_subset]
+            for n in node_subset:
+                # this test confirms the crossing because it was previously
+                # stablished that root–n is on a line crossing u–v (is_rank_within)
                 if not is_same_side(uC, vC, rootC, VertexC[n]):
                     u, v = (u, v) if u < v else (v, u)
                     yield u, v, root, n

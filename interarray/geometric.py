@@ -236,8 +236,13 @@ def is_triangle_pair_a_convex_quadrilateral(u, v, s, t):
 
 
 def is_same_side(L1, L2, A, B, touch_is_cross=True):
-    '''check if points A an B are on the same side
-    of the line defined by points L1 and L2'''
+    '''Check if points A an B are on the same side
+    of the line defined by points L1 and L2.
+
+    Note: often used to check crossings with gate edges,
+    where the gate edge A-B is already known to be on a line
+    that crosses the edge L1–L2 (using the angle rank).'''
+
     # greater = operator.gt if touch_is_cross else operator.ge
     greater = operator.ge if touch_is_cross else operator.gt
     # print(L1, L2, A, B)

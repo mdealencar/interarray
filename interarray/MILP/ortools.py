@@ -37,8 +37,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     # Sets
 
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
-    # the model uses directed edges (except for gate edges), so a duplicate
-    # set of edges is created with the reversed tuples
+    # the model uses directed edges, so a duplicate set of edges
+    # is created with the reversed tuples (except for gate edges)
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
 
