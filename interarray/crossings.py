@@ -231,6 +231,8 @@ def gateXing_iter(A, gates=None, touch_is_cross=True):
     if gates is None:
         # use Ellipsis to index the entire dimension (later in the code)
         IGate = (...,)*M
+    else:
+        IGate = gates
     # if all_gates or sum(A.degree(r) for r in roots) == 0:
         # consider gates from all nodes
         # IGate = (slice(None),)*M
