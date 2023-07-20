@@ -539,10 +539,8 @@ def do_graph_metrics(G):
     RootC = VertexC[N:]
     for u, v, edgeD in list(G.edges(data=True)):
         # assign the edge to the root closest to the edge's middle point
-        Dist = cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC)
-        m = np.argmin(Dist)
-        edgeD['root'] = -M + m
-        edgeD['dist'] = Dist[m]
+        edgeD['root'] = -M + np.argmin(
+            cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
         # add edges' lengths
         u2v = np.hypot(*(VertexC[u] - VertexC[v]).T)
         edgeD['length'] = u2v
