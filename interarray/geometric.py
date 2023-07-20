@@ -511,8 +511,8 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
             # the reference vertex `v` that `diagonals` carries
             # could be stored as edge ⟨s, t⟩'s property (that
             # property would also mark the edge as a diagonal)
-            A.graph['diagonals'] = diagonals
-            # see `diagonals` declaration for info on usage
+        A.graph['diagonals'] = diagonals
+        # see `diagonals` declaration for info on usage
 
     # TODO: update other code that uses the data below
     # old version of delaunay() also stored these:
