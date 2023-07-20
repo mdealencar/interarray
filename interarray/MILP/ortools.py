@@ -171,6 +171,8 @@ def MILP_solution_to_G(solver, model, A):
     G = nx.create_empty_copy(A)
     M = G.graph['M']
     N = G.number_of_nodes() - M
+    P = A.graph['planar'].copy()
+    diagonals = A.graph['diagonals']
 
     # gates
     gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
@@ -188,14 +190,13 @@ def MILP_solution_to_G(solver, model, A):
                                for u, v, data in A.edges(data=True)})
 
     # take care of gates that were not in A
-    gates_not_in_A = G.graph['gates_not_in_A'] = []
+    gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
     d2roots = A.graph['d2roots']
     for r, n, _ in gates_and_loads:
-        if (r, n) not in A.edges:
-            gates_not_in_A.append((r, n))
+        if n not in A[r]:
+            gates_not_in_A[r].append(n)
             edgeD = G[n][r]
-            edgeD['length'] = d2roots[n, r]
-            edgeD['weight'] = d2roots[n, r]
+            edgeD['length'] = edgeD['weight'] = d2roots[n, r]
 
     # propagate loads from edges to nodes
     subtree = -1
@@ -212,7 +213,17 @@ def MILP_solution_to_G(solver, model, A):
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
             Root[v] = r
-
+            # update the planar embedding to include any Delaunay diagonals used in G
+            # the corresponding crossing Delaunay edge is removed
+            u, v = (u, v) if u < v else (v, u)
+            s = diagonals.get((u, v))
+            if s is not None:
+                t = P[u][s]['ccw']  # same as P[v][s]['cw']
+                P.add_half_edge_cw(u, v, t)
+                P.add_half_edge_cw(v, u, s)
+                P.remove_edge(s, t)
+    
+    G.graph['planar'] = P
     G.graph['Subtree'] = Subtree
     G.graph['Root'] = Root
     G.graph['gnT'] = gnT

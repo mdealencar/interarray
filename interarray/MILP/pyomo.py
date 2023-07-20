@@ -213,7 +213,9 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
         sense=pyo.minimize,
     )
 
+    # TODO: remove redundancy and make it more uniform wrt ortools.py
     m.site = {k: A.graph[k] for k in ('M', 'VertexC', 'boundary', 'name')}
+    m.A = A
 
     return m
 
@@ -223,6 +225,8 @@ def MILP_solution_to_G(model):
     G = G_from_site(model.site)
     M = model.site['M']
     N = G.number_of_nodes() - M
+    P = model.A.graph['planar'].copy()
+    diagonals = model.A.graph['diagonals']
 
     # gates
     G.add_weighted_edges_from(
@@ -239,6 +243,16 @@ def MILP_solution_to_G(model):
         weight='load'
     )
 
+    # transfer edge attributes from A to G
+    nx.set_edge_attributes(
+        G, {(u, v): data
+            for u, v, data in model.A.edges(data=True)})
+    # if A is not available, use model.d
+    # to store edge costs as edge attribute
+    # nx.set_edge_attributes(G, model.d, 'length')
+
+    gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
+
     # propagate loads from edges to nodes
     subtree = -1
     Subtree = defaultdict(list)
@@ -247,23 +261,37 @@ def MILP_solution_to_G(model):
     for r in range(-M, 0):
         nx.set_edge_attributes(G, model.g, 'length')
         for u, v in nx.edge_dfs(G, r):
-            G.nodes[v]['load'] = G.edges[u, v]['load']
+            G.nodes[v]['load'] = G[u][v]['load']
             if u == r:
                 subtree += 1
                 gate = v
+                # check if gate is not expanded Delaunay
+                if v not in model.A[r]:
+                    # A may not have some gate edges
+                    G[u][v]['length'] = model.g[(u, v)]
+                    gates_not_in_A[r].append(v)
             Subtree[gate].append(v)
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
             Root[v] = r
+            # update the planar embedding to include any Delaunay diagonals used in G
+            # the corresponding crossing Delaunay edge is removed
+            u, v = (u, v) if u < v else (v, u)
+            s = diagonals.get((u, v))
+            if s is not None:
+                t = P[u][s]['ccw']  # same as P[v][s]['cw']
+                P.add_half_edge_cw(u, v, t)
+                P.add_half_edge_cw(v, u, s)
+                P.remove_edge(s, t)
 
+    G.graph['planar'] = P
     G.graph['Subtree'] = Subtree
     G.graph['Root'] = Root
     G.graph['gnT'] = gnT
-    nx.set_edge_attributes(G, model.d, 'length')
     G.graph['capacity'] = model.k.value
     G.graph['overfed'] = [len(G[r])/math.ceil(N/model.k.value)*M
                           for r in range(-M, 0)]
-    G.graph['edges_created_by'] = 'MILP pyomo'
+    G.graph['edges_created_by'] = 'MILP.pyomo'
     G.graph['has_loads'] = True
 
     return G
