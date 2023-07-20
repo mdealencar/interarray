@@ -428,11 +428,12 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
     # diagonals store an edge ⟨s, t⟩ as key (s < t)
     # and a reference node `v` as value; to add a
     # diagonal to a PlanarEmbedding use these two lines:
-    # PlanarEmbedding.add_half_edge_ccw(s, t, v)
-    # PlanarEmbedding.add_half_edge_cw(t, s, v)
-    #
+    #     PlanarEmbedding.add_half_edge_ccw(s, t, v)
+    #     PlanarEmbedding.add_half_edge_cw(t, s, v)
     # to find u, one can use:
-    # PlanarEmbedding.next_face_half_edge(v, s)[1]
+    #     _, u = PlanarEmbedding.next_face_half_edge(v, s)
+    # or:
+    #     u = PlanarEmbedding[v][s]['cw']
     diagonals = {}
 
     for u, next_ in zip(chain(range(N), range(-M, 0)), mat):
@@ -538,8 +539,10 @@ def do_graph_metrics(G):
     RootC = VertexC[N:]
     for u, v, edgeD in list(G.edges(data=True)):
         # assign the edge to the root closest to the edge's middle point
-        edgeD['root'] = -M + np.argmin(
-            cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
+        Dist = cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC)
+        m = np.argmin(Dist)
+        edgeD['root'] = -M + m
+        edgeD['dist'] = Dist[m]
         # add edges' lengths
         u2v = np.hypot(*(VertexC[u] - VertexC[v]).T)
         edgeD['length'] = u2v
