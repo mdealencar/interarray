@@ -259,7 +259,6 @@ def MILP_solution_to_G(model):
     gnT = np.empty((N,), dtype=int)
     Root = np.empty((N,), dtype=int)
     for r in range(-M, 0):
-        nx.set_edge_attributes(G, model.g, 'length')
         for u, v in nx.edge_dfs(G, r):
             G.nodes[v]['load'] = G[u][v]['load']
             if u == r:
@@ -268,7 +267,7 @@ def MILP_solution_to_G(model):
                 # check if gate is not expanded Delaunay
                 if v not in model.A[r]:
                     # A may not have some gate edges
-                    G[u][v]['length'] = model.g[(u, v)]
+                    G[u][v]['length'] = G[u][v]['weight'] = model.g[(u, v)]
                     gates_not_in_A[r].append(v)
             Subtree[gate].append(v)
             G.nodes[v]['subtree'] = subtree
