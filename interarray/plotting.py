@@ -352,10 +352,12 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
     type2color = {}
     type2style = {}
     type2style['detour'] = 'dashed'
+    type2style['scaffold'] = 'dotted'
     type2style['unspecified'] = 'solid'
     if dark:
         scalebar = False
         type2color['unspecified'] = 'crimson'
+        type2color['scaffold'] = 'gray'
         type2color['detour'] = 'darkorange'
         root_color = 'lawngreen'
         node_edge = 'none'
@@ -365,6 +367,7 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
     else:
         scalebar = True
         type2color['unspecified'] = 'firebrick'
+        type2color['scaffold'] = 'gray'
         type2color['detour'] = 'royalblue'
         root_color = 'black' if node_tag is None else 'yellow'
         node_edge = 'black'
@@ -418,10 +421,11 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                            style=type2style['unspecified'], label='direct',
                            edgelist=[(u, v) for u, v, t in G.edges.data('type')
                                      if t is None])
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color['detour'],
-                           style=type2style['detour'], label='detour',
-                           edgelist=[(u, v) for u, v, t in G.edges.data('type')
-                                     if t == 'detour'])
+    for edge_type in ('detour', 'scaffold'):
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_type],
+                               style=type2style[edge_type], label=edge_type,
+                               edgelist=[(u, v) for u, v, t in G.edges.data('type')
+                                         if t == edge_type])
 
     # draw nodes
     if D is not None:
