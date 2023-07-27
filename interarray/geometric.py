@@ -334,6 +334,8 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
 # triangles and triangles_exp anymore
 def edge_crossings(u, v, G, triangles, triangles_exp):
     '''
+    DEPRECATED!
+
     This only works for subgraphs of a delaunay base with add_diagonals=True.
     Other edges (e.g. gate edges) are not implemented here.
     '''

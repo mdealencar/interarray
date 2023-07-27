@@ -108,8 +108,43 @@ def layout_edgeXing_iter(G, A):
         yield from edgeXing_iter(edge, G, A)
 
 
-def edgeset_edgeXing_iter(A, include_roots=False):
+def edgeset_edgeXing_iter(A):
     '''Iterator over all edge crossings in an expanded
+    Delaunay edge set `A`. Each crossing is a 2 or 3-tuple
+    of (u, v) edges.'''
+    P = A.graph['planar']
+    diagonals = A.graph['diagonals']
+    checked = set()
+    for (s, t), v in diagonals.items():
+        u = P[v][s]['cw']
+        triangles = ((u, v, s), (v, u, t))
+        u, v = (u, v) if u < v else (v, u)
+        # crossing with Delaunay edge
+        yield ((u, v), (s, t))
+        # examine the two triangles (u, v) belongs to
+        for a, b, c in triangles:
+            triangle = tuple(sorted((a, b, c)))
+            if triangle in checked:
+                continue
+            checked.add(triangle)
+            # this is for diagonals crossing diagonals
+            conflicting = [(s, t)]
+            d = P[c][b]['cw']
+            diag_da = (a, d) if a < d else (d, a)
+            if d == P[b][c]['ccw'] and diag_da in diagonals:
+                conflicting.append(diag_da)
+            e = P[a][c]['cw']
+            diag_eb = (e, b) if e < b else (b, e)
+            if e == P[c][a]['ccw'] and diag_eb in diagonals:
+                conflicting.append(diag_eb)
+            if len(conflicting) > 1:
+                yield conflicting
+
+
+def edgeset_edgeXing_iter_deprecated(A, include_roots=False):
+    '''DEPRECATED!
+
+    Iterator over all edge crossings in an expanded
     Delaunay edge set `A`. Each crossing is a 2 or 3-tuple
     of (u, v) edges.'''
     planar = A.graph['planar']
@@ -160,7 +195,7 @@ def edgeset_edgeXing_iter(A, include_roots=False):
 # delaunay() does not create `triangles` and `triangles_exp`
 # anymore, so this is broken
 def edgeXing_iter_deprecated(A):
-    '''
+    '''DEPRECATED!
     This is broken, do not use!
     
     Iterates over all pairs of crossing edges in `A`. This assumes `A`
@@ -211,14 +246,15 @@ def gateXing_iter(A, gates=None, touch_is_cross=True):
     Iterate over all crossings between non-gate edges and the edges in `gates`.
     If `gates` is not provided, the gates that are not in `A` will be used.
     Arguments:
-    - `gates`: iterable returning one list of gate nodes per root; if None, use all nodes
+    - `gates`: sequence of #root sequences of gate nodes; if None, all nodes
     - `touch_is_cross`: if True, count as crossing a gate going over a node
 
     The order of items in `gates` must correspond to roots in range(-M, 0).
     Used in constraint generation for MILP model.
     '''
     M = A.graph['M']
-    roots = tuple(range(-M, 0))
+    N = A.number_of_nodes() - M
+    roots = range(-M, 0)
     VertexC = A.graph['VertexC']
     anglesRank = A.graph.get('anglesRank', None)
     if anglesRank is None:
@@ -229,17 +265,13 @@ def gateXing_iter(A, gates=None, touch_is_cross=True):
     # iterable of non-gate edges:
     Edge = nx.subgraph_view(A, filter_node=lambda n: n >= 0).edges()
     if gates is None:
-        # use Ellipsis to index the entire dimension (later in the code)
-        IGate = (...,)*M
+        all_nodes = set(range(N))
+        IGate = []
+        for r in roots:
+            nodes = all_nodes.difference(A.neighbors(r))
+            IGate.append(np.fromiter(nodes, dtype=int, count=len(nodes)))
     else:
         IGate = gates
-    # if all_gates or sum(A.degree(r) for r in roots) == 0:
-        # consider gates from all nodes
-        # IGate = (slice(None),)*M
-    # else:
-        # only consider as gates the nodes connected to a root
-        # TODO: exclude from view gates that are in the expanded Delaunay graph
-        # IGate = tuple(list(A.neighbors(r)) for r in roots)
     # it is important to consider touch as crossing
     # because if a gate goes precisely through a node
     # there will be nothing to prevent it from spliting
@@ -265,12 +297,9 @@ def gateXing_iter(A, gates=None, touch_is_cross=True):
                 # <u, v> does not wrap across zero
                 is_rank_within = np.logical_and(less(lowRank, gaterank),
                                                 less(gaterank, highRank))
-            node_subset = np.flatnonzero(is_rank_within)
-            if iGate is not ...:
-                node_subset = iGate[node_subset]
-            for n in node_subset:
-                # this test confirms the crossing because it was previously
-                # stablished that root–n is on a line crossing u–v (is_rank_within)
+            for n in iGate[np.flatnonzero(is_rank_within)]:
+                # this test confirms the crossing because `is_rank_within`
+                # established that root–n is on a line crossing u–v
                 if not is_same_side(uC, vC, rootC, VertexC[n]):
                     u, v = (u, v) if u < v else (v, u)
-                    yield u, v, root, n
+                    yield (u, v), (root, n)

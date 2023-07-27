@@ -104,10 +104,19 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
     if gateXings_constraint:
         m.cons_gateXedge = pyo.Constraint(
             gateXing_iter(A),
-            rule=lambda m, u, v, r, n: m.Be[u, v] + m.Be[v, u] + m.Bg[r, n] <= 1
+            rule=lambda m, u, v, r, n: (m.Be[u, v]
+                                        + m.Be[v, u]
+                                        + m.Bg[r, n] <= 1)
         )
 
     # edge-edge crossings
+    def edgeXedge_rule(m, *vertices):
+        lhs = sum(((m.Be[u, v] + m.Be[v, u])
+                   if u >= 0 else
+                   m.Bg[u, v])
+                  for u, v in zip(vertices[::2],
+                                  vertices[1::2]))
+        return lhs <= 1
     doubleXings = []
     tripleXings = []
     for Xing in edgeset_edgeXing_iter(A):
@@ -115,21 +124,12 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
             doubleXings.append(Xing)
         else:
             tripleXings.append(Xing)
-
     if doubleXings:
-        m.cons_edgeXedge = pyo.Constraint(
-            doubleXings,
-            rule=lambda m, u, v, s, t:
-                m.Be[u, v] + m.Be[v, u] + m.Be[s, t] + m.Be[t, s] <= 1
-        )
-
+        m.cons_edgeXedge = pyo.Constraint(doubleXings,
+                                          rule=edgeXedge_rule)
     if tripleXings:
-        m.cons_edgeXedgeXedge = pyo.Constraint(
-            tripleXings,
-            rule=lambda m, u, v, s, t, w, y:
-                m.Be[u, v] + m.Be[s, t] + m.Be[w, y] +
-                m.Be[v, u] + m.Be[t, s] + m.Be[y, w] <= 1
-        )
+        m.cons_edgeXedgeXedge = pyo.Constraint(tripleXings,
+                                               rule=edgeXedge_rule)
 
     # bind binary active flags to demand
     m.cons_edge_active_iff_demand_lb = pyo.Constraint(

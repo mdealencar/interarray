@@ -15,48 +15,74 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     MILP OR-tools CP model for the collector system optimization.
     A is the networkx graph with the available edges.
 
-    gateXings_constraint: whether to avoid crossing of gate edges.
+    `k`: cable capacity
 
-    gates_limit: if True, use the minimum feasible number of gates.
+    `gateXings_constraint`: whether to avoid crossing of gate edges.
+
+    `gates_limit`: if True, use the minimum feasible number of gates.
     (total for all roots); if False, no limit is imposed; if a number,
     use it as the limit.
 
-    branching: if True, allow subtrees to branch; if False, no branching.
+    `branching`: if True, allow subtrees to branch; if False, no branching.
     '''
     M = A.graph['M']
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
 
-    ## Model definition
+    # Prepare data from A_graph
+    A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
+    E = tuple(((u, v) if u < v else (v, u))
+              for u, v in A_nodes.edges())
+    G = tuple((r, n) for n in range(N) for r in range(-M, 0))
+    w_E = tuple(A[u][v]['weight'] for u, v in E)
+    w_G = tuple(d2roots[n, r] for r, n in G)
 
-    # Create model
+    # Begin model definition
     m = cp_model.CpModel()
 
     # Parameters
     # k = m.NewConstant(3)
-    # Sets
 
-    A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
-    # the model uses directed edges, so a duplicate set of edges
-    # is created with the reversed tuples (except for gate edges)
-    E = tuple(((u, v) if u < v else (v, u))
-              for u, v in A_nodes.edges())
+    #############
+    # Variables #
+    #############
 
-    G = tuple((r, n) for n in range(N) for r in range(-M, 0))
-    w_E = tuple(A.edges[(u, v)]['weight'] for u, v in E)
-    w_G = tuple(d2roots[n, r] for r, n in G)
-
-    # Variables
     # Binary edge present
     Be = {e: m.NewBoolVar(f'E_{e}') for e in E}
     # Binary gate present
-    Bg = {(r, n): m.NewBoolVar(f'g_{n}') for r, n in G}
+    Bg = {e: m.NewBoolVar(f'G_{e}') for e in G}
     # Integer demand on edges
     De = {e: m.NewIntVar(-k + 1, k - 1, f'D_{e}') for e in E}
     # Integer demand on gates
-    Dg = {(r, n): m.NewIntVar(0, k, f'Dg_{(r, n)}') for r, n in G}
+    Dg = {e: m.NewIntVar(0, k, f'Dg_{e}') for e in G}
 
-    ## Constraints
+    ###############
+    # Constraints #
+    ###############
+
+    # limit on number of gates
+    min_gates = math.ceil(N/k)
+    min_gate_load = 1
+    if gates_limit:
+        if isinstance(gates_limit, bool) or gates_limit == min_gates:
+            # fixed number of gates
+            m.Add((sum(Bg[r, u] for r in range(-M, 0) for u in range(N))
+                   == math.ceil(N/k)))
+            min_gate_load = N % k
+        else:
+            assert min_gates < gates_limit, (
+                    f'Infeasible: N/k > gates_limit (N = {N}, k = {k},'
+                    f' gates_limit = {gates_limit}).')
+            # number of gates within range
+            m.AddLinearConstraint(
+                sum(Bg[r, u] for r in range(-M, 0) for u in range(N)),
+                min_gates,
+                gates_limit)
+    else:
+        # valid inequality: number of gates is at least the minimum
+        m.Add(min_gates <= sum(Bg[r, n]
+                               for r in range(-M, 0)
+                               for n in range(N)))
 
     # link edges' demand and binary
     for e in E:
@@ -70,54 +96,26 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     for n in range(N):
         for r in range(-M, 0):
             m.Add(Dg[r, n] == 0).OnlyEnforceIf(Bg[r, n].Not())
-            m.Add(Dg[r, n] > 0).OnlyEnforceIf(Bg[r, n])
+            m.Add(Dg[r, n] >= min_gate_load).OnlyEnforceIf(Bg[r, n])
 
     # total number of edges must be equal to number of non-root nodes
     m.Add(sum(Be.values()) + sum(Bg.values()) == N)
 
     # gate-edge crossings
     if gateXings_constraint:
-        for (u, v, r, n) in gateXing_iter(A):
-            m.AddBoolOr(Be[u, v].Not(), Bg[r, n].Not())
+        for e, g in gateXing_iter(A):
+            m.AddAtMostOne(Be[e], Bg[g])
 
     # edge-edge crossings
-    doubleXings = []
-    tripleXings = []
     for Xing in edgeset_edgeXing_iter(A):
-        if len(Xing) == 2:
-            doubleXings.append(Xing)
-        else:
-            tripleXings.append(Xing)
-
-    for (u, v), (s, t) in doubleXings:
-        m.AddBoolOr(Be[u, v].Not(), Be[s, t].Not())
-
-    for (u, v), (s, t), (w, y) in tripleXings:
-        m.AddAtMostOne(Be[u, v], Be[s, t], Be[w, y])
+        m.AddAtMostOne(*(Be[u, v] if u >= 0 else Bg[u, v]
+                         for u, v in Xing))
 
     # flow consevation at each node
     for u in range(N):
         m.Add(sum(De[u, v] if u < v else -De[v, u]
                   for v in A_nodes.neighbors(u))
               + sum(Dg[r, u] for r in range(-M, 0)) == 1)
-
-    # gates limit
-    min_gates = math.ceil(N/k)
-    if gates_limit:
-        if isinstance(gates_limit, bool) or gates_limit == min_gates:
-            # fixed number of gates
-            m.Add((sum(Bg[r, u] for r in range(-M, 0) for u in range(N))
-                   == math.ceil(N/k)))
-        else:
-            assert min_gates < gates_limit
-            # number of gates within range
-            m.AddLinearConstraint(
-                sum(Bg[r, u] for r in range(-M, 0) for u in range(N)),
-                min_gates,
-                gates_limit)
-    else:
-        # valid inequality: number of gates is at least the minimum
-        m.Add(min_gates <= sum(Bg[r, n] for r in range(-M, 0) for n in range(N)))
 
     if not branching:
         # non-branching (limit the nodes' degrees to 2)
@@ -135,23 +133,25 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         # the pyomo model that uses directed edges.
         # OR-tools could use directed edges too
         # (this all began as an experiment).
-        upstream = defaultdict(list)
+        upstream = defaultdict(dict)
         for u, v in E:
             direct = m.NewBoolVar(f'up_{u, v}')
             reverse = m.NewBoolVar(f'down_{u, v}')
             # channeling
             m.Add(De[u, v] > 0).OnlyEnforceIf(direct)
             m.Add(De[u, v] <= 0).OnlyEnforceIf(direct.Not())
-            upstream[u].append(direct)
+            upstream[u][v] = direct
             m.Add(De[u, v] < 0).OnlyEnforceIf(reverse)
             m.Add(De[u, v] >= 0).OnlyEnforceIf(reverse.Not())
-            upstream[v].append(reverse)
+            upstream[v][u] = reverse
         for n in range(N):
             # single root enforcement is encompassed here
-            m.AddAtMostOne(*upstream[n], *tuple(Bg[r, n]
-                                                for r in range(-M, 0)))
+            m.AddAtMostOne(
+                *upstream[n].values(), *tuple(Bg[r, n] for r in range(-M, 0))
+            )
+        m.upstream = upstream
 
-    # assert all nodes are connected to some root
+    # assert all nodes are connected to some root (using gate edge demands)
     m.Add(sum(Dg[r, n] for r in range(-M, 0) for n in range(N)) == N)
 
     # Objective
@@ -164,6 +164,23 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.site = {k: A.graph[k] for k in ('M', 'VertexC', 'boundary', 'name')}
     return m
 
+
+def MILP_warmstart_from_G(m, G):
+    if not G.graph.get('has_loads'):
+        # TODO: run calc_loads()
+        print("G does not have loads.")
+    for (u, v), Be in m.Be.items():
+        if (u, v) in G.edges:
+            m.AddHint(Be, True)
+
+            m.AddHint(m.De, G.edges(u, v)['load'])
+            upstream = getattr(m, 'upstream')
+            if upstream is not None:
+                pass
+
+    for rn, Bg in m.Bg.items():
+        if rn in G.edges:
+            m.AddHint(Bg, True)
 
 def MILP_solution_to_G(solver, model, A):
     '''Translate a MILP OR-tools solution to a networkx graph.'''
@@ -213,8 +230,8 @@ def MILP_solution_to_G(solver, model, A):
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
             Root[v] = r
-            # update the planar embedding to include any Delaunay diagonals used in G
-            # the corresponding crossing Delaunay edge is removed
+            # update the planar embedding to include any Delaunay diagonals
+            # used in G the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
             s = diagonals.get((u, v))
             if s is not None:
@@ -222,7 +239,7 @@ def MILP_solution_to_G(solver, model, A):
                 P.add_half_edge_cw(u, v, t)
                 P.add_half_edge_cw(v, u, s)
                 P.remove_edge(s, t)
-    
+
     G.graph['planar'] = P
     G.graph['Subtree'] = Subtree
     G.graph['Root'] = Root
