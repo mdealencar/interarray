@@ -2,11 +2,13 @@
 # https://github.com/mdealencar/interarray
 
 import networkx as nx
-from ortools.sat.python import cp_model
 import numpy as np
 import math
 from collections import defaultdict
+from ortools.sat.python import cp_model
 from ..crossings import gateXing_iter, edgeset_edgeXing_iter
+from ..interarraylib import G_from_site
+from ..geometric import A_graph
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
@@ -154,7 +156,10 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     # assert all nodes are connected to some root (using gate edge demands)
     m.Add(sum(Dg[r, n] for r in range(-M, 0) for n in range(N)) == N)
 
-    # Objective
+    #############
+    # Objective #
+    #############
+
     m.Minimize(cp_model.LinearExpr.WeightedSum(Be.values(), w_E)
                + cp_model.LinearExpr.WeightedSum(Bg.values(), w_G))
 
@@ -182,10 +187,15 @@ def MILP_warmstart_from_G(m, G):
         if rn in G.edges:
             m.AddHint(Bg, True)
 
-def MILP_solution_to_G(solver, model, A):
+
+def MILP_solution_to_G(model, solver, A=None):
     '''Translate a MILP OR-tools solution to a networkx graph.'''
     # the solution is in the solver object not in the model
-    G = nx.create_empty_copy(A)
+    if A is None:
+        G = G_from_site(model.site)
+        A = A_graph(G)
+    else:
+        G = nx.create_empty_copy(A)
     M = G.graph['M']
     N = G.number_of_nodes() - M
     P = A.graph['planar'].copy()

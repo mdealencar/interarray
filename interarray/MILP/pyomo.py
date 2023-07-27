@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import pyomo.environ as pyo
 import networkx as nx
 import numpy as np
 import math
 from collections import defaultdict
+import pyomo.environ as pyo
 from ..crossings import gateXing_iter, edgeset_edgeXing_iter
 from ..interarraylib import G_from_site
+from ..geometric import A_graph
 
 
 # class MILPmaker():
@@ -16,7 +17,7 @@ from ..interarraylib import G_from_site
 #         pass
 
 
-def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
+def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                      branching=True):
     '''
     MILP pyomo model for the collector system length minimization.
@@ -33,10 +34,8 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
 
-    ## Model definition
-
     # Create model
-    m = pyo.AbstractModel()
+    m = pyo.ConcreteModel()
 
     # Sets
 
@@ -51,7 +50,10 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
     m.N = pyo.RangeSet(0, N - 1)
     m.R = pyo.RangeSet(-M, -1)
 
-    # Parameters
+    ##############
+    # Parameters #
+    ##############
+
     m.d = pyo.Param(m.diE,
                     domain=pyo.PositiveReals,
                     name='edge_cost',
@@ -63,9 +65,12 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
                     initialize=lambda m, r, n: d2roots[n, r])
 
     m.k = pyo.Param(domain=pyo.PositiveIntegers,
-                    name='capacity')
+                    name='capacity', default=k)
 
-    # Variables
+    #############
+    # Variables #
+    #############
+
     m.Be = pyo.Var(m.diE, domain=pyo.Binary, initialize=0)
     m.De = pyo.Var(m.diE, domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k - 1), initialize=0)
@@ -81,7 +86,9 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
                    bounds=(0, m.k),
                    initialize=init_gates)
 
-    ## Constraints
+    ###############
+    # Constraints #
+    ###############
 
     # total number of edges must be equal to number of non-root nodes
     m.cons_edges_eq_nodes = pyo.Constraint(
@@ -151,17 +158,17 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
 
     # TODO: multiple cable types - THAT INVOLVES CHANGING m.Be
     # code below is a quick draft (does NOT work at all)
-    if False:
-        m.T = pyo.Set(range_number_of_cable_types)
-        m.Bte = pyo.Var(m.E, m.T)
-        # constraints
-        for edge in E:
-            # sums over t in T
-            pyo.summation(m.Bte[edge]) + pyo.summation(m.Bte[edgeʹ]) <= 1
-        for edge in E + Eʹ:
-            # sums over t in T
-            pyo.summation(m.Bte[edge]) <= m.De[edge]
-            pyo.summation(m.k[t]*m.Bte[edge][t]) >= m.De[edge]
+    #  if False:
+    #      m.T = pyo.Set(range_number_of_cable_types)
+    #      m.Bte = pyo.Var(m.E, m.T)
+    #      # constraints
+    #      for edge in E:
+    #          # sums over t in T
+    #          pyo.summation(m.Bte[edge]) + pyo.summation(m.Bte[edgeʹ]) <= 1
+    #      for edge in E + Eʹ:
+    #          # sums over t in T
+    #          pyo.summation(m.Bte[edge]) <= m.De[edge]
+    #          pyo.summation(m.k[t]*m.Bte[edge][t]) >= m.De[edge]
 
     # flow consevation at each node
     m.cons_flow_conservation = pyo.Constraint(
@@ -207,22 +214,26 @@ def make_MILP_length(A, gateXings_constraint=False, gates_limit=False,
                            + sum(m.Bg[r, u] for r in m.R) == 1)
     )
 
-    ## Objective
+    #############
+    # Objective #
+    #############
+
     m.length = pyo.Objective(
         expr=lambda m: pyo.sum_product(m.d, m.Be) + pyo.sum_product(m.g, m.Bg),
         sense=pyo.minimize,
     )
 
-    # TODO: remove redundancy and make it more uniform wrt ortools.py
     m.site = {k: A.graph[k] for k in ('M', 'VertexC', 'boundary', 'name')}
-    m.A = A
-
     return m
 
 
-def MILP_solution_to_G(model):
-    '''Translate a MILP pyomo solution to a networkx graph'''
-    G = G_from_site(model.site)
+def MILP_solution_to_G(model, solver=None, A=None):
+    '''Translate a MILP pyomo solution to a networkx graph.'''
+    if A is None:
+        G = G_from_site(model.site)
+        A = A_graph(G)
+    else:
+        G = nx.create_empty_copy(A)
     M = model.site['M']
     N = G.number_of_nodes() - M
     P = model.A.graph['planar'].copy()
