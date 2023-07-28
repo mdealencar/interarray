@@ -232,12 +232,13 @@ def MILP_solution_to_G(model, solver=None, A=None):
     if A is None:
         G = G_from_site(model.site)
         A = A_graph(G)
+        P = A.graph['planar']
     else:
         G = nx.create_empty_copy(A)
+        P = A.graph['planar'].copy()
     M = model.site['M']
     N = G.number_of_nodes() - M
-    P = model.A.graph['planar'].copy()
-    diagonals = model.A.graph['diagonals']
+    diagonals = A.graph['diagonals']
 
     # gates
     G.add_weighted_edges_from(
@@ -257,7 +258,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
     # transfer edge attributes from A to G
     nx.set_edge_attributes(
         G, {(u, v): data
-            for u, v, data in model.A.edges(data=True)})
+            for u, v, data in A.edges(data=True)})
     # if A is not available, use model.d
     # to store edge costs as edge attribute
     # nx.set_edge_attributes(G, model.d, 'length')
@@ -276,7 +277,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
                 subtree += 1
                 gate = v
                 # check if gate is not expanded Delaunay
-                if v not in model.A[r]:
+                if v not in A[r]:
                     # A may not have some gate edges
                     G[u][v]['length'] = G[u][v]['weight'] = model.g[(u, v)]
                     gates_not_in_A[r].append(v)
@@ -284,8 +285,8 @@ def MILP_solution_to_G(model, solver=None, A=None):
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
             Root[v] = r
-            # update the planar embedding to include any Delaunay diagonals used in G
-            # the corresponding crossing Delaunay edge is removed
+            # update the planar embedding to include any Delaunay diagonals
+            # used in G the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
             s = diagonals.get((u, v))
             if s is not None:
