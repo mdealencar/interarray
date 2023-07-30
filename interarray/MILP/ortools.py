@@ -166,7 +166,11 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     # save data structure as model attributes
     m.Be, m.Bg, m.De, m.Dg = Be, Bg, De, Dg
     m.k = k
-    m.site = {k: A.graph[k] for k in ('M', 'VertexC', 'boundary', 'name')}
+    m.site = {key: A.graph[key]
+              for key in ('M', 'VertexC', 'boundary', 'name')}
+    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
+                              gates_limit=gates_limit,
+                              branching=branching)
     return m
 
 
@@ -258,6 +262,7 @@ def MILP_solution_to_G(model, solver, A=None):
     G.graph['overfed'] = [len(G[r])/math.ceil(N/model.k)*M
                           for r in range(-M, 0)]
     G.graph['edges_created_by'] = 'MILP.ortools'
+    G.graph['creation_options'] = model.creation_options
     G.graph['has_loads'] = True
 
     return G

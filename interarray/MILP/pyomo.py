@@ -96,7 +96,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                         + sum(m.Bg[r, n] for r in m.R for n in m.N) == N)
     )
 
-    # each pair of nodes can only have one of the directed edges between them active
+    # enforce a single directed edge between each node pair
     m.cons_one_diEdge = pyo.Constraint(
         E,
         rule=lambda m, u, v: m.Be[u, v] + m.Be[v, u] <= 1
@@ -180,11 +180,17 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 
     # gates limit
     if gates_limit:
-        rule = lambda m: ((sum(m.Bg[r, u] for r in m.R for u in m.N)
-                           == math.ceil(N/m.k)) if isinstance(gates_limit, bool) else
-                          (sum(m.Bg[r, u] for r in m.R for u in m.N)
-                           <= gates_limit))
-        m.gates_limit = pyo.Constraint(rule=rule)
+        def gates_limit_eq_rule(m):
+            return (sum(m.Bg[r, u] for r in m.R for u in m.N)
+                    == math.ceil(N/m.k))
+
+        def gates_limit_ub_rule(m):
+            return (sum(m.Bg[r, u] for r in m.R for u in m.N)
+                    <= gates_limit)
+
+        m.gates_limit = pyo.Constraint(rule=(gates_limit_eq_rule
+                                             if isinstance(gates_limit, bool)
+                                             else gates_limit_ub_rule))
 
     # non-branching
     if not branching:
@@ -192,7 +198,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         # limited by the m.cons_one_out_edge
         m.non_branching = pyo.Constraint(
             m.N,
-            rule=lambda m, u: sum(m.Be[v, u] for v in A_nodes.neighbors(u)) <= 1
+            rule=lambda m, u: (sum(m.Be[v, u] for v in A_nodes.neighbors(u))
+                               <= 1)
         )
 
     # assert all nodes are connected to some root
@@ -202,11 +209,13 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 
     # valid inequalities
     m.cons_min_gates_required = pyo.Constraint(
-        rule=lambda m: sum(m.Bg[r, n] for r in m.R for n in m.N) >= math.ceil(N/m.k)
+        rule=lambda m: (sum(m.Bg[r, n] for r in m.R for n in m.N)
+                        >= math.ceil(N/m.k))
     )
     m.cons_incoming_demand_limit = pyo.Constraint(
         m.N,
-        rule=lambda m, u: sum(m.De[v, u] for v in A_nodes.neighbors(u)) <= m.k - 1
+        rule=lambda m, u: (sum(m.De[v, u] for v in A_nodes.neighbors(u))
+                           <= m.k - 1)
     )
     m.cons_one_out_edge = pyo.Constraint(
         m.N,
@@ -223,7 +232,10 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         sense=pyo.minimize,
     )
 
-    m.site = {k: A.graph[k] for k in ('M', 'VertexC', 'boundary', 'name')}
+    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
+                              gates_limit=gates_limit,
+                              branching=branching)
+    m.site = {key: A.graph[key] for key in ('M', 'VertexC', 'boundary', 'name')}
     return m
 
 
@@ -303,6 +315,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
     G.graph['overfed'] = [len(G[r])/math.ceil(N/model.k.value)*M
                           for r in range(-M, 0)]
     G.graph['edges_created_by'] = 'MILP.pyomo'
+    G.graph['creation_options'] = model.creation_options
     G.graph['has_loads'] = True
 
     return G
