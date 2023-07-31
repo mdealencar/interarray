@@ -76,7 +76,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                    bounds=(0, m.k - 1), initialize=0)
 
     def init_gates(m, r, n):
-        return A.nodes[n]['root'] == r
+        return int(A.nodes[n]['root'] == r)
 
     m.Bg = pyo.Var(m.R, m.N,
                    domain=pyo.Binary,
