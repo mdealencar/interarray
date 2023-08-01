@@ -217,6 +217,20 @@ def MILP_solution_to_G(model, solver, A=None):
          if solver.Value(be)),
         weight='load'
     )
+
+    # set the 'reverse' edges property
+    # node-node edges
+    nx.set_edge_attributes(
+        G,
+        {(u, v): solver.Value(model.De[u, v]) > 0
+         for (u, v), be in model.Be.items() if solver.Value(be)},
+        name='reverse')
+    # gate edges
+    for r in range(-M, 0):
+        for n in G[r]:
+            G[r][n]['reverse'] = False
+
+    # transfer edge attributes from A to G
     nx.set_edge_attributes(G, {(u, v): data
                                for u, v, data in A.edges(data=True)})
 
@@ -254,15 +268,17 @@ def MILP_solution_to_G(model, solver, A=None):
                 P.add_half_edge_cw(v, u, s)
                 P.remove_edge(s, t)
 
-    G.graph['planar'] = P
-    G.graph['Subtree'] = Subtree
-    G.graph['Root'] = Root
-    G.graph['gnT'] = gnT
-    G.graph['capacity'] = model.k
-    G.graph['overfed'] = [len(G[r])/math.ceil(N/model.k)*M
-                          for r in range(-M, 0)]
-    G.graph['edges_created_by'] = 'MILP.ortools'
-    G.graph['creation_options'] = model.creation_options
-    G.graph['has_loads'] = True
+    G.graph.update((
+        ('planar', P),
+        ('Subtree', Subtree),
+        ('Root', Root),
+        ('gnT', gnT),
+        ('capacity', model.k),
+        ('overfed', [len(G[r])/math.ceil(N/model.k)*M
+                     for r in range(-M, 0)]),
+        ('edges_created_by', 'MILP.ortools'),
+        ('creation_options', model.creation_options),
+        ('has_loads', True)
+    ))
 
     return G

@@ -287,8 +287,8 @@ def calcload(G):
         if 'load' in data:
             del data['load']
 
-    def count_successors(parent, children, subtree):
-        '''recurse down the tree, returning total successor nodes'''
+    def count_descendants(parent, children, subtree):
+        '''recurse down the tree, returning total descendant nodes'''
         nodeD = G.nodes[parent]
         if not children:
             nodeD['load'] = 1
@@ -299,8 +299,11 @@ def calcload(G):
             G.nodes[child]['subtree'] = subtree
             grandchildren = set(G[child].keys())
             grandchildren.remove(parent)
-            childload = count_successors(child, grandchildren, subtree)
-            G.edges[(parent, child)]['load'] = childload
+            childload = count_descendants(child, grandchildren, subtree)
+            G[parent][child].update((
+                ('load', childload),
+                ('reverse', parent > child)
+            ))
             load += childload
         nodeD['load'] = load
         return load
@@ -310,7 +313,7 @@ def calcload(G):
     for root in roots:
         for subroot in G[root]:
             previous = G.nodes[root].get('load', 1)
-            counted += count_successors(root, [subroot], subtree) - previous
+            counted += count_descendants(root, [subroot], subtree) - previous
             subtree += 1
     assert counted == N, f'counted ({counted}) != nonrootnodes({N})'
     G.graph['has_loads'] = True
