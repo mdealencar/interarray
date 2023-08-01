@@ -208,13 +208,13 @@ def MILP_solution_to_G(model, solver, A=None):
     # gates
     gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
                             for (r, n), bg in model.Bg.items()
-                            if solver.Value(bg))
+                            if solver.BooleanValue(bg))
     G.add_weighted_edges_from(gates_and_loads, weight='load')
     # node-node edges
     G.add_weighted_edges_from(
         ((u, v, abs(solver.Value(model.De[u, v])))
          for (u, v), be in model.Be.items()
-         if solver.Value(be)),
+         if solver.BooleanValue(be)),
         weight='load'
     )
 
@@ -223,7 +223,7 @@ def MILP_solution_to_G(model, solver, A=None):
     nx.set_edge_attributes(
         G,
         {(u, v): solver.Value(model.De[u, v]) > 0
-         for (u, v), be in model.Be.items() if solver.Value(be)},
+         for (u, v), be in model.Be.items() if solver.BooleanValue(be)},
         name='reverse')
     # gate edges
     for r in range(-M, 0):
