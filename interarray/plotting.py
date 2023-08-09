@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from collections.abc import Sequence
 from collections import defaultdict
-import networkx as nx
+from collections.abc import Sequence
+
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
-from interarray.interarraylib import calcload, make_graph_metrics, NodeStr
-from matplotlib import animation
+import networkx as nx
 import numpy as np
+from matplotlib import animation
+from matplotlib.patches import Polygon
 # from numpngw import AnimatedPNGWriter
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from pygifsicle import gifsicle
+
+from interarray.interarraylib import calcload, make_graph_metrics
 
 
 FONTSIZE_LABEL = 6
@@ -44,7 +46,9 @@ class LayoutPlotter():
         # self.mm = mm = 25.4*dpi
         self.node_tag = node_tag
         self.G_base = G_base
-        self.root_node_size = NODESIZE_LABELED_ROOT if self.node_tag is not None else NODESIZE
+        self.root_node_size = (NODESIZE_LABELED_ROOT
+                               if self.node_tag is not None else
+                               NODESIZE)
         self.node_size = NODESIZE_LABELED if self.node_tag is not None else NODESIZE
 
         log = [(0, [['nop', None]])]
@@ -125,7 +129,8 @@ class LayoutPlotter():
 
         redraw = []
         # draw farm boundary
-        # area_polygon = Polygon(self.G_base.graph['boundary'], color='#111111', zorder=0)
+        # area_polygon = Polygon(self.G_base.graph['boundary'],
+        #                        color='#111111', zorder=0)
         area_polygon = Polygon(self.G_base.graph['boundary'], color='black', zorder=0)
         self.boundaryA = ax.add_patch(area_polygon)
         redraw.append(self.boundaryA)
@@ -145,7 +150,7 @@ class LayoutPlotter():
         SubtreeA = np.empty((len(Subtree)), dtype=object)
         for subtreeI, nodes in Subtree.items():
             SubtreeA[subtreeI] = nx.draw_networkx_nodes(
-                G, pos, ax=ax, nodelist=Subtree[subtreeI],  node_color=[self.colors[-1]],
+                G, pos, ax=ax, nodelist=Subtree[subtreeI], node_color=[self.colors[-1]],
                 node_size=self.node_size)
             redraw.append(SubtreeA[subtreeI])
         self.SubtreeA = SubtreeA
@@ -165,8 +170,9 @@ class LayoutPlotter():
                 labels=labels)
             redraw.extend(self.labelsA.values())
         # root nodes' labels
-        redraw.extend(nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
-                                              labels=RootL).values())
+        redraw.extend(nx.draw_networkx_labels(G, pos, ax=ax, labels=RootL,
+                                              font_size=FONTSIZE_ROOT_LABEL
+                                              ).values())
         redraw.append(self.draw_edges())
 
         # create text element for iteration number
@@ -201,7 +207,7 @@ class LayoutPlotter():
 
     def update(self, step):
         redraw = []
-        n2s = NodeStr(self.fnT, self.N)
+        #  n2s = NodeStr(self.fnT, self.N)
         detourprop = dict(style='dashed', color='yellow')
         G = self.G
         pos = self.pos
@@ -231,7 +237,8 @@ class LayoutPlotter():
                 pos[new] = VertexC[t_]
                 self.DetourNodeA[new] = nx.draw_networkx_nodes(
                     G, pos, ax=self.ax, nodelist=[new], alpha=0.4,
-                    edgecolors='orange', node_color='none', node_size=NODESIZE_LABELED_DETOUR)
+                    edgecolors='orange', node_color='none',
+                    node_size=NODESIZE_LABELED_DETOUR)
                 redraw.append(self.DetourNodeA[new])
             elif oper == 'movDN':
                 hook, corner, hook_, corner_ = args
@@ -242,7 +249,8 @@ class LayoutPlotter():
                     redraw.append(self.DetourNodeA[corner])
                     self.DetourNodeA[corner] = nx.draw_networkx_nodes(
                         G, pos, ax=self.ax, nodelist=[corner], alpha=0.4,
-                        edgecolors='orange', node_color='none', node_size=NODESIZE_LABELED_DETOUR)
+                        edgecolors='orange', node_color='none',
+                        node_size=NODESIZE_LABELED_DETOUR)
                     redraw.append(self.DetourNodeA[corner])
                 hook2cornerL = np.hypot(*(VertexC[hook_] -
                                           VertexC[corner_]).T)
@@ -481,12 +489,16 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                            zip(feeder_info, G.graph['overfed'][::-1])]
         legend.extend(feeder_info)
         # legend.append(', '.join(feeder_info))
+        Gʹ = nx.subgraph_view(G, filter_edge=lambda u, v: 'length' in G[u][v])
+        legend.append(f'Σl = {Gʹ.size(weight="length"):.0f} m')
+        #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
+        #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
         # for field, sym in (('weight', 'w'), ('length', 'l')):
-        for field, sym in (('length', ''),):
-            weight = field if all([(field in data)
-                                   for _, _, data in G.edges.data()]) else None
-            legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
-                          ' m' if field == 'length' else '')
+        #  for field, sym in (('length', ''),):
+            #  weight = field if all([(field in data)
+                                   #  for _, _, data in G.edges.data()]) else None
+            #  legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
+                          #  ' m' if field == 'length' else '')
     if ('has_costs' in G.graph):
         legend.append('{:.0f} €'.format(G.size(weight='cost')))
     if 'capacity' in G.graph:
@@ -500,9 +512,9 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
         # pyplot.legend([l[0] for l in plot_lines], parameters, loc=4)
         # ax.add_artist(legstrip)
     if not dark:
-        legstrip = ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
-                             frameon=False, bbox_to_anchor=(0.5, -0.07),
-                             columnspacing=1, handletextpad=0.3)
+        ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
+                  frameon=False, bbox_to_anchor=(0.5, -0.07),
+                  columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph:
             ax.add_artist(infobox)
         # infobox = ax.legend([], title='\n'.join(legend))
