@@ -701,7 +701,7 @@ def get_crossings_map(Edge, VertexC, prune=True):
 def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
-    The weight of each edge is the euclidean distance between its vertices.'''
+    The length of each edge is the euclidean distance between its vertices.'''
     M = G_base.graph['M']
     N = G_base.number_of_nodes() - M
     VertexC = G_base.graph['VertexC']
@@ -756,7 +756,7 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     return G
 
 
-def A_graph(G_base, weightfun=None, delaunay_base=True):
+def A_graph(G_base, delaunay_base=True, weightfun=None, weight_attr='weight'):
     '''Return the "available edges" graph that is the base for edge search in Esau-Williams.
     If `delaunay_base` is True, the edges are the expanded Delaunay triangulation, otherwise
     a complete graph is returned.'''
@@ -769,12 +769,9 @@ def A_graph(G_base, weightfun=None, delaunay_base=True):
         # intersections
         # I = get_crossings_list(np.array(A.edges()), VertexC)
 
-    if weightfun is None:
+    if weightfun is not None:
         for u, v, data in A.edges(data=True):
-            data['weight'] = data['length']
-    else:
-        for u, v, data in A.edges(data=True):
-            data['weight'] = weightfun(data)
+            data[weight_attr] = weightfun(data)
 
     # remove all gates from A
     # TODO: decide about this line

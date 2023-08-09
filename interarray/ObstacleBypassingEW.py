@@ -1,29 +1,24 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from collections import namedtuple, defaultdict
 import operator
 import time
-# from typing import Tuple
-import numpy as np
+from collections import defaultdict, namedtuple
+
 import networkx as nx
+import numpy as np
 from scipy.spatial.distance import cdist
-# from heapq import heappush, heappop
-from interarray.geometric import (delaunay_deprecated, apply_edge_exemptions,
-                                  edge_crossings, is_crossing, complete_graph,
-                                  angle,
-                                  is_same_side, is_bunch_split_by_corner)
-from interarray.interarraylib import new_graph_like, NodeTagger, NodeStr, Alerter
+
+from interarray.geometric import (angle, apply_edge_exemptions,
+                                  delaunay_deprecated, edge_crossings,
+                                  is_bunch_split_by_corner, is_crossing,
+                                  is_same_side)
+from interarray.interarraylib import (Alerter, NodeStr, NodeTagger,
+                                      new_graph_like)
 from interarray.priorityqueue import PriorityQueue
-# from interarray.plotting import LayoutPlotter
-# from matplotlib import animation
 
 
 F = NodeTagger()
-
-
-def plain_length(data):
-    return data['length']
 
 
 def namedtuplify(namedtuple_typename='', **kwargs):
@@ -32,9 +27,8 @@ def namedtuplify(namedtuple_typename='', **kwargs):
     return NamedTuplified(**kwargs)
 
 
-def OBEW(G_base, capacity=8, weightfun=plain_length,
-         maxiter=10000, debug=False, MARGIN=1e-4,
-         maxDepth=4, rootlust=None, warnwhere=None):
+def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e-4,
+         debug=False, warnwhere=None, weightfun=None, weight_attr='length'):
     '''Obstacle Bypassing Esau-Williams heuristic for C-MST
     inputs:
     G_base: networkx.Graph
@@ -66,8 +60,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
     # rootlust = lambda cur_capacity: 0.7*(cur_capacity/(capacity - 1))**2
 
     # save relevant options to store in the graph later
-    options = dict(weightfun=weightfun.__name__,
-                   MARGIN=MARGIN, variant='C',
+    options = dict(MARGIN=MARGIN, variant='C',
                    rootlust=rootlust)
 
     M = G_base.graph['M']
@@ -105,10 +98,12 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
     triangles = A.graph['triangles']
     triangles_exp = A.graph['triangles_exp']
     # apply weightfun on all delaunay edges
-    if weightfun is not plain_length:
+    if weightfun is not None:
         apply_edge_exemptions(A)
-    for u, v, data in A.edges(data=True):
-        data['weight'] = weightfun(data)
+        options['weightfun'] = weightfun.__name__
+        options['weight_attr'] = weight_attr
+        for u, v, data in A.edges(data=True):
+            data[weight_attr] = weightfun(data)
     # removing root nodes from A to speedup find_option4gate
     # this may be done because G already starts with gates
     A.remove_nodes_from(roots)
@@ -118,8 +113,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
     star_edges = []
     for n in range(N):
         root = G_base.nodes[n]['root']
-        star_edges.append((root, n, {'weight': d2roots[n, root],
-                                     'length': d2roots[n, root]}))
+        star_edges.append((root, n, {'length': d2roots[n, root]}))
     G = new_graph_like(G_base, star_edges)
     # END: create initial star graph
 
@@ -249,7 +243,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
                     edges2discard.append((u, v))
                 else:
                     # newd2root = d2roots[fnT[gnT[v]], G.nodes[fnT[v]]['root']]
-                    W = A[u][v]['weight']
+                    W = A[u][v][weight_attr]
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
@@ -277,7 +271,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
                     edges2discard.append((u, v))
                 else:
                     d2rGain = d2root - d2roots[gnT[v], G.nodes[fnT[v]]['root']]
-                    W = A[u][v]['weight']
+                    W = A[u][v][weight_attr]
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
@@ -826,7 +820,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
         # add detour edges
         length = np.hypot(*(VertexC[fnT[hook]] -
                             VertexC[corner_]).T)
-        G.add_edge(hook, corner, length=length, weight=length,
+        G.add_edge(hook, corner, length=length,
                    type='detour', color='yellow', style='dashed')
         log.append((i, 'addDE', (hook, corner, fnT[hook], corner_)))
         return corner
@@ -843,7 +837,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
         farL = np.hypot(*(VertexC[fnT[hook]]
                           - VertexC[corner_]).T)
         # print(f'[{i}] updating {n2s(hook, corner)}')
-        G[hook][corner].update(length=farL, weight=farL)
+        G[hook][corner].update(length=farL)
         log.append((i, 'movDN', (hook, corner, fnT[hook], corner_)))
         return corner
 
@@ -865,7 +859,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
             log.append((i, 'remE', (blocked, root)))
             # make a new direct gate
             length = d2roots[fnT[hook], root]
-            G.add_edge(hook, root, length=length, weight=length,
+            G.add_edge(hook, root, length=length,
                        type='detour', color='yellow', style='dashed')
             log.append((i, 'addDE', (hook, root, fnT[hook], root)))
             Final_G[root].add(hook)
@@ -888,7 +882,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
                     hook = corner
                 # add the gate edge from the last corner node created
                 length = d2roots[corner_, root]
-                G.add_edge(corner, root, length=length, weight=length,
+                G.add_edge(corner, root, length=length,
                            type='detour', color='yellow', style='dashed')
                 log.append((i, 'addDE', (corner, root, corner_, root)))
                 Final_G[root].add(corner)
@@ -954,7 +948,7 @@ def OBEW(G_base, capacity=8, weightfun=plain_length,
                     hook = corner
                 # update the gate edge length
                 nearL = d2roots[corner_, root]
-                G[corner][root].update(length=nearL, weight=nearL)
+                G[corner][root].update(length=nearL)
                 log.append((i, 'movDN', (corner, root, corner_, root)))
 
     def check_gate_crossings(u, v, g2keep, g2drop):

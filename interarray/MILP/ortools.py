@@ -36,7 +36,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
     G = tuple((r, n) for n in range(N) for r in range(-M, 0))
-    w_E = tuple(A[u][v]['weight'] for u, v in E)
+    w_E = tuple(A[u][v]['length'] for u, v in E)
     w_G = tuple(d2roots[n, r] for r, n in G)
 
     # Begin model definition
@@ -241,7 +241,7 @@ def MILP_solution_to_G(model, solver, A=None):
         if n not in A[r]:
             gates_not_in_A[r].append(n)
             edgeD = G[n][r]
-            edgeD['length'] = edgeD['weight'] = d2roots[n, r]
+            edgeD['length'] = d2roots[n, r]
 
     # propagate loads from edges to nodes
     subtree = -1
@@ -259,7 +259,7 @@ def MILP_solution_to_G(model, solver, A=None):
             gnT[v] = gate
             Root[v] = r
             # update the planar embedding to include any Delaunay diagonals
-            # used in G the corresponding crossing Delaunay edge is removed
+            # used in G; the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
             s = diagonals.get((u, v))
             if s is not None:

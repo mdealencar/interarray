@@ -1,21 +1,19 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from collections import namedtuple
 import operator
 import time
+from collections import namedtuple
+
 import numpy as np
-from interarray.geometric import (delaunay, apply_edge_exemptions,
-                                  is_same_side, complete_graph, angle)
-from interarray.interarraylib import new_graph_like, NodeTagger
+
+from interarray.geometric import (angle, apply_edge_exemptions, complete_graph,
+                                  delaunay, is_same_side)
+from interarray.interarraylib import NodeTagger, new_graph_like
 from interarray.priorityqueue import PriorityQueue
 
 
 F = NodeTagger()
-
-
-def plain_length(data):
-    return data['length']
 
 
 def namedtuplify(namedtuple_typename='', **kwargs):
@@ -24,8 +22,8 @@ def namedtuplify(namedtuple_typename='', **kwargs):
     return NamedTuplified(**kwargs)
 
 
-def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
-              delaunay_base=False, debug=False):
+def ClassicEW(G_base, capacity=8, delaunay_base=False, maxiter=10000,
+              debug=False, weightfun=None, weight_attr='length'):
     '''Classic Esau-Williams heuristic for C-MST
     inputs:
     G_base: networkx.Graph
@@ -34,7 +32,7 @@ def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
 
     start_time = time.perf_counter()
     # grab relevant options to store in the graph later
-    options = dict(weightfun=weightfun.__name__, delaunay_base=delaunay_base)
+    options = dict(delaunay_base=delaunay_base)
 
     M = G_base.graph['M']
     N = G_base.number_of_nodes() - M
@@ -51,15 +49,18 @@ def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
     if delaunay_base:
         G_edges = delaunay(G_base)
         # apply weightfun on all delaunay edges
-        if weightfun is not plain_length:
+        if weightfun is not None:
             apply_edge_exemptions(G_edges)
         # TODO: decide whether to keep this 'else' (to get edge arcs)
         # else:
             # apply_edge_exemptions(G_edges)
     else:
         G_edges = complete_graph(G_base)
-    for u, v, data in G_edges.edges(data=True):
-        data['weight'] = weightfun(data)
+    if weightfun is not None:
+        options['weightfun'] = weightfun.__name__
+        options['weight_attr'] = weight_attr
+        for u, v, data in G_edges.edges(data=True):
+            data[weight_attr] = weightfun(data)
     # removing root nodes from G_edges to speedup find_option4gate
     # this may be done because G already starts with gates
     G_edges.remove_nodes_from(roots)
@@ -69,8 +70,7 @@ def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
     star_edges = []
     for n in range(N):
         root = G_base.nodes[n]['root']
-        star_edges.append((root, n, {'weight': d2roots[n, root],
-                                     'length': d2roots[n, root]}))
+        star_edges.append((root, n, {'length': d2roots[n, root]}))
     G = new_graph_like(G_base, star_edges)
     # END: create initial star graph
 
@@ -151,7 +151,7 @@ def ClassicEW(G_base, capacity=8, weightfun=plain_length, maxiter=10000,
                     # useless edges
                     edges2discard.append((u, v))
                 else:
-                    W = G_edges[u][v]['weight']
+                    W = G_edges[u][v][weight_attr]
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges

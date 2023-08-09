@@ -69,7 +69,7 @@ def graph_from_edgeset(edgeset):
     G.add_weighted_edges_from(zip(U, V, Length), weight='length')
     if D is not None:
         for _, _, edgeD in G.edges(detournodes, data=True):
-            edgeD |= dict(color='yellow', style='dashed')
+            edgeD['type'] = 'detour'
     G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')

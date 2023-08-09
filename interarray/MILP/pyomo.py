@@ -57,7 +57,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.d = pyo.Param(m.diE,
                     domain=pyo.PositiveReals,
                     name='edge_cost',
-                    initialize=lambda m, u, v: A.edges[(u, v)]['weight'])
+                    initialize=lambda m, u, v: A.edges[(u, v)]['length'])
 
     m.g = pyo.Param(m.R, m.N,
                     domain=pyo.PositiveReals,
@@ -267,7 +267,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
         weight='load'
     )
 
-    # set the 'reverse' edges property
+    # set the 'reverse' edge attribute
     # node-node edges
     nx.set_edge_attributes(
         G,
@@ -282,9 +282,6 @@ def MILP_solution_to_G(model, solver=None, A=None):
     nx.set_edge_attributes(
         G, {(u, v): data
             for u, v, data in A.edges(data=True)})
-    # if A is not available, use model.d
-    # to store edge costs as edge attribute
-    # nx.set_edge_attributes(G, model.d, 'length')
 
     gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
 
@@ -302,14 +299,14 @@ def MILP_solution_to_G(model, solver=None, A=None):
                 # check if gate is not expanded Delaunay
                 if v not in A[r]:
                     # A may not have some gate edges
-                    G[u][v]['length'] = G[u][v]['weight'] = model.g[(u, v)]
+                    G[u][v]['length'] = model.g[(u, v)]
                     gates_not_in_A[r].append(v)
             Subtree[gate].append(v)
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
             Root[v] = r
             # update the planar embedding to include any Delaunay diagonals
-            # used in G the corresponding crossing Delaunay edge is removed
+            # used in G; the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
             s = diagonals.get((u, v))
             if s is not None:

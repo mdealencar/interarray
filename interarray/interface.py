@@ -29,7 +29,7 @@ def assign_cables(G, cables):
     cables: [(«cross section», «capacity», «cost»), ...] in increasing capacity order
     (each cable entry must be a tuple)
 
-    The attribute 'weight' of the edges of G will be updated with their cost,
+    The attribute 'cost' of the edges of G will be updated with their cost,
     considering the cheapest cable that can handle their load.
     A new attribute 'cable' will be assigned to each edge with the index of the
     cable chosen.

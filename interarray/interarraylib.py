@@ -82,7 +82,7 @@ class Alerter():
             print(f'[{i}|{function}] ' + text)
 
 
-def G_from_TG(T, G_base, capacity=None, load_col=4, weight_is_length=False):
+def G_from_TG(T, G_base, capacity=None, load_col=4):
     '''Creates a networkx graph with nodes and data from G_base and edges from
     a T matrix.
     T matrix: [ [u, v, length, load (WT number), cable type], ...]'''
@@ -113,9 +113,6 @@ def G_from_TG(T, G_base, capacity=None, load_col=4, weight_is_length=False):
             Gload = G.edges[u, v]['load']
             assert Gload == load, (
                 f'<G.edges[{u}, {v}]> {Gload} != {load} <T matrix>')
-    if weight_is_length:
-        for u, v, nodeD in G.edges(data=True):
-            nodeD['weight'] = nodeD['length']
     G.graph['has_loads'] = True
     G.graph['edges_created_by'] = 'G_from_TG()'
     G.graph['prevented_crossings'] = 0
