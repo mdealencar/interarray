@@ -268,17 +268,17 @@ def MILP_solution_to_G(model, solver, A=None):
                 P.add_half_edge_cw(v, u, s)
                 P.remove_edge(s, t)
 
-    G.graph.update((
-        ('planar', P),
-        ('Subtree', Subtree),
-        ('Root', Root),
-        ('gnT', gnT),
-        ('capacity', model.k),
-        ('overfed', [len(G[r])/math.ceil(N/model.k)*M
-                     for r in range(-M, 0)]),
-        ('edges_created_by', 'MILP.ortools'),
-        ('creation_options', model.creation_options),
-        ('has_loads', True)
-    ))
+    G.graph.update(
+        planar=P,
+        Subtree=Subtree,
+        Root=Root,
+        gnT=gnT,
+        capacity=model.k,
+        overfed=[len(G[r])/math.ceil(N/model.k)*M
+                 for r in range(-M, 0)],
+        edges_created_by='MILP.ortools',
+        creation_options=model.creation_options,
+        has_loads=True,
+    )
 
     return G
