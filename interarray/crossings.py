@@ -1,8 +1,7 @@
 import operator
 import math
 import numpy as np
-from interarray.geometric import is_same_side
-from interarray.interarraylib import make_graph_metrics
+from interarray.geometric import is_same_side, make_graph_metrics
 import networkx as nx
 
 

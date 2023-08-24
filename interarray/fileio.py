@@ -2,14 +2,16 @@
 # https://github.com/mdealencar/interarray
 
 from pathlib import Path
-import yaml
-import numpy as np
-import utm
+
 import networkx as nx
-from openpyxl import load_workbook
+import numpy as np
 import scipy.io
-from interarray.interarraylib import make_graph_metrics, NodeTagger
-from interarray.geometric import rotate
+import utm
+import yaml
+from openpyxl import load_workbook
+
+from .geometric import make_graph_metrics, rotate
+from .interarraylib import NodeTagger
 
 
 F = NodeTagger()

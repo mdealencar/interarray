@@ -13,7 +13,8 @@ from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from pygifsicle import gifsicle
 
-from interarray.interarraylib import calcload, make_graph_metrics
+from .geometric import make_graph_metrics, rotate
+from .interarraylib import calcload
 
 
 FONTSIZE_LABEL = 6

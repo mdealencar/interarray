@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import numpy as np
 import networkx as nx
+import numpy as np
 from scipy.spatial import ConvexHull
-from interarray.interarraylib import make_graph_metrics, NodeTagger
+
+from .geometric import make_graph_metrics
+from .interarraylib import NodeTagger
 
 
 F = NodeTagger()

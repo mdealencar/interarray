@@ -544,6 +544,46 @@ def delaunay(G_base, add_diagonals=True, debug=False,
     return A
 
 
+def make_graph_metrics(G):
+    '''
+    This function changes G in place!
+    Calculates for all nodes, for each root node:
+    - distance to root nodes
+    - angle wrt root node
+
+    Any detour nodes in G are ignored.
+    '''
+    VertexC = G.graph['VertexC']
+    M = G.graph['M']
+    # N = G.number_of_nodes() - M
+    roots = range(-M, 0)
+    NodeC = VertexC[:-M]
+    RootC = VertexC[-M:]
+
+    # calculate distance from all nodes to each of the roots
+    d2roots = np.hstack(tuple(cdist(rootC[np.newaxis, :], NodeC).T
+                              for rootC in RootC))
+
+    angles = np.empty_like(d2roots)
+    for n, nodeC in enumerate(NodeC):
+        nodeD = G.nodes[n]
+        # assign the node to the closest root
+        nodeD['root'] = -M + np.argmin(d2roots[n])
+        x, y = (nodeC - RootC).T
+        angles[n] = np.arctan2(y, x)
+    # TODO: ¿is this below actually used anywhere?
+    # assign root nodes to themselves (for completeness?)
+    for root in roots:
+        G.nodes[root]['root'] = root
+
+    G.graph['d2roots'] = d2roots
+    G.graph['d2rootsRank'] = np.argsort(np.argsort(d2roots, axis=0), axis=0)
+    G.graph['angles'] = angles
+    G.graph['anglesRank'] = np.argsort(np.argsort(angles, axis=0), axis=0)
+    G.graph['anglesYhp'] = angles >= 0.
+    G.graph['anglesXhp'] = abs(angles) < np.pi/2
+
+
 def do_graph_metrics(G):
     V = G.number_of_nodes()
     M = G.graph['M']
