@@ -3,9 +3,9 @@
 
 import inspect
 import itertools
-import numpy as np
+
 import networkx as nx
-from scipy.spatial.distance import cdist
+import numpy as np
 
 
 class DotDict(dict):
@@ -156,9 +156,40 @@ def update_lengths(G):
             dataE['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
 
 
+def bfs_subtree_loads(G, parent, children, subtree):
+    '''
+    Recurse down the subtree, updating edge and node attributes. Return value
+    is total descendant nodes. Meant to be called by `calcload()`, but can be
+    used independently (e.g. from PathFinder).
+    Nodes must not have a 'load' attribute.
+    '''
+    nodeD = G.nodes[parent]
+    default = 1 if nodeD['type'] == 'wtg' else 0
+    if not children:
+        nodeD['load'] = default
+        return default
+    load = nodeD.get('load', default)
+    for child in children:
+        G.nodes[child]['subtree'] = subtree
+        grandchildren = set(G[child].keys())
+        grandchildren.remove(parent)
+        childload = bfs_subtree_loads(G, child, grandchildren, subtree)
+        G[parent][child].update((
+            ('load', childload),
+            ('reverse', parent > child)
+        ))
+        load += childload
+    nodeD['load'] = load
+    return load
+
+
 def calcload(G):
-    '''calculates the number of nodes on the leaves side of each edge
-    this function will update the edges' "load" property of graph G'''
+    '''
+    Perform a breadth-first-traversal of each root's subtree. As each node is
+    visited, its subtree id and the load leaving it are stored as its
+    attribute (keys 'subtree' and 'load', respectively). Also the edges'
+    'load' attributes are updated accordingly.
+    '''
     M = G.graph['M']
     N = G.number_of_nodes() - M
     D = G.graph.get('D')
@@ -169,40 +200,23 @@ def calcload(G):
         if 'load' in data:
             del data['load']
 
-    def count_descendants(parent, children, subtree):
-        '''recurse down the tree, returning total descendant nodes'''
-        nodeD = G.nodes[parent]
-        if not children:
-            nodeD['load'] = 1
-            return 1
-        default = 0 if nodeD['type'] == 'detour' else 1
-        load = nodeD.get('load', default)
-        for child in children:
-            G.nodes[child]['subtree'] = subtree
-            grandchildren = set(G[child].keys())
-            grandchildren.remove(parent)
-            childload = count_descendants(child, grandchildren, subtree)
-            G[parent][child].update((
-                ('load', childload),
-                ('reverse', parent > child)
-            ))
-            load += childload
-        nodeD['load'] = load
-        return load
-
-    counted = 0
     subtree = 0
+    total_load = 0
     for root in roots:
+        G.nodes[root]['load'] = 0
         for subroot in G[root]:
-            previous = G.nodes[root].get('load', 1)
-            counted += count_descendants(root, [subroot], subtree) - previous
+            bfs_subtree_loads(G, root, [subroot], subtree)
             subtree += 1
-    assert counted == N, f'counted ({counted}) != nonrootnodes({N})'
+        total_load += G.nodes[root]['load']
+    assert total_load == N, f'counted ({total_load}) != nonrootnodes({N})'
     G.graph['has_loads'] = True
 
 
 def pathdist(G, path):
-    'measures the length (distance) of a `path` of nodes in `G`'
+    '''
+    Return the total length (distance) of a `path` of nodes in `G` from nodes'
+    coordinates (does not rely on edge attributes).
+    '''
     VertexC = G.graph['VertexC']
     dist = 0.
     p = path[0]
