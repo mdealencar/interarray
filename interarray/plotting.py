@@ -3,15 +3,14 @@
 
 from collections import defaultdict
 from collections.abc import Sequence
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib import animation
 from matplotlib.patches import Polygon
-# from numpngw import AnimatedPNGWriter
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-from pygifsicle import gifsicle
 
 from .geometric import make_graph_metrics, rotate
 from .interarraylib import calcload
@@ -30,6 +29,9 @@ NODESIZE_LABELED_DETOUR = 150
 
 
 class LayoutPlotter():
+    '''Plotter for making step-by-step animations. The heuristics actually
+    generate a log of actions and the plotter is only called after the entire
+    process is over. This class is only instantiated inside of `animate()`.'''
 
     edge_color = 'crimson'
     root_color = 'lawngreen'
@@ -319,6 +321,7 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
         print('apng2gif is disabled in the source code.')
         # fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
                 # f'{G.graph["capacity"]}.apng'
+        # from numpngw import AnimatedPNGWriter
         # writer = AnimatedPNGWriter(fps=1000/interval)
         # anim.save(workpath + fname, writer=writer,
                   # savefig_kwargs=savefig_kwargs)
@@ -331,43 +334,37 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
         writer = animation.PillowWriter(fps=1000/interval)
         anim.save(savepath + fname, writer=writer,
                   savefig_kwargs=savefig_kwargs)
+        from pygifsicle import gifsicle
         gifsicle(sources=savepath + fname, options=['--optimize=3'])
     # plt.rcParams['figure.dpi'] = old_dpi
     return fname
 
 
-def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
+def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6),
+          landscape=True):
     '''NetworkX graph plotting function.
     `node_tag` in [None, 'load', 'label']
     (or other key in nodes's dict)'''
     figsize = plt.rcParams['figure.figsize']
     dark = plt.rcParams['figure.facecolor'] != 'white'
 
-    if ax is None and not dark:
-        limX, limY = figlims
-        r = limX/limY
-        boundary = G.graph['boundary']
-        XYrange = np.abs(np.amax(boundary, axis=0) - np.amin(boundary, axis=0))
-        d = XYrange[0]/XYrange[1]
-        if d < r:
-            figsize = (limY*d, limY)
-        else:
-            figsize = (limX, limX/d)
-
     root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
     detour_size = NODESIZE_LABELED_DETOUR if node_tag is not None else NODESIZE_DETOUR
     node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
     type2color = {}
-    type2style = {}
-    type2style['detour'] = 'dashed'
-    type2style['scaffold'] = 'dotted'
-    type2style['unspecified'] = 'solid'
+    type2style = dict(
+        detour='dashed',
+        scaffold='dotted',
+        unspecified='solid',
+    )
     if dark:
         scalebar = False
-        type2color['unspecified'] = 'crimson'
-        type2color['scaffold'] = 'gray'
-        type2color['detour'] = 'darkorange'
+        type2color.update(
+            detour='darkorange',
+            scaffold='gray',
+            unspecified='crimson',
+        )
         root_color = 'lawngreen'
         node_edge = 'none'
         detour_ring = 'orange'
@@ -375,48 +372,64 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
         polygon_face = '#111111'
     else:
         scalebar = True
-        type2color['unspecified'] = 'firebrick'
-        type2color['scaffold'] = 'gray'
-        type2color['detour'] = 'royalblue'
+        type2color.update(
+            detour='royalblue',
+            scaffold='gray',
+            unspecified='firebrick',
+        )
         root_color = 'black' if node_tag is None else 'yellow'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
         polygon_edge = '#444444'
         polygon_face = 'whitesmoke'
 
-    if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
-    ax.axis('off')
-
-    VertexC = G.graph['VertexC']
+    landscape_angle = G.graph.get('landscape_angle')
+    if landscape and landscape_angle:
+        # landscape_angle is not None and not 0
+        VertexC = rotate(G.graph['VertexC'], landscape_angle)
+    else:
+        VertexC = G.graph['VertexC']
     M = G.graph['M']
     N = G.number_of_nodes() - M
     D = G.graph.get('D')
-    if D is not None:
-        N -= D
-        fnT = G.graph.get('fnT')
-        if fnT is not None:
-            DetourC = VertexC[fnT[range(N, N + D)]]
-        else:
-            # TODO: deprecate DetourC
-            DetourC = G.graph['DetourC']
 
     # draw farm boundary
     if 'boundary' in G.graph:
-        area_polygon = Polygon(G.graph['boundary'], zorder=0, linestyle='--',
+        boundaryC = (rotate(G.graph['boundary'], landscape_angle)
+                     if landscape and landscape_angle else
+                     G.graph['boundary'])
+        if ax is None and not dark:
+            limX, limY = figlims
+            r = limX/limY
+            XYrange = np.abs(np.amax(boundaryC, axis=0)
+                             - np.amin(boundaryC, axis=0))
+            d = XYrange[0]/XYrange[1]
+            if d < r:
+                figsize = (limY*d, limY)
+            else:
+                figsize = (limX, limX/d)
+
+        area_polygon = Polygon(boundaryC, zorder=0, linestyle='--',
                                facecolor=polygon_face, edgecolor=polygon_edge,
                                linewidth=0.3)
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
         ax.add_patch(area_polygon)
         ax.update_datalim(area_polygon.get_xy())
         ax.autoscale()
+    elif ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    ax.axis('off')
+
     ax.set_aspect('equal')
     # setup
     roots = range(-M, 0)
-    pos = dict(zip(range(N), VertexC[:N]))
-    pos |= dict(zip(roots, VertexC[-M:]))
+    pos = dict(zip(range(N), VertexC[:N])) | dict(zip(roots, VertexC[-M:]))
     if D is not None:
+        N -= D
+        fnT = G.graph.get('fnT')
         detour = range(N, N + D)
-        pos |= dict(zip(detour, DetourC))
+        pos |= dict(zip(detour, VertexC[fnT[detour]]))
     RootL = {r: G.nodes[r]['label'] for r in roots[::-1]}
 
     colors = plt.cm.get_cmap('tab20', 20).colors
@@ -452,7 +465,9 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
                            linewidths=0.2, label='WTG')
 
     # draw labels
-    font_size = {'load': FONTSIZE_LOAD, 'label': FONTSIZE_LABEL}
+    font_size = dict(load=FONTSIZE_LOAD,
+                     label=FONTSIZE_LABEL,
+                     tag=FONTSIZE_ROOT_LABEL)
     if node_tag is not None:
         if node_tag == 'load' and 'has_loads' not in G.graph:
             node_tag = 'label'
@@ -470,10 +485,6 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
     if node_tag is not None:
         nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
                                 labels=RootL)
-    else:
-        pass
-        # nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=roots, alpha=0.2,
-        #                        node_color=root_color, node_size=150)
 
     if scalebar:
         bar = AnchoredSizeBar(ax.transData, 1000, '1 km', 'lower right', frameon=False)
@@ -523,7 +534,11 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6)):
 
 
 def compare(positional=None, **title2G_dict):
-    '''Plot layouts side by side. dict keys are inserted in the title.'''
+    '''
+    Plot layouts side by side. dict keys are inserted in the title.
+    Arguments must be either a sequence of graphs or multiple
+    `keyword`=«graph_instance»`.
+    '''
     if positional is not None:
         if isinstance(positional, Sequence):
             title2G_dict |= {chr(i): val for i, val in
@@ -533,5 +548,16 @@ def compare(positional=None, **title2G_dict):
     fig, axes = plt.subplots(1, len(title2G_dict), squeeze=False)
     for ax, (title, G) in zip(axes.ravel(), title2G_dict.items()):
         gplot(G, ax=ax, node_tag=None)
+        creator = G.graph.get("edges_created_by", 'no edges')
         ax.set_title(f'{title} – {G.graph["name"]} '
-                     f'({G.graph["edges_created_by"]})')
+                     f'({creator})')
+
+
+def scaffolded(G: nx.Graph, P: Optional[nx.PlanarEmbedding] = None) -> nx.Graph:
+    scaff = nx.Graph(G.graph['planar'] if P is None else P)
+    scaff.graph.update(G.graph)
+    for n, d in scaff.nodes(data=True):
+        d.update(G.nodes[n])
+    for i, (u, v) in enumerate(scaff.edges - G.edges):
+        scaff[u][v]['type'] = 'scaffold'
+    return scaff
