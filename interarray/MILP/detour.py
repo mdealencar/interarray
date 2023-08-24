@@ -70,8 +70,10 @@ def detour(G, root, org, dst, u, v, barrier_gate, depth=0,
     # dst (destination) is goal_
     #(root, blocked, goal_, u, v, barrierLo,
     #barrierHi, savings, depth=0, remove=set()):
+    # TODO: deprecate this in favor of interarray/pathfinding.py's PathFinder
     '''
-    TODO: write something
+    Deprecated. Use interarray/pathfinding.py's PathFinder instead
+
     This function was hastly adapted from ObstacleBypassingEW() to work on MILP-generated
     layouts. Kind of works, but be careful.
     '''

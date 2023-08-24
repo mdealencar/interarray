@@ -13,5 +13,10 @@ https://github.com/mdealencar/interarray
 """
 
 __license__ = "LGPL-2.1-or-later"
+
+from loguru import logger
+
+logger.disable("interarray")
+
 # global module constants
 MAX_TRIANGLE_ASPECT_RATIO = 15.
