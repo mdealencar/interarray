@@ -3,24 +3,17 @@
 
 import operator
 import time
-from collections import namedtuple
 
 import numpy as np
 
-from interarray.geometric import (angle, apply_edge_exemptions, complete_graph,
-                                  delaunay_deprecated, edge_crossings,
-                                  is_crossing, is_same_side)
-from interarray.interarraylib import NodeTagger, new_graph_like
-from interarray.priorityqueue import PriorityQueue
+from .geometric import (angle, apply_edge_exemptions, complete_graph,
+                        delaunay_deprecated, edge_crossings, is_crossing,
+                        is_same_side)
+from .interarraylib import NodeTagger, new_graph_like
+from .priorityqueue import PriorityQueue
 
 
 F = NodeTagger()
-
-
-def namedtuplify(namedtuple_typename='', **kwargs):
-    NamedTuplified = namedtuple(namedtuple_typename,
-                                tuple(str(kw) for kw in kwargs))
-    return NamedTuplified(**kwargs)
 
 
 def NBEW(G_base, capacity=8, delaunay_base=True, rootlust=0., maxiter=10000,
@@ -174,7 +167,7 @@ def NBEW(G_base, capacity=8, delaunay_base=True, rootlust=0., maxiter=10000,
                         # useless edges
                         edges2discard.append((u, v))
                 else:
-                    W = A[u][v]['weight']
+                    W = A[u][v][weight_attr]
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         d2rGain = d2root - d2roots[Gate[v], A.nodes[Gate[v]]['root']]
