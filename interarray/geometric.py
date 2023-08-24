@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
+import functools
 import math
-from math import isclose
 import operator
 from collections import defaultdict
-from itertools import product, chain
-import functools
-import numpy as np
+from itertools import chain, product
+from math import isclose
+
 import networkx as nx
+import numpy as np
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
-from interarray.interarraylib import NodeTagger, NodeStr
+
+from . import MAX_TRIANGLE_ASPECT_RATIO
+from .interarraylib import NodeStr, NodeTagger
 
 F = NodeTagger()
 
@@ -366,16 +369,10 @@ def edge_crossings(u, v, G, triangles, triangles_exp):
     return crossings
 
 
-def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
-             **qhull_options):
-    '''Creates a networkx graph from the Delaunay triangulation
-    of the point in coordinates. The weights of each edge is the
-    euclidean distance between its vertices.'''
-    V = G_base.number_of_nodes()
-    M = G_base.graph['M']
+def make_planar_embedding(M: int, VertexC: np.ndarray,
+                          max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO):
+    V = VertexC.shape[0]
     N = V - M
-    VertexC = G_base.graph['VertexC']
-
     SwappedVertexC = np.vstack((VertexC[-M:], VertexC[:N]))
     tri = Delaunay(SwappedVertexC)
 
@@ -391,14 +388,15 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
     # getting rid of nearly flat Delaunay triangles
     # qhull (used by scipy) seems not able to do it
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
-    old_hull = [(u, v) if u < v else (v, u) for u, v in tri.convex_hull - M]
+    old_hull = [(u, v) if u < v else (v, u) for u, v in (tri.convex_hull - M)]
     new_hull = []
     while old_hull:
         u, v = old_hull.pop()
         t = max(mat[u, v], mat[v, u])
         AR = triangle_AR(*VertexC[(u, v, t),])
-        if AR > MAX_ASPECT:
-            if min(u, v, t) < 0 and AR < 10*MAX_ASPECT:
+        if AR > max_tri_AR:
+            # TODO: document this relaxation of MAX_ASPECT for root nodes
+            if min(u, v, t) < 0 and AR < 50*max_tri_AR:
                 # when considering root nodes, be less strict with AR
                 if (u, v) not in new_hull:
                     new_hull.append((u, v))
@@ -452,15 +450,14 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
             uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
             s, t = (back, fwd) if back < fwd else (fwd, back)
             if ((s, t) not in diagonals
-                    and triangle_AR(fwdC, uC, backC) < MAX_ASPECT
-                    and triangle_AR(fwdC, vC, backC) < MAX_ASPECT
+                    and triangle_AR(fwdC, uC, backC) < max_tri_AR
+                    and triangle_AR(fwdC, vC, backC) < max_tri_AR
                     and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC, fwdC)):
                 diagonals[(s, t)] = v if s == back else u
         # start by circling vertex u in ccw direction
         add = planar.add_half_edge_ccw
         ccw = True
-        # when fwd == first, all triangles around vertex u
-        # have been visited
+        # when fwd == first, all triangles around vertex u have been visited
         while fwd != first:
             if fwd != NULL:
                 back = v
@@ -471,9 +468,10 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
                     uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
                     s, t = (back, fwd) if back < fwd else (fwd, back)
                     if ((s, t) not in diagonals
-                            and triangle_AR(fwdC, uC, backC) < MAX_ASPECT
-                            and triangle_AR(fwdC, vC, backC) < MAX_ASPECT
-                            and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC, fwdC)):
+                            and triangle_AR(fwdC, uC, backC) < max_tri_AR
+                            and triangle_AR(fwdC, vC, backC) < max_tri_AR
+                            and is_triangle_pair_a_convex_quadrilateral(
+                                uC, vC, backC, fwdC)):
                         if ccw:
                             diagonals[(s, t)] = v if s == back else u
                         else:
@@ -494,6 +492,19 @@ def delaunay(G_base, add_diagonals=True, debug=False, MAX_ASPECT=15.,
     del mat
     # raise an exception if `planar` is not proper:
     planar.check_structure()
+    return planar, diagonals
+
+
+def delaunay(G_base, add_diagonals=True, debug=False,
+             max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
+    '''Creates a networkx graph from the Delaunay triangulation
+    of the point in coordinates. The weights of each edge is the
+    euclidean distance between its vertices.'''
+    M = G_base.graph['M']
+    VertexC = G_base.graph['VertexC']
+
+    planar, diagonals = make_planar_embedding(
+            M, VertexC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
 
     # store the Delaunay edges in an array
     delaunay_edges = np.empty((planar.number_of_edges()//2, 2), dtype=int)
@@ -777,6 +788,38 @@ def A_graph(G_base, delaunay_base=True, weightfun=None, weight_attr='weight'):
     # TODO: decide about this line
     # A.remove_edges_from(list(A.edges(range(-M, 0))))
     return A
+
+
+def planar_over_layout(G: nx.Graph):
+    '''
+    Return a PlanarEmbedding of a triangulation of the nodes in G, provided
+    G has been created using the extended Delaunay edges.
+
+    The PlanarEmbedding is different from the one generated in `A_graph()` in
+    that it takes into account the actual edges used in G (i.e. used diagonals
+    will be included in the planar graph to the exclusion of Delaunay edges
+    that cross them).
+    '''
+    M = G.graph['M']
+    VertexC = G.graph['VertexC']
+    P, diagonals = make_planar_embedding(M, VertexC)
+    for r in range(-M, 0):
+        for u, v in nx.edge_dfs(G, r):
+            # update the planar embedding to include any Delaunay diagonals
+            # used in G; the corresponding crossing Delaunay edge is removed
+            u, v = (u, v) if u < v else (v, u)
+            s = diagonals.get((u, v))
+            if s is not None:
+                t = P[u][s]['ccw']  # same as P[v][s]['cw']
+                if (s, t) in G.edges:
+                    # (u, v) & (s, t) are in G (i.e. a crossing). This means
+                    # the diagonal (u, v) is a gate and (s, t) should remain
+                    continue
+                P.add_half_edge_cw(u, v, t)
+                P.add_half_edge_cw(v, u, s)
+                P.remove_edge(s, t)
+    P.graph['diagonals'] = diagonals
+    return P
 
 
 # TODO: MARGIN is ARBITRARY - depends on the scale

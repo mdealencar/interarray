@@ -13,3 +13,5 @@ https://github.com/mdealencar/interarray
 """
 
 __license__ = "LGPL-2.1-or-later"
+# global module constants
+MAX_TRIANGLE_ASPECT_RATIO = 15.
