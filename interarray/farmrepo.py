@@ -1,17 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import numpy as np
-from collections import namedtuple
-from interarray.fileio import file2graph
-from interarray.synthetic import synthfarm2graph, equidistant
 from pathlib import Path
 
+import numpy as np
 
-def namedtuplify(namedtuple_typename='', **kwargs):
-    NamedTuplified = namedtuple(namedtuple_typename,
-                                tuple(str(kw) for kw in kwargs))
-    return NamedTuplified(**kwargs)
+from .fileio import file2graph
+from .interarraylib import namedtuplify
+from .synthetic import equidistant, synthfarm2graph
 
 
 def tess(radius, spacing=1000):

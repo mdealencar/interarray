@@ -3,28 +3,20 @@
 
 import operator
 import time
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from interarray.geometric import (angle, apply_edge_exemptions,
-                                  delaunay_deprecated, edge_crossings,
-                                  is_bunch_split_by_corner, is_crossing,
-                                  is_same_side)
-from interarray.interarraylib import (Alerter, NodeStr, NodeTagger,
-                                      new_graph_like)
-from interarray.priorityqueue import PriorityQueue
+from .geometric import (angle, apply_edge_exemptions, delaunay_deprecated,
+                        edge_crossings, is_bunch_split_by_corner, is_crossing,
+                        is_same_side)
+from .interarraylib import Alerter, NodeStr, NodeTagger, new_graph_like
+from .priorityqueue import PriorityQueue
 
 
 F = NodeTagger()
-
-
-def namedtuplify(namedtuple_typename='', **kwargs):
-    NamedTuplified = namedtuple(namedtuple_typename,
-                                tuple(str(kw) for kw in kwargs))
-    return NamedTuplified(**kwargs)
 
 
 def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e-4,
@@ -249,7 +241,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
                         # useful edges
                         tiebreaker = d2rootsRank[fnT[v], A[u][v]['root']]
                         weighted_edges.append((W, tiebreaker, u, v))
-                        # weighted_edges.append((W-(d2root - newd2root)/3, tiebreaker, u, v))
+                        #  weighted_edges.append((W-(d2root - newd2root)/3,
+                        #                           tiebreaker, u, v))
         return weighted_edges, edges2discard
 
     def component_merging_choices(gate, forbidden=None):

@@ -3,23 +3,16 @@
 
 import operator
 import time
-from collections import namedtuple
 
 import numpy as np
 
-from interarray.geometric import (angle, apply_edge_exemptions, complete_graph,
-                                  delaunay, is_same_side)
-from interarray.interarraylib import NodeTagger, new_graph_like
-from interarray.priorityqueue import PriorityQueue
+from .geometric import (angle, apply_edge_exemptions, complete_graph, delaunay,
+                        is_same_side)
+from .interarraylib import NodeTagger, new_graph_like
+from .priorityqueue import PriorityQueue
 
 
 F = NodeTagger()
-
-
-def namedtuplify(namedtuple_typename='', **kwargs):
-    NamedTuplified = namedtuple(namedtuple_typename,
-                                tuple(str(kw) for kw in kwargs))
-    return NamedTuplified(**kwargs)
 
 
 def ClassicEW(G_base, capacity=8, delaunay_base=False, maxiter=10000,

@@ -3,6 +3,7 @@
 
 import inspect
 import itertools
+from collections import namedtuple
 
 import networkx as nx
 import numpy as np
@@ -11,6 +12,12 @@ import numpy as np
 class DotDict(dict):
     def __getattr__(self, key):
         return self[key]
+
+
+def namedtuplify(namedtuple_typename='', **kwargs):
+    NamedTuplified = namedtuple(namedtuple_typename,
+                                tuple(str(kw) for kw in kwargs))
+    return NamedTuplified(**kwargs)
 
 
 class NodeStr():
