@@ -75,16 +75,18 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.De = pyo.Var(m.diE, domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k - 1), initialize=0)
 
-    def init_gates(m, r, n):
-        return int(A.nodes[n]['root'] == r)
+    # def init_gates(m, r, n):
+    #     return int(A.nodes[n]['root'] == r)
 
     m.Bg = pyo.Var(m.R, m.N,
                    domain=pyo.Binary,
-                   initialize=init_gates)
+                   initialize=0)
+                   # initialize=init_gates)
     m.Dg = pyo.Var(m.R, m.N,
                    domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k),
-                   initialize=init_gates)
+                   initialize=0)
+                   # initialize=init_gates)
 
     ###############
     # Constraints #
