@@ -232,6 +232,7 @@ def pathdist(G, path):
         p = n
     return dist
 
+
 def G_from_site(site):
     VertexC = site['VertexC']
     M = site['M']
@@ -246,6 +247,7 @@ def G_from_site(site):
     G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
                       for r in range(-M, 0)))
     return G
+
 
 def poisson_disc_filler(N, min_dist, boundary, exclude=None,
                         iter_max_factor=30, seed=None, partial_fulfilment=True):
@@ -284,10 +286,12 @@ def poisson_disc_filler(N, min_dist, boundary, exclude=None,
     area_avail = np.prod((upper_bound - lower_bound) + min_dist)
     area_demand = min_dist**2*np.pi*N/4
     if not partial_fulfilment and (area_demand > np.pi*np.sqrt(3)/6*area_avail):
-        raise ValueError("(N, min_dist) given are beyond the ideal circle packing for the boundary area.")
+        raise ValueError("(N, min_dist) given are beyond the ideal circle "
+                         "packing for the boundary area.")
     # friendly warning for high densities (likely to place less than N points)
     if 2*area_demand > area_avail:
-        print('WARNING: Unlikely to fulfill with current arguments - try a lower density.')
+        print('WARNING: Unlikely to fulfill with current arguments - '
+              'try a lower density.')
 
     iter_max = iter_max_factor*N
     threshold = min_dist**2
@@ -353,9 +357,40 @@ def poisson_disc_filler(N, min_dist, boundary, exclude=None,
 
     if out_count < N:
         pos = pos[:out_count]
-        msg = f'Only {out_count} points generated (requested: {N}, iterations: {iter_count}).'
+        msg = (f'Only {out_count} points generated (requested: {N}, '
+               f'iterations: {iter_count}).')
         if partial_fulfilment:
             print('WARNING:', msg)
         else:
             raise ValueError(msg)
     return pos
+
+
+def remove_detours(H: nx.Graph) -> nx.Graph:
+    '''
+    Create a shallow copy of `H` without detour nodes
+    (and *with* the resulting crossings).
+    '''
+    G = H.copy()
+    M = G.graph['M']
+    VertexC = G.graph['VertexC']
+    N = G.number_of_nodes() - M - G.graph.get('D', 0)
+    for r in range(-M, 0):
+        detoured = [n for n in G.neighbors(r) if n >= N]
+        if detoured:
+            G.graph['crossings'] = []
+        for n in detoured:
+            ref = r
+            G.remove_edge(n, r)
+            while n >= N:
+                ref = n
+                n, = G.neighbors(ref)
+                G.remove_node(ref)
+            G.add_edge(n, r,
+                       load=G.nodes[n]['load'],
+                       reverse=False,
+                       length=np.hypot(*(VertexC[n] - VertexC[r]).T))
+            G.graph['crossings'].append((r, n))
+    G.graph.pop('D', None)
+    G.graph.pop('fnT', None)
+    return G
