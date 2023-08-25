@@ -475,6 +475,9 @@ class PathFinder():
             G = self.G.copy()
             # this self.H is only for debugging purposes
             self.H = G
+        if 'crossings' in G.graph:
+            # start by assumming that crossings will be fixed by detours
+            del G.graph['crossings']
         M, N = self.M, self.N
         Xings = self.Xings
 
@@ -514,6 +517,11 @@ class PathFinder():
             if not path_options:
                 error('subtree of node {} has no non-crossing paths to any '
                       'root: leaving gate as-is', F[n])
+                # unable to fix this crossing
+                crossings = G.graph.get('crossings')
+                if crossings is None:
+                    G.graph['crossings'] = []
+                G.graph['crossings'].append((r, n))
                 continue
             dist, id, hook, sect = min(path_options)
             debug('best: hook = {}, sector = {}, dist = {:.1f}',
