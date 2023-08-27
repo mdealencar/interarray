@@ -3,7 +3,11 @@
 
 import inspect
 import itertools
+import pickle
+import sys
 from collections import namedtuple
+from hashlib import sha256
+from typing import Any, Dict, Tuple
 
 import networkx as nx
 import numpy as np
@@ -394,3 +398,21 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
     G.graph.pop('D', None)
     G.graph.pop('fnT', None)
     return G
+
+
+def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
+        -> Tuple[bytes, Dict[str, bytes]]:
+    VertexCpkl = pickle.dumps(np.round(VertexC, 2))
+    boundarypkl = pickle.dumps(np.round(boundary, 2))
+    return (sha256(VertexCpkl + boundarypkl).digest(),
+            dict(VertexC=VertexCpkl, boundary=boundarypkl))
+
+
+
+def fun_fingerprint() -> Dict[str, Any]:
+    fcode = sys._getframe().f_back.f_code
+    return dict(
+            funhash=sha256(fcode.co_code).digest(),
+            funfile=fcode.co_filename,
+            funname=fcode.co_name,
+            )
