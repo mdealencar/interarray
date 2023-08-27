@@ -351,7 +351,7 @@ def edge_crossings(u, v, G, triangles, triangles_exp):
         if (len(st) > 1 and st in triangles_exp
                 and triangles_exp[st] == uv
                 and tuple(st) in G.edges):
-            return([tuple(st)])
+            return ([tuple(st)])
     elif uv in triangles_exp:
         # <(u, v) is an expanded Delaunay edge>
         s, t = triangles_exp[uv]
@@ -498,35 +498,50 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
 def delaunay(G_base, add_diagonals=True, debug=False,
              max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
     '''Creates a networkx graph from the Delaunay triangulation
-    of the point in coordinates. The weights of each edge is the
-    euclidean distance between its vertices.'''
+    of the point in coordinates. Each edge gets an attribute `length`
+    with the euclidean distance between its vertices.'''
     M = G_base.graph['M']
     VertexC = G_base.graph['VertexC']
+    N = VertexC.shape[0] - M
 
     planar, diagonals = make_planar_embedding(
             M, VertexC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
 
-    # store the Delaunay edges in an array
-    delaunay_edges = np.empty((planar.number_of_edges()//2, 2), dtype=int)
-    i = 0
-    for u, v in planar.edges:
-        if u < v:
-            delaunay_edges[i] = u, v
-            i += 1
+    # undirected Delaunay edge view
+    undirected = planar.to_undirected(as_view=True)
 
     # build the undirected graph
-    A = nx.Graph(G_base)
-    A.graph['delaunay_edges'] = delaunay_edges
-    A.graph['planar'] = planar
-    A.add_edges_from(planar.to_undirected(as_view=True).edges)
+    A = nx.Graph()
+    A.add_nodes_from(((n, {'label': label})
+                      for n, label in G_base.nodes(data='label')
+                      if n < N), )
+    A.add_edges_from(undirected.edges)
+    E_planar = np.array(undirected.edges, dtype=int)
+    Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
+    for (u, v), length in zip(E_planar, Length):
+        A[u][v]['length'] = length
     if add_diagonals:
-        for s, t in diagonals:
-            A.add_edge(s, t)
-            # the reference vertex `v` that `diagonals` carries
-            # could be stored as edge ⟨s, t⟩'s property (that
-            # property would also mark the edge as a diagonal)
-        A.graph['diagonals'] = diagonals
-        # see `diagonals` declaration for info on usage
+        diagnodes = np.empty((len(diagonals), 2), dtype=int)
+        for row, uv in zip(diagnodes, diagonals):
+            row[:] = uv
+        A.add_edges_from(diagonals)
+        # the reference vertex `v` that `diagonals` carries
+        # could be stored as edge ⟨s, t⟩'s property (that
+        # property would also mark the edge as a diagonal)
+        Length = np.hypot(*(VertexC[diagnodes[:, 0]] - VertexC[diagnodes[:, 1]]).T)
+        for (u, v), length in zip(diagnodes, Length):
+            A[u][v]['length'] = length
+
+    d2roots = G_base.graph.get('d2roots')
+    if d2roots is None:
+        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+    A.graph.update(M=M,
+                   VertexC=VertexC,
+                   planar=planar,
+                   d2roots=d2roots,
+                   diagonals=diagonals,
+                   boundary=G_base.graph['boundary'],
+                   name=G_base.graph['name'])
 
     # TODO: update other code that uses the data below
     # old version of delaunay() also stored these:
@@ -539,8 +554,6 @@ def delaunay(G_base, add_diagonals=True, debug=False,
     # variants that do crossing checks (calls to `edge_crossings()`)
     # G.graph['triangles'] = triangles
     # G.graph['triangles_exp'] = triangles_exp
-
-    do_graph_metrics(A)
     return A
 
 
@@ -561,8 +574,7 @@ def make_graph_metrics(G):
     RootC = VertexC[-M:]
 
     # calculate distance from all nodes to each of the roots
-    d2roots = np.hstack(tuple(cdist(rootC[np.newaxis, :], NodeC).T
-                              for rootC in RootC))
+    d2roots = cdist(VertexC[:-M], VertexC[-M:])
 
     angles = np.empty_like(d2roots)
     for n, nodeC in enumerate(NodeC):
@@ -582,21 +594,6 @@ def make_graph_metrics(G):
     G.graph['anglesRank'] = np.argsort(np.argsort(angles, axis=0), axis=0)
     G.graph['anglesYhp'] = angles >= 0.
     G.graph['anglesXhp'] = abs(angles) < np.pi/2
-
-
-def do_graph_metrics(G):
-    V = G.number_of_nodes()
-    M = G.graph['M']
-    N = V - M
-    VertexC = G.graph['VertexC']
-    RootC = VertexC[N:]
-    for u, v, edgeD in list(G.edges(data=True)):
-        # assign the edge to the root closest to the edge's middle point
-        edgeD['root'] = -M + np.argmin(
-            cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
-        # add edges' lengths
-        u2v = np.hypot(*(VertexC[u] - VertexC[v]).T)
-        edgeD['length'] = u2v
 
 
 def delaunay_deprecated(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
@@ -754,8 +751,8 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The length of each edge is the euclidean distance between its vertices.'''
     M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
     VertexC = G_base.graph['VertexC']
+    N = VertexC.shape[0] - M
     NodeC = VertexC[:-M]
     RootC = VertexC[-M:]
     Root = range(-M, 0)
@@ -807,11 +804,11 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     return G
 
 
-def A_graph(G_base, delaunay_base=True, weightfun=None, weight_attr='weight'):
-    '''Return the "available edges" graph that is the base for edge search in Esau-Williams.
-    If `delaunay_base` is True, the edges are the expanded Delaunay triangulation, otherwise
-    a complete graph is returned.'''
-    if delaunay_base:
+def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
+    '''Return the "available edges" graph that is the base for edge search in
+    Esau-Williams. If `delaunay_based` is True, the edges are the expanded
+    Delaunay triangulation, otherwise a complete graph is returned.'''
+    if delaunay_based:
         A = delaunay(G_base)
         if weightfun is not None:
             apply_edge_exemptions(A)
