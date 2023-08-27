@@ -1,20 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import networkx as nx
-import numpy as np
 import math
 from collections import defaultdict
+
+import networkx as nx
+import numpy as np
+
 import pyomo.environ as pyo
-from ..crossings import gateXing_iter, edgeset_edgeXing_iter
-from ..interarraylib import G_from_site
-from ..geometric import A_graph
 
-
-# class MILPmaker():
-
-#     def __init__(self, A):
-#         pass
+from ..crossings import edgeset_edgeXing_iter, gateXing_iter
+from ..geometric import delaunay
+from ..interarraylib import G_from_site, fun_fingerprint
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
@@ -75,18 +72,13 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.De = pyo.Var(m.diE, domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k - 1), initialize=0)
 
-    # def init_gates(m, r, n):
-    #     return int(A.nodes[n]['root'] == r)
-
     m.Bg = pyo.Var(m.R, m.N,
                    domain=pyo.Binary,
                    initialize=0)
-                   # initialize=init_gates)
     m.Dg = pyo.Var(m.R, m.N,
                    domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k),
                    initialize=0)
-                   # initialize=init_gates)
 
     ###############
     # Constraints #
@@ -234,18 +226,44 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         sense=pyo.minimize,
     )
 
-    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
-                              gates_limit=gates_limit,
-                              branching=branching)
+    m.method_options = dict(gateXings_constraint=gateXings_constraint,
+                            gates_limit=gates_limit,
+                            branching=branching)
     m.site = {key: A.graph[key] for key in ('M', 'VertexC', 'boundary', 'name')}
+    m.fun_fingerprint = fun_fingerprint()
     return m
+
+
+def MILP_warmstart_from_G(m: pyo.ConcreteModel, G: nx.Graph):
+    Ne = len(m.diE)//2
+    N = len(m.N)
+    for i, (u, v) in enumerate(list(m.diE)[:Ne]):
+        if (u, v) in G.edges:
+            if not G[u][v]['reverse']:
+                m.Be[v, u] = 1
+                m.De[v, u] = G[u][v]['load']
+            else:
+                m.Be[u, v] = 1
+                m.De[u, v] = G[u][v]['load']
+    for r in m.R:
+        nbr = list(G.neighbors(r))
+        for n in nbr:
+            ref = r
+            # first skip any detour nodes
+            while n >= N:
+                a, b = G.neighbors(n)
+                c = a if b == ref else b
+                ref = n
+                n = c
+            m.Bg[r, n] = 1
+            m.Dg[r, n] = G[n][ref]['load']
 
 
 def MILP_solution_to_G(model, solver=None, A=None):
     '''Translate a MILP pyomo solution to a networkx graph.'''
     if A is None:
         G = G_from_site(model.site)
-        A = A_graph(G)
+        A = delaunay(G)
         P = A.graph['planar']
     else:
         G = nx.create_empty_copy(A)
@@ -328,6 +346,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
         edges_created_by='MILP.pyomo',
         creation_options=model.creation_options,
         has_loads=True,
+        **model.fun_fingerprint,
     )
 
     return G

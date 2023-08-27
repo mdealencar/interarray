@@ -27,13 +27,23 @@ def graph_from_edgeset(edgeset):
     VertexC = pickle.loads(nodeset.VertexC)
     N = nodeset.N
     M = nodeset.M
+    pickled_misc = edgeset.misc
+    if pickled_misc is None:
+        creator = edgeset.method.funname
+        iterations = 1
+    else:
+        misc = pickle.loads(pickled_misc)
+        creator = misc['edges_created_by']
+        iterations = misc.get('iterations', 1)
     G = nx.Graph(name=nodeset.name,
                  M=M,
                  VertexC=VertexC,
                  capacity=edgeset.capacity,
                  boundary=pickle.loads(nodeset.boundary),
                  landscape_angle=nodeset.landscape_angle,
-                 edges_created_by=edgeset.method.funname)
+                 funname=edgeset.method.funname,
+                 edges_created_by=creator,
+                 iterations=iterations)
 
     G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
                       for n in range(N)))
@@ -72,9 +82,6 @@ def graph_from_edgeset(edgeset):
     assert abs(calc_length - edgeset.length) < 1, (
         f'{calc_length} != {edgeset.length}')
 
-    if edgeset.misc is not None:
-        miscdict = pickle.loads(edgeset.misc)
-        G.graph['iterations'] = miscdict.get('iterations', 1)
     if edgeset.method.options is not None:
         G.graph['creation_options'] = json.loads(edgeset.method.options)
     # make_graph_metrics(G)
@@ -143,7 +150,7 @@ def edgeset_from_graph(G, db):
     misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
                 'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
                 'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
-                'crossings'}
+                'crossings', 'landscape_angle'}
     nodesetID = nodeset_from_graph(G, db)
     methodID = method_from_graph(G, db),
     machineID = get_machineID(db)

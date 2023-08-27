@@ -1,14 +1,21 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import networkx as nx
-import numpy as np
 import math
 from collections import defaultdict
+
+import networkx as nx
+import numpy as np
+
 from ortools.sat.python import cp_model
-from ..crossings import gateXing_iter, edgeset_edgeXing_iter
-from ..interarraylib import G_from_site
-from ..geometric import A_graph
+
+from .core import Optimizer
+from ..crossings import edgeset_edgeXing_iter, gateXing_iter
+from ..geometric import delaunay
+from ..interarraylib import (G_from_site, calcload, fun_fingerprint,
+                             remove_detours)
+
+
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
@@ -31,7 +38,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
 
-    # Prepare data from A_graph
+    # Prepare data from A
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
@@ -110,8 +117,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 
     # edge-edge crossings
     for Xing in edgeset_edgeXing_iter(A):
-        m.AddAtMostOne(*(Be[u, v] if u >= 0 else Bg[u, v]
-                         for u, v in Xing))
+        m.AddAtMostOne(Be[u, v] if u >= 0 else Bg[u, v]
+                       for u, v in Xing)
 
     # flow consevation at each node
     for u in range(N):
@@ -171,25 +178,36 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
+    m.fun_fingerprint = fun_fingerprint()
     return m
 
 
-def MILP_warmstart_from_G(m, G):
+def MILP_warmstart_from_G(m: cp_model.CpModel, G: nx.Graph):
+    '''
+    Only implemented for non-branching models.
+    '''
     if not G.graph.get('has_loads'):
-        # TODO: run calc_loads()
-        print("G does not have loads.")
+        calcload(G)
+    if G.graph.get('D', 0) > 0:
+        G = remove_detours(G)
+    m.ClearHints()
+    upstream = getattr(m, 'upstream', None)
+    if upstream is not None:
+        let_branch = True
     for (u, v), Be in m.Be.items():
-        if (u, v) in G.edges:
-            m.AddHint(Be, True)
-
-            m.AddHint(m.De, G.edges(u, v)['load'])
-            upstream = getattr(m, 'upstream')
-            if upstream is not None:
-                pass
-
+        is_in_G = (u, v) in G.edges
+        m.AddHint(Be, is_in_G)
+        De = m.De[u, v]
+        if is_in_G:
+            edgeD = G.edges[u, v]
+            m.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
+        else:
+            m.AddHint(De, 0)
     for rn, Bg in m.Bg.items():
-        if rn in G.edges:
-            m.AddHint(Bg, True)
+        is_in_G = rn in G.edges
+        m.AddHint(Bg, is_in_G)
+        Dg = m.Dg[rn]
+        m.AddHint(Dg, G.edges[rn]['load'] if is_in_G else 0)
 
 
 def MILP_solution_to_G(model, solver, A=None):
@@ -197,7 +215,7 @@ def MILP_solution_to_G(model, solver, A=None):
     # the solution is in the solver object not in the model
     if A is None:
         G = G_from_site(model.site)
-        A = A_graph(G)
+        A = delaunay(G)
     else:
         G = nx.create_empty_copy(A)
     M = G.graph['M']
@@ -279,6 +297,7 @@ def MILP_solution_to_G(model, solver, A=None):
         edges_created_by='MILP.ortools',
         creation_options=model.creation_options,
         has_loads=True,
+        **model.fun_fingerprint,
     )
 
     return G
