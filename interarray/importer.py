@@ -4,14 +4,14 @@
 import os
 from collections import namedtuple
 from pathlib import Path
-import yaml
-import utm
 
-import numpy as np
 import networkx as nx
+import numpy as np
+import utm
+import yaml
 
-from .interarraylib import NodeTagger
 from .geometric import make_graph_metrics
+from .interarraylib import NodeTagger
 
 F = NodeTagger()
 
