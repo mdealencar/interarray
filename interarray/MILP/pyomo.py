@@ -226,10 +226,11 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         sense=pyo.minimize,
     )
 
-    m.method_options = dict(gateXings_constraint=gateXings_constraint,
-                            gates_limit=gates_limit,
-                            branching=branching)
-    m.site = {key: A.graph[key] for key in ('M', 'VertexC', 'boundary', 'name')}
+    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
+                              gates_limit=gates_limit,
+                              branching=branching)
+    m.site = {key: A.graph[key]
+              for key in ('M', 'VertexC', 'boundary', 'name')}
     m.fun_fingerprint = fun_fingerprint()
     return m
 
@@ -237,14 +238,15 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 def MILP_warmstart_from_G(m: pyo.ConcreteModel, G: nx.Graph):
     Ne = len(m.diE)//2
     N = len(m.N)
-    for i, (u, v) in enumerate(list(m.diE)[:Ne]):
+    # the first half of diE has all the edges with u < v
+    for u, v in list(m.diE)[:Ne]:
         if (u, v) in G.edges:
-            if not G[u][v]['reverse']:
-                m.Be[v, u] = 1
-                m.De[v, u] = G[u][v]['load']
-            else:
+            if G[u][v]['reverse']:
                 m.Be[u, v] = 1
                 m.De[u, v] = G[u][v]['load']
+            else:
+                m.Be[v, u] = 1
+                m.De[v, u] = G[u][v]['load']
     for r in m.R:
         nbr = list(G.neighbors(r))
         for n in nbr:

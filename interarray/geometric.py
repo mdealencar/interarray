@@ -514,7 +514,9 @@ def delaunay(G_base, add_diagonals=True, debug=False,
     A = nx.Graph()
     A.add_nodes_from(((n, {'label': label})
                       for n, label in G_base.nodes(data='label')
-                      if n < N), )
+                      if 0 <= n < N), type='wtg')
+    for r in range(-M, 0):
+        A.add_node(r, label=G_base.nodes[r]['label'], type='oss')
     A.add_edges_from(undirected.edges)
     E_planar = np.array(undirected.edges, dtype=int)
     Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
@@ -540,6 +542,7 @@ def delaunay(G_base, add_diagonals=True, debug=False,
                    planar=planar,
                    d2roots=d2roots,
                    diagonals=diagonals,
+                   landscape_angle=G_base.graph.get('landscape_angle', 0),
                    boundary=G_base.graph['boundary'],
                    name=G_base.graph['name'])
 
