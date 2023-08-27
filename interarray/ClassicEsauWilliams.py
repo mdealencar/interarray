@@ -15,7 +15,7 @@ from .priorityqueue import PriorityQueue
 F = NodeTagger()
 
 
-def ClassicEW(G_base, capacity=8, delaunay_base=False, maxiter=10000,
+def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
               debug=False, weightfun=None, weight_attr='length'):
     '''Classic Esau-Williams heuristic for C-MST
     inputs:
@@ -25,7 +25,7 @@ def ClassicEW(G_base, capacity=8, delaunay_base=False, maxiter=10000,
 
     start_time = time.perf_counter()
     # grab relevant options to store in the graph later
-    options = dict(delaunay_base=delaunay_base)
+    options = dict(delaunay_based=delaunay_based)
 
     M = G_base.graph['M']
     N = G_base.number_of_nodes() - M
@@ -39,7 +39,7 @@ def ClassicEW(G_base, capacity=8, delaunay_base=False, maxiter=10000,
     anglesXhp = G_base.graph['anglesXhp']
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    if delaunay_base:
+    if delaunay_based:
         G_edges = delaunay(G_base)
         # apply weightfun on all delaunay edges
         if weightfun is not None:

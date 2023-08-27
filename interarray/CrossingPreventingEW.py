@@ -16,7 +16,7 @@ from .priorityqueue import PriorityQueue
 F = NodeTagger()
 
 
-def CPEW(G_base, capacity=8, delaunay_base=True, maxiter=10000,
+def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
          debug=False, weightfun=None, weight_attr='length'):
     '''Crossing Preventing Esau-Williams heuristic for C-MST
     inputs:
@@ -26,7 +26,7 @@ def CPEW(G_base, capacity=8, delaunay_base=True, maxiter=10000,
 
     start_time = time.perf_counter()
     # grab relevant options to store in the graph later
-    options = dict(delaunay_base=delaunay_base)
+    options = dict(delaunay_based=delaunay_based)
 
     M = G_base.graph['M']
     N = G_base.number_of_nodes() - M
@@ -40,7 +40,7 @@ def CPEW(G_base, capacity=8, delaunay_base=True, maxiter=10000,
     anglesXhp = G_base.graph['anglesXhp']
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    if delaunay_base:
+    if delaunay_based:
         A = delaunay_deprecated(G_base)
         triangles = A.graph['triangles']
         triangles_exp = A.graph['triangles_exp']
@@ -236,8 +236,8 @@ def CPEW(G_base, capacity=8, delaunay_base=True, maxiter=10000,
                     found = False
                     break
             # for pending in PendingG:
-                # print(f'<pending> processing '
-                      # f'pending [{F[pending]}]')
+                #  print(f'<pending> processing '
+                #        f'pending [{F[pending]}]')
                 # find_option4gate(pending)
             if found:
                 break
@@ -383,7 +383,7 @@ def CPEW(G_base, capacity=8, delaunay_base=True, maxiter=10000,
         # - call find_option4gate for everyone affected
 
         # check if (u, v) crosses an existing edge
-        if delaunay_base:
+        if delaunay_based:
             # look for crossing edges within the neighborhood of (u, v)
             # faster, but only works if using the expanded delaunay edges
             eX = edge_crossings(u, v, G, triangles, triangles_exp)
