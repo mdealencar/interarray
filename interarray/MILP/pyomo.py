@@ -348,7 +348,7 @@ def MILP_solution_to_G(model, solver=None, A=None):
         edges_created_by='MILP.pyomo',
         creation_options=model.creation_options,
         has_loads=True,
-        **model.fun_fingerprint,
+        fun_fingerprint=model.fun_fingerprint,
     )
 
     return G
