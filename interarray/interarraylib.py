@@ -408,9 +408,11 @@ def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
             dict(VertexC=VertexCpkl, boundary=boundarypkl))
 
 
-
-def fun_fingerprint() -> Dict[str, Any]:
-    fcode = sys._getframe().f_back.f_code
+def fun_fingerprint(fun=None) -> Dict[str, Any]:
+    if fun is None:
+        fcode = sys._getframe().f_back.f_code
+    else:
+        fcode = fun.__code__
     return dict(
             funhash=sha256(fcode.co_code).digest(),
             funfile=fcode.co_filename,
