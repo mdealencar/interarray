@@ -93,6 +93,7 @@ _site_handles = dict(
     ormonde='Ormonde',
     race='Race Bank',
     rampion='Rampion',
+    rødsand2='Rødsand 2',
     thanet='Thanet',
     triton='Triton Knoll',
     sands='West of Duddon Sands',
