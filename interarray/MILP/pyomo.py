@@ -336,6 +336,10 @@ def MILP_solution_to_G(model, solver=None, A=None):
                 P.add_half_edge_cw(u, v, t)
                 P.add_half_edge_cw(v, u, s)
                 P.remove_edge(s, t)
+        rootload = 0
+        for nbr in G.neighbors(r):
+            rootload += G.nodes[nbr]['load']
+        G.nodes[r]['load'] = rootload
 
     G.graph.update(
         planar=P,
