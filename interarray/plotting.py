@@ -340,8 +340,8 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
     return fname
 
 
-def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6),
-          landscape=True):
+def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
+          landscape=True, infobox=True):
     '''NetworkX graph plotting function.
     `node_tag` in [None, 'load', 'label']
     (or other key in nodes's dict)'''
@@ -490,46 +490,46 @@ def gplot(G, ax=None, node_tag='load', edge_exemption=False, figlims=(5, 6),
         bar = AnchoredSizeBar(ax.transData, 1000, '1 km', 'lower right', frameon=False)
         ax.add_artist(bar)
 
-    if 'capacity' in G.graph:
-        legend = [f'$\\kappa$ = {G.graph["capacity"]}, '
-                  f'$N$ = {N}']
-        feeder_info = [f'$\\phi_{{{rootL}}}$ = {len(G[r])}'
-                       for r, rootL in RootL.items()]
-        if 'overfed' in G.graph:
-            feeder_info = [fi + f' ({100*(overfed - 1):+.0f}%)'
-                           for fi, overfed in
-                           zip(feeder_info, G.graph['overfed'][::-1])]
-        legend.extend(feeder_info)
-        # legend.append(', '.join(feeder_info))
-        Gʹ = nx.subgraph_view(G, filter_edge=lambda u, v: 'length' in G[u][v])
-        legend.append(f'Σl = {Gʹ.size(weight="length"):.0f} m')
-        #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
-        #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
-        # for field, sym in (('weight', 'w'), ('length', 'l')):
-        #  for field, sym in (('length', ''),):
-            #  weight = field if all([(field in data)
-                                   #  for _, _, data in G.edges.data()]) else None
-            #  legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
-                          #  ' m' if field == 'length' else '')
-    if ('has_costs' in G.graph):
-        legend.append('{:.0f} €'.format(G.size(weight='cost')))
-    if 'capacity' in G.graph:
-        infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX, title='\n'.join(legend),
-                            labelspacing=0)  # ,   loc='upper right',
-                            # bbox_to_anchor=(-0.04, 0.80, 1.08, 0))
-                            # bbox_to_anchor=(-0.04, 1.03, 1.08, 0))
-        plt.setp(infobox.get_title(), multialignment='center')
-        # ax.legend(title='\n'.join(legend))
-        # legend1 = pyplot.legend(plot_lines[0], ["algo1", "algo2", "algo3"], loc=1)
-        # pyplot.legend([l[0] for l in plot_lines], parameters, loc=4)
-        # ax.add_artist(legstrip)
+    if infobox:
+        if 'capacity' in G.graph:
+            info = [f'$\\kappa$ = {G.graph["capacity"]}, '
+                      f'$N$ = {N}']
+            feeder_info = [f'$\\phi_{{{rootL}}}$ = {len(G[r])}'
+                           for r, rootL in RootL.items()]
+            if 'overfed' in G.graph:
+                feeder_info = [fi + f' ({100*(overfed - 1):+.0f}%)'
+                               for fi, overfed in
+                               zip(feeder_info, G.graph['overfed'][::-1])]
+            info.extend(feeder_info)
+            # legend.append(', '.join(feeder_info))
+            Gʹ = nx.subgraph_view(G, filter_edge=lambda u, v: 'length' in G[u][v])
+            info.append(f'Σl = {Gʹ.size(weight="length"):.0f} m')
+            #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
+            #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
+            # for field, sym in (('weight', 'w'), ('length', 'l')):
+            #  for field, sym in (('length', ''),):
+                #  weight = field if all([(field in data)
+                                       #  for _, _, data in G.edges.data()]) else None
+                #  legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
+                              #  ' m' if field == 'length' else '')
+        if ('has_costs' in G.graph):
+            info.append('{:.0f} €'.format(G.size(weight='cost')))
+        if 'capacity' in G.graph:
+            infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX, title='\n'.join(info),
+                                labelspacing=0)  # ,   loc='upper right',
+                                # bbox_to_anchor=(-0.04, 0.80, 1.08, 0))
+                                # bbox_to_anchor=(-0.04, 1.03, 1.08, 0))
+            plt.setp(infobox.get_title(), multialignment='center')
+            # ax.legend(title='\n'.join(legend))
+            # legend1 = pyplot.legend(plot_lines[0], ["algo1", "algo2", "algo3"], loc=1)
+            # pyplot.legend([l[0] for l in plot_lines], parameters, loc=4)
+            # ax.add_artist(legstrip)
     if not dark:
         ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
                   frameon=False, bbox_to_anchor=(0.5, -0.07),
                   columnspacing=1, handletextpad=0.3)
-        if 'capacity' in G.graph:
+        if 'capacity' in G.graph and infobox:
             ax.add_artist(infobox)
-        # infobox = ax.legend([], title='\n'.join(legend))
     return ax
 
 
