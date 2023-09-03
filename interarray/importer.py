@@ -61,7 +61,8 @@ def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     G = nx.Graph(M=M,
                  VertexC=np.vstack([Node, Root]),
                  boundary=Boundary,
-                 name=fpath.stem)
+                 name=fpath.stem,
+                 handle=handle)
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
     if lsangle is not None:
         G.graph['landscape_angle'] = lsangle

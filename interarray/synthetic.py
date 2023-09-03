@@ -12,7 +12,51 @@ from .interarraylib import NodeTagger
 F = NodeTagger()
 
 
-def synthfarm2graph(RootC, NodeC, BoundaryC=None, name=''):
+def toyfarm():
+    VertexC = np.array([
+        [49., 993.],  # row 0
+        [-145., 388.],  # row 1
+        [275., 562.],
+        [699., 566.],
+        [-371., -147.],  # row 2
+        [371., 109.],
+        [972., 206.],
+        [-585., -655.],  # row 3
+        [90., -475.],
+        [707., -244.],
+        [-104., -966.],  # row 4
+        [494., -772.],
+        [0., 0.],  # OSS
+    ])
+    BoundaryC = np.array([
+        [49., 993.],  # row 0
+        [-145., 388.],  # row 1
+        [-371., -147.],  # row 2
+        [-585., -655.],  # row 3
+        [-104., -966.],  # row 4
+        [494., -772.],
+        [707., -244.],
+        [972., 206.],
+        [699., 566.],
+    ])
+    M = 1
+    N = VertexC.shape[0] - M
+    # create networkx graph
+    G = nx.Graph(M=M,
+                 VertexC=VertexC,
+                 boundary=BoundaryC,
+                 name='toy',
+                 handle='toy')
+    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+                      for n in range(N)))
+    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+                      for r in range(-M, 0)))
+
+    make_graph_metrics(G)
+    return G
+
+
+def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
     N = NodeC.shape[0]
     M = RootC.shape[0]
 
@@ -29,7 +73,8 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name=''):
     G = nx.Graph(M=M,
                  VertexC=VertexC,
                  boundary=BoundaryC,
-                 name=name)
+                 name=name,
+                 handle=handle)
     G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
                       for n in range(N)))
     G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})

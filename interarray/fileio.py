@@ -30,7 +30,7 @@ def utm_from_latlonstr(entries):
     return utm_out
 
 
-def file2graph(filename, rotation=None):
+def file2graph(filename, rotation=None, handle='file'):
     '''filename is a Matlab .mat file or an Excel
     spreadsheet in the proper format'''
     fpath = Path(filename)
@@ -113,7 +113,8 @@ def file2graph(filename, rotation=None):
     G = nx.Graph(M=M,
                  VertexC=np.vstack((WTcoords.T, OSScoords.T[::-1])),
                  boundary=boundary,
-                 name=fpath.stem)
+                 name=fpath.stem,
+                 handle=handle)
     G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
                       for n in range(N)))
     G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})

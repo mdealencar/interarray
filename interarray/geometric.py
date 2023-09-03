@@ -544,7 +544,8 @@ def delaunay(G_base, add_diagonals=True, debug=False,
                    diagonals=diagonals,
                    landscape_angle=G_base.graph.get('landscape_angle', 0),
                    boundary=G_base.graph['boundary'],
-                   name=G_base.graph['name'])
+                   name=G_base.graph['name'],
+                   handle=G_base.graph['handle'])
 
     # TODO: update other code that uses the data below
     # old version of delaunay() also stored these:
