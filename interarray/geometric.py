@@ -10,6 +10,8 @@ from math import isclose
 
 import networkx as nx
 import numpy as np
+from scipy.sparse import coo_array
+from scipy.sparse.csgraph import minimum_spanning_tree as scipy_mst
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 
@@ -64,7 +66,10 @@ def rotate(coords, angle):
 
 
 def point_d2line(p, u, v):
-    '''calculates the distance from point `p` to the line defined by points `u` and `v`'''
+    '''
+    Calculate the distance from point `p` to the line defined by points `u`
+    and `v`.
+    '''
     x0, y0 = p
     x1, y1 = u
     x2, y2 = v
@@ -863,6 +868,28 @@ def planar_over_layout(G: nx.Graph):
     return P
 
 
+def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
+    '''Return a graph of the minimum spanning tree connecting the node in G.'''
+    M = G.graph['M']
+    VertexC = G.graph['VertexC']
+    V = VertexC.shape[0]
+    N = V - M
+    P = make_planar_embedding(M, VertexC)[0].to_undirected(as_view=True)
+    E_planar = np.array(P.edges, dtype=np.int32)
+    # E_planar = np.array(P.edges)
+    Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
+    E_planar[E_planar < 0] += V
+    P_ = coo_array((Length, (*E_planar.T,)), shape=(V, V))
+    Q_ = scipy_mst(P_)
+    S, T = Q_.nonzero()
+    H = nx.Graph()
+    H.add_nodes_from(G.nodes(data=True))
+    for s, t in zip(S, T):
+        H.add_edge(s if s < N else s - V, t if t < N else t - V, length=Q_[s, t])
+    H.graph.update(G.graph)
+    return H
+
+
 # TODO: MARGIN is ARBITRARY - depends on the scale
 def check_crossings(G, debug=False, MARGIN=0.1):
     '''Checks for crossings (touch/overlap is not considered crossing).
@@ -958,8 +985,8 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                         # (u, v) crosses (s, t) away from nodes
                         crossings.append(((u, v), (s, t)))
                         # print(distances)
-                        print(f'ERROR <edge-edge>: edge «{F[fnT[u]]}–{F[fnT[v]]}» crosses '
-                              f'«{F[fnT[s]]}–{F[fnT[t]]}»')
+                        print(f'ERROR <edge-edge>: edge «{F[fnT[u]]}–{F[fnT[v]]}» '
+                              f'crosses «{F[fnT[s]]}–{F[fnT[t]]}»')
                     elif close_count == 1:
                         # (u, v) and (s, t) touch node-to-edge
                         pivotI, = np.flatnonzero(nearmask)
