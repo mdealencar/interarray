@@ -69,12 +69,16 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     type2style = dict(
         detour='dashed',
         scaffold='dotted',
+        extended='dashed',
+        delaunay='solid',
         unspecified='solid',
     )
     if dark:
         type2color.update(
             detour='darkorange',
             scaffold='gray',
+            delaunay='darkcyan',
+            extended='darkcyan',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
@@ -86,6 +90,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         type2color.update(
             detour='royalblue',
             scaffold='gray',
+            delaunay='black',
+            extended='black',
             unspecified='firebrick',
         )
         root_color = 'black'
@@ -115,23 +121,6 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         points=' '.join(str(c) for c in BoundaryS.flat)
     )
 
-    # Defs (i.e. reusable elements)
-    wtg = svg.Circle(id='wtg',
-                     stroke=node_edge, stroke_width=2, r=node_size)
-    oss = svg.Rect(id='oss', fill=root_color, stroke=node_edge, stroke_width=2,
-                   width=root_side, height=root_side)
-    detour = svg.Circle(id='dt', fill='none', stroke_opacity=0.3,
-                        stroke=detour_ring, stroke_width=4, r=23)
-    defs = svg.Defs(elements=[wtg, oss, detour])
-
-    # Style
-    style = svg.Style(text=(
-        f'polyline {{stroke-width: 4}} '
-        f'line {{stroke-width: 4}} '
-        f'.std {{stroke: {type2color["unspecified"]}}} '
-        f'.dt {{stroke-dasharray: 18 15; fill: none; '
-        f'stroke: {type2color["detour"]}}}'))
-
     if not G.graph.get('has_loads', False) and G.number_of_edges() == N + D:
         calcload(G)
 
@@ -160,13 +149,19 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                                       y=VertexS[d, 1]) for d in fnT[N: N + D]])
 
     # Regular edges
+    class_dict = {'delaunay': 'del', 'extended': 'ext', None: 'std'}
     edges_with_type = G.edges(data='type', default=None)
-    edges = svg.G(
-        id='edges', class_='std',
-        elements=[svg.Line(x1=VertexS[u, 0], y1=VertexS[u, 1],
-                           x2=VertexS[v, 0], y2=VertexS[v, 1])
-                  for u, v, edge_type in edges_with_type
-                  if edge_type is None])
+    edge_lines = defaultdict(list)
+    for u, v, edge_type in edges_with_type:
+        if edge_type == 'detour':
+            continue
+        edge_lines[class_dict[edge_type]].append(
+                svg.Line(x1=VertexS[u, 0], y1=VertexS[u, 1],
+                         x2=VertexS[v, 0], y2=VertexS[v, 1]))
+    edges = [svg.G(id='edges', class_=class_, elements=lines)
+             for class_, lines in edge_lines.items()]
+    #  for class_, lines in edge_lines.items():
+    #      edges.append(svg.G(id='edges', class_=class_, elements=lines))
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
     for r in range(-M, 0):
@@ -189,11 +184,37 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             elements=[svg.Polyline(points=points) for points in Points])
     else:
         edgesdt = []
+
+    # Defs (i.e. reusable elements)
+    def_elements = []
+    wtg = svg.Circle(id='wtg',
+                     stroke=node_edge, stroke_width=2, r=node_size)
+    def_elements.append(wtg)
+    oss = svg.Rect(id='oss', fill=root_color, stroke=node_edge, stroke_width=2,
+                   width=root_side, height=root_side)
+    def_elements.append(oss)
+    detour = svg.Circle(id='dt', fill='none', stroke_opacity=0.3,
+                        stroke=detour_ring, stroke_width=4, r=23)
+    def_elements.append(detour)
+    defs = svg.Defs(elements=def_elements)
+
+    # Style
+    # TODO: use type2style below
+    style = svg.Style(text=(
+        f'polyline {{stroke-width: 4}} '
+        f'line {{stroke-width: 4}} '
+        f'.std {{stroke: {type2color["unspecified"]}}} '
+        f'.del {{stroke: {type2color["delaunay"]}}} '
+        f'.ext {{stroke: {type2color["extended"]}; stroke-dasharray: 18 15}} '
+        f'.scf {{stroke: {type2color["scaffold"]}; stroke-dasharray: 10 10}} '
+        f'.dt {{stroke-dasharray: 18 15; fill: none; '
+        f'stroke: {type2color["detour"]}}}'))
+
     # Aggregate all elements in the SVG figure.
     out = svg.SVG(
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
         elements=[style, defs,
                   svg.G(id=G.graph['handle'],
-                        elements=[boundary, edges, edgesdt, svgnodes,
+                        elements=[boundary, *edges, edgesdt, svgnodes,
                                   svgroots, svgdetours])])
     return SvgRepr(out.as_str())
