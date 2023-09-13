@@ -522,7 +522,7 @@ def delaunay(G_base, add_diagonals=True, debug=False,
                       if 0 <= n < N), type='wtg')
     for r in range(-M, 0):
         A.add_node(r, label=G_base.nodes[r]['label'], type='oss')
-    A.add_edges_from(undirected.edges)
+    A.add_edges_from(undirected.edges, type='delaunay')
     E_planar = np.array(undirected.edges, dtype=int)
     Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
     for (u, v), length in zip(E_planar, Length):
@@ -531,9 +531,9 @@ def delaunay(G_base, add_diagonals=True, debug=False,
         diagnodes = np.empty((len(diagonals), 2), dtype=int)
         for row, uv in zip(diagnodes, diagonals):
             row[:] = uv
-        A.add_edges_from(diagonals)
+        A.add_edges_from(diagonals, type='extended')
         # the reference vertex `v` that `diagonals` carries
-        # could be stored as edge ⟨s, t⟩'s property (that
+        # could be stored as edge âŸ¨s, tâŸ©'s property (that
         # property would also mark the edge as a diagonal)
         Length = np.hypot(*(VertexC[diagnodes[:, 0]] - VertexC[diagnodes[:, 1]]).T)
         for (u, v), length in zip(diagnodes, Length):
