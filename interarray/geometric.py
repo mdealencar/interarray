@@ -533,7 +533,7 @@ def delaunay(G_base, add_diagonals=True, debug=False,
             row[:] = uv
         A.add_edges_from(diagonals, type='extended')
         # the reference vertex `v` that `diagonals` carries
-        # could be stored as edge âŸ¨s, tâŸ©'s property (that
+        # could be stored as edge ⟨s, t⟩'s property (that
         # property would also mark the edge as a diagonal)
         Length = np.hypot(*(VertexC[diagnodes[:, 0]] - VertexC[diagnodes[:, 1]]).T)
         for (u, v), length in zip(diagnodes, Length):
@@ -768,7 +768,8 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     V = N + (M if include_roots else 0)
     G = nx.complete_graph(V)
     EdgeComplete = np.column_stack(np.triu_indices(V, k=1))
-    mask = np.zeros((V,), dtype=bool)
+    #  mask = np.zeros((V,), dtype=bool)
+    mask = np.zeros_like(EdgeComplete[0], dtype=bool)
     if include_roots:
         # mask root-root edges
         offset = 0
