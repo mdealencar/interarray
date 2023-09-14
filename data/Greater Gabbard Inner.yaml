@@ -19,7 +19,10 @@ EXTENTS: |-
   F 51°57.348'N 01°52.368'E
   G 51°57.672'N 01°53.250'E
   H 51°57.546'N 01°53.610'E
+  h 51°57.879'N 01°53.806'E
 
+# source does not list extent point "h"
+# it was manually inserted (engauge-digitizer)
 # Outer Gabbard
 #I 51°48.660'N 02°00.000'E
 #J 51°45.240'N 02°00.000'E
