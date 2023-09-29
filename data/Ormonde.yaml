@@ -4,7 +4,7 @@ OPERATOR: Vattenfall
 
 TURBINE:
   make: Senvion
-  model: REpower 5M
+  model: REpower 5M 126m
   power_MW: 5
 
 LANDSCAPE_ANGLE: 45
