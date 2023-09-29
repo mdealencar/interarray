@@ -2,23 +2,139 @@
 # https://github.com/mdealencar/interarray
 
 import itertools
+from typing import Optional, Tuple
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
 import numpy as np
-from matplotlib.path import Path
+import numba as nb
+import networkx as nx
 
 
-def poisson_disc_filler(N, min_dist, boundary, exclude=None, seed=None,
-                        iter_max_factor=50, partial_fulfilment=True):
+# linear_count = [4, 7, 12]
+# efficiency_factor = [0.6, 0.4, 0.2]
+def get_random_normed_instance(site: nx.Graph, linear_count: int,
+                               efficiency_factor: float, iter_max: int = 30
+                               ) -> nx.Graph:
+    boundary, ossC, (w, h) = normalize_site_single_oss(site)
+    wt_clearance = min(w, h)/linear_count
+    N = round(efficiency_factor/np.pi*wt_clearance**2/4)
+    for i in range(1, iter_max + 1):
+        wtC = poisson_disc_filler(N, wt_clearance, boundary, ossC,
+                                  clearance=0.5*wt_clearance,
+                                  iter_max_factor=2000)
+        if len(wtC) == N:
+            break
+    if i == N:
+        print('WARNING: unable to fulfill.')
+    return boundary, wtC, ossC
+
+
+def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
+                                                 np.ndarray]:
+    '''
+    Calculate the area and bounding box from a polygon's boundary (K×2 CCW
+    vertex array).
+    '''
+    bX, bY = boundary.T
+    lower_bound = np.array((bX.min(), bY.min()), dtype=np.float64)
+    upper_bound = np.array((bX.max(), bY.max()), dtype=np.float64)
+    # Shoelace formula (https://stackoverflow.com/a/30408825/287217)
+    area_avail = 0.5*np.abs(np.dot(bX, np.roll(bY, 1))
+                            - np.dot(bY, np.roll(bX, 1)))
+    return area_avail, lower_bound, upper_bound
+
+
+def normalize_site_single_oss(G: nx.Graph) -> Tuple[np.ndarray, np.ndarray]:
+    boundary = G.graph['boundary'].copy()
+    M = G.graph['M']
+    VertexC = G.graph['VertexC']
+    area, lower_bound, upper_bound = area_and_bbox(boundary)
+    factor = 1/np.sqrt(area)
+    boundary -= lower_bound
+    boundary *= factor
+    oss = (VertexC[-M:].mean(axis=0) - lower_bound)*factor
+    # perimeter calculation
+    perimeter = np.linalg.norm(boundary - np.roll(boundary, 1, axis=0),
+                               axis=1).sum()
+    return boundary, oss, (upper_bound - lower_bound)*factor, perimeter, factor
+
+
+@nb.njit(cache=True, inline='always')
+def clears(repellers: nb.float64[:, :], clearance_sq: np.float64,
+           point: nb.float64[:]) -> bool:
+    '''
+    Evaluate if `point` (2,) is more that sqrt(clearance_sq) away from all
+    `repellers` (K×2).
+    Return boolean.
+    '''
+    return (((pts[np.newaxis, :] - repellers)**2).sum(axis=1)
+            >= clearance_sq).all()
+
+
+def contains_np(polygon: nb.float64[:, :],
+                pts: nb.float64[:, :]) -> nb.bool_[:]:
+    '''
+    Evaluate if 2D points in `pts` (N×2) are inside `polygon` (K×2, CCW vertex
+    order).
+    Return 1D boolean array (True if pts[i] inside `polygon`).
+    '''
+    polygon_rolled = np.roll(polygon, -1, axis=0)
+    vectors = polygon_rolled - polygon
+    mask1 = (pts[:, None] == polygon).all(-1).any(-1)
+    m1 = ((polygon[:, 1] > pts[:, None, 1])
+          != (polygon_rolled[:, 1] > pts[:, None, 1]))
+    slope = ((pts[:, None, 0] - polygon[:, 0]) * vectors[:, 1]) - (
+            vectors[:, 0] * (pts[:, None, 1] - polygon[:, 1]))
+    m2 = slope == 0
+    mask2 = (m1 & m2).any(-1)
+    m3 = (slope < 0) != (polygon_rolled[:, 1] < polygon[:, 1])
+    m4 = m1 & m3
+    count = np.count_nonzero(m4, axis=-1)
+    mask3 = ~(count % 2 == 0)
+    return mask1 | mask2 | mask3
+
+
+@nb.njit(cache=True)
+def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
+    '''
+    Evaluate if `point` (2,) is inside `polygon` (K×2, CCW vertex
+    order).
+    Return boolean.
+    '''
+    intersections = 0
+    dx2, dy2 = point - polygon[-1]
+
+    for p in polygon:
+        dx, dy = dx2, dy2
+        dx2, dy2 = point - p
+
+        F = (dx - dx2)*dy - dx*(dy - dy2)
+        if np.isclose(F, 0., rtol=0) and dx*dx2 <= 0 and dy*dy2 <= 0:
+            return True
+
+        if (dy >= 0 and dy2 < 0) or (dy2 >= 0 and dy < 0):
+            if F > 0:
+                intersections += 1
+            elif F < 0:
+                intersections -= 1
+    return intersections != 0
+
+
+def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
+                        repellers: Optional[nb.float64[:, :]] = None,
+                        clearance: float = 0, exclude=None, seed=None,
+                        iter_max_factor: int = 50, plot: bool = False,
+                        partial_fulfilment: bool = True) -> nb.float64[:, :]:
     '''
     Fills the area delimited by `boundary` with `N` randomly
     placed points that are at least `min_dist` apart and that
-    don't fall inside any of the `exclude` areas.
+    don't fall inside any of the `repellers` discs or `exclude` areas.
     :param N:
     :param min_dist:
     :param boundary: iterable (B × 2) with CCW-ordered vertices of a polygon
-                     special case: if B == 2 then boundary is a rectangle and
-                     the two vertices represent (min_x, min_y) and (max_x,
-                     max_y)
+    :param repellers: iterable (M × 2) with the centers of forbidden discs
+    :param clearance: the radius of the forbidden discs
     :param exclude: iterable (E × X × 2)
     :param iter_max_factor: factor to multiply by `N` to limit the number of
                             iterations
@@ -27,108 +143,179 @@ def poisson_disc_filler(N, min_dist, boundary, exclude=None, seed=None,
                                request.
     :return numpy array shaped (N, 2) with points' positions
     '''
-    # [Poisson-Disc Sampling](https://www.jasondavies.com/poisson-disc/)
-
-    if len(boundary) > 2:
-        path = Path(boundary)
-        bX, bY = boundary.T
-        lower_bound = np.array((bX.min(), bY.min()), dtype=float)
-        upper_bound = np.array((bX.max(), bY.max()), dtype=float)
-        area_avail = 0.5*np.abs(np.dot(bX, np.roll(bY, 1))
-                                - np.dot(bY, np.roll(bX, 1)))
-    else:
-        path = False
-        lower_bound, upper_bound = np.array(boundary)
-        area_avail = np.prod((upper_bound - lower_bound) + min_dist)
-
     # TODO: implement exclusion zones
     if exclude is not None:
         raise NotImplementedError
+
+    area_avail, lower_bound, upper_bound = area_and_bbox(boundary)
 
     # quick check for outrageous densities
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
     # A Simple Proof of Thue's Theorem on Circle Packing
     # https://arxiv.org/abs/1009.4322
-    area_demand = min_dist**2*np.pi*N/4
-    if (not partial_fulfilment
-            and (area_demand > np.pi*np.sqrt(3)/6*area_avail)):
-        raise ValueError("(N, min_dist) given are beyond the ideal circle "
-                         "packing for the boundary area.")
-    # friendly warning for high densities (likely to place less than N points)
-    if 2*area_demand > area_avail:
-        print('WARNING: Unlikely to fulfill with current arguments - '
-              'try a lower density.')
-
-    iter_max = iter_max_factor*N
-    threshold = min_dist**2
-    rng = np.random.default_rng(seed=seed)
-
-    I, J = np.ogrid[-2:3, -2:3]
-    # mask for the 20 neighbors
-    # (5x5 grid excluding corners and center)
-    neighbormask = ((abs(I) != 2) | (abs(J) != 2)) & ((I != 0) | (J != 0))
+    area_demand = N*np.pi*min_dist**2/4
+    efficiency = area_demand/area_avail
+    efficiency_optimal = np.pi*np.sqrt(3)/6
+    if efficiency > efficiency_optimal:
+        msg = (f"(N = {N}, min_dist = {min_dist}) imply a packing "
+               f"efficiency of {efficiency:.3f} which is higher than "
+               f"the optimal possible ({efficiency_optimal:.3f}).")
+        if partial_fulfilment:
+            print('Info: Attempting partial fullfillment.', msg,
+                  'Try with lower N and/or min_dist.')
+        else:
+            raise ValueError(msg)
 
     # create auxiliary grid covering the defined boundary
     cell_size = min_dist/np.sqrt(2)
-    i_len, j_len = np.ceil(((upper_bound - lower_bound)/cell_size)).astype(int)
+    i_len, j_len = np.ceil(
+        (upper_bound - lower_bound)/cell_size
+    ).astype(np.int_)
+    boundary_scaled = (boundary - lower_bound)/cell_size
+    if repellers is None:
+        repellers_scaled = None
+        clearance_sq = 0.
+    else:
+        repellers_scaled = (repellers - lower_bound)/cell_size
+        clearance_sq = (clearance/cell_size)**2
 
-    # grid for mapping of cell to point (initialized as NaNs)
-    cells = np.full((i_len, j_len, 2), np.nan, dtype=float)
+    # Alternate implementation using np.mgrid
+    #  pts = np.reshape(
+    #      np.moveaxis(np.mgrid[0: i_len + 1, 0: j_len + 1], 0, -1),
+    #      ((i_len + 1)*(j_len + 1), 2)
+    #  )
+    pts = np.empty(((i_len + 1)*(j_len + 1), 2), dtype=int)
+    pts_temp = pts.reshape((i_len + 1, j_len + 1, 2))
+    pts_temp[..., 0] = np.arange(i_len + 1)[:, np.newaxis]
+    pts_temp[..., 1] = np.arange(j_len + 1)[np.newaxis, :]
+    inside = contains_np(boundary_scaled, pts).reshape((i_len + 1, j_len + 1))
 
-    def no_overlap(p: int, q: int, candidateC: np.ndarray) -> bool:
+    # reduce 2×2 sub-matrices of `inside` with logical_or (i.e. .any())
+    cell_covers_polygon = np.lib.stride_tricks.as_strided(
+        inside, shape=(2, 2, inside.shape[0] - 1, inside.shape[1] - 1),
+        strides=inside.strides*2, writeable=False
+    ).any(axis=(0, 1))
+
+    # check boundary's vertices
+    for k, (i, j) in enumerate(boundary_scaled.astype(int)):
+        if not cell_covers_polygon[i, j]:
+            ij = boundary_scaled[k].copy()
+            direction = boundary_scaled[k - 1] - ij
+            direction /= np.linalg.norm(direction)
+            to_mark = [(i, j)]
+            while True:
+                nbr = (cell_covers_polygon[max(0, i - 1), j]
+                       or cell_covers_polygon[min(i_len - 1, i + 1), j]
+                       or cell_covers_polygon[i, max(0, j - 1)]
+                       or cell_covers_polygon[i, min(j_len - 1, j + 1)])
+                if nbr:
+                    break
+                ij += direction*0.999
+                i, j = ij.astype(int)
+                to_mark.append((i, j))
+            for i, j in to_mark:
+                cell_covers_polygon[i, j] = True
+
+    # Sequence of (i, j) of cells that overlap with the polygon
+    cell_idc = np.argwhere(cell_covers_polygon)
+
+    iter_max = iter_max_factor*N
+    rng = np.random.default_rng(seed)
+
+    # useful plot for debugging purposes only
+    if plot:
+        fig, ax = plt.subplots()
+        ax.imshow(cell_covers_polygon.T, origin='lower',
+                  extent=[0, cell_covers_polygon.shape[0],
+                          0, cell_covers_polygon.shape[1]])
+        ax.scatter(*np.nonzero(inside), marker='.')
+        ax.scatter(*boundary_scaled.T, marker='x')
+        ax.plot(*np.vstack((boundary_scaled, boundary_scaled[:1])).T)
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.grid()
+
+    # point-placing function
+    points = wrapped_poisson_disc_filler(
+        N, iter_max, i_len, j_len, cell_idc, boundary_scaled, clearance_sq,
+        repellers_scaled, rng)
+
+    # check if request was fulfilled
+    if len(points) < N:
+        msg = (f'Only {len(points)} points generated (requested: {N}, itera'
+               f'tions: {iter_max}, efficiency requested: {efficiency:.3f}, '
+               f'efficiency limit: {efficiency_optimal:.3f})')
+        print('WARNING:', msg)
+
+    return points*cell_size + lower_bound
+
+
+@nb.njit(cache=True)
+def wrapped_poisson_disc_filler(
+        N: int, iter_max: int, i_len: int, j_len: int,
+        cell_idc: nb.int64[:, :], boundary_scaled: nb.float64[:, :],
+        clearance_sq: float, repellers_scaled: Optional[nb.float64[:, :]],
+        rng: np.random.Generator) -> nb.float64[:, :]:
+    '''See `poisson_disc_filler()`.'''
+    # [Poisson-Disc Sampling](https://www.jasondavies.com/poisson-disc/)
+
+    # mask for the 20 neighbors
+    # (5x5 grid excluding corners and center)
+    neighbormask = np.array(((False, True, True,  True, False),
+                             (True,  True, True,  True, True),
+                             (True,  True, False, True, True),
+                             (True,  True, True,  True, True),
+                             (False, True, True,  True, False)))
+
+    # points to be returned by this function
+    points = np.empty((N, 2), dtype=np.float64)
+    # grid for mapping of cell to position in array `points` (N means not set)
+    cells = np.full((i_len, j_len), N, dtype=np.int64)
+
+    def no_conflict(p: int, q: int, point: nb.float64[:]) -> bool:
         '''
-        Check for overlap over the 20 cells neighboring the current cell.
+        Check for conflict with points from the 20 cells neighboring the
+        current cell.
         :param p:  x cell index.
         :param q:  y cell index.
-        :param candidateC: numpy array shaped (2,) with the point's coordinates
-        :return True if point does not overlap, False otherwise.
+        :param point: numpy array shaped (2,) with the point's coordinates
+        :return True if point does not conflict, False otherwise.
         '''
-        P = I + p
-        Q = J + q
-        mask = (neighbormask
-                & (0 <= P) & (P <= (i_len - 1))
-                & (0 <= Q) & (Q <= (j_len - 1)))
-        i_, j_ = np.nonzero(mask)
-        neighbors = cells[P[i_, 0], Q[0, j_]]
-        for neighborC in neighbors[~np.isnan(neighbors[:, 0])]:
-            if sum((candidateC - neighborC)**2) < threshold:
-                return False
-        return True
+        p_min, p_max = max(0, p - 2), min(i_len, p + 3)
+        q_min, q_max = max(0, q - 2), min(j_len, q + 3)
+        cells_window = cells[p_min:p_max, q_min:q_max].copy()
+        mask = (neighbormask[2 + p_min - p: 2 + p_max - p,
+                             2 + q_min - q: 2 + q_max - q]
+                & (cells_window < N))
+        ii = cells_window.reshape(mask.size)[np.flatnonzero(mask.flat)]
+        return not (((point[np.newaxis, :] - points[ii])**2).sum(axis=-1)
+                    < 2).any()
 
-    # list of indices of empty cells.
-    empty_cell_idc = list(itertools.product(range(i_len), range(j_len)))
-
-    dart = np.empty((2,), dtype=float)
-    pos = np.empty((N, 2), dtype=float)
     out_count = 0
+    idc_list = list(range(len(cell_idc)))
+
+    # dart-throwing loop
     for iter_count in range(1, iter_max + 1):
         # pick random empty cell
-        empty_idx = rng.integers(low=0, high=len(empty_cell_idc))
-        i, j = empty_cell_idc[empty_idx]
+        empty_idx = rng.integers(low=0, high=len(idc_list))
+        ij = cell_idc[idc_list[empty_idx]]
+        i, j = ij
 
         # dart throw inside cell
-        dart[:] = (i + rng.uniform(), j + rng.uniform())
-        dart *= cell_size
-        dart += lower_bound
+        dartC = ij + rng.random(2)
 
-        # check boundary and overlap
-        if (((not path and (dart <= upper_bound).all())
-                or (path and path.contains_point(dart)))
-                and no_overlap(i, j, dart)):
-            # add new point and remove cell from empty list
-            pos[out_count] = dart
-            cells[empty_cell_idc[empty_idx]] = dart
-            del empty_cell_idc[empty_idx]
-            out_count += 1
-            if out_count == N or not empty_cell_idc:
-                break
+        # check boundary, overlap and clearance
+        if contains(boundary_scaled, dartC):
+            if no_conflict(i, j, dartC):
+                if repellers_scaled is not None:
+                    if not clears(repellers_scaled, clearance_sq, dartC):
+                        continue
+                # add new point and remove cell from empty list
+                points[out_count] = dartC
+                cells[i, j] = out_count
+                del idc_list[empty_idx]
+                out_count += 1
+                if out_count == N or not idc_list:
+                    break
 
-    if out_count < N:
-        pos = pos[:out_count]
-        msg = (f'Only {out_count} points generated (requested: {N}, '
-               f'iterations: {iter_count}).')
-        if partial_fulfilment:
-            print('WARNING:', msg)
-        else:
-            raise ValueError(msg)
-    return pos
+    return points[:out_count]
