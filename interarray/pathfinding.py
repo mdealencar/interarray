@@ -149,12 +149,18 @@ class PathFinder():
     def _get_sector(self, _node, portal):
         # TODO: there is probably a better way to avoid spinning around _node
         is_gate = any(_node in Gate for Gate in self.nonembed_Gates)
-        if is_gate and len(self.G._adj[_node]) == 1:
+        _node_degree = len(self.G._adj[_node])
+        if is_gate and _node_degree == 1:
             return self.G.nodes[_node]['root']
-        
+
         _opposite = portal[0] if _node == portal[1] else portal[1]
         _nbr = self.P[_node][_opposite]['ccw']
-        while ((_node, _nbr) not in self.G.edges):
+        # this `while` loop would in some cases loop forever
+        #  while ((_node, _nbr) not in self.G.edges):
+        #      _nbr = self.P[_node][_nbr]['ccw']
+        for _ in range(_node_degree):
+            if (_node, _nbr) in self.G.edges:
+                break
             _nbr = self.P[_node][_nbr]['ccw']
         return _nbr
 
