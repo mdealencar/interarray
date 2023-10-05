@@ -2,13 +2,45 @@
 # https://github.com/mdealencar/interarray
 
 import itertools
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
+from .interarraylib import NodeTagger
 
 import numpy as np
 import numba as nb
 import networkx as nx
+
+F = NodeTagger()
+
+
+# iCDF_factory(N_min = 70,  N_max = 200, η = 0.6, d_lb = 0.045):
+def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
+        -> Callable[[float], int]:
+    '''
+    Create function to shape the PDF: y(x) = d(N) - d_lb = 2*sqrt(η/π/N) - d_lb
+    where:
+        N is the WT count
+        η is the area covered by N circles of diameter d (η = Nπd²/4)
+        d_lb is the lower bound for the minimum distance between WT
+    '''
+
+    def integral(x):  # integral of y(x) wrt x
+        return 4*np.sqrt(x*η/np.pi) - d_lb*x
+
+    def integral_inv(y):  # integral_inv(integral(x)) = x
+        return ((-4*np.sqrt(4*η**2 - np.pi*η*d_lb*y) + 8*η - np.pi*d_lb*y)
+                / (np.pi*d_lb**2))
+
+    offset = integral(N_min - 0.4999999)
+    area_under_curve = integral(N_max + 0.5) - offset
+
+    def iCDF(u: float) -> int:
+        '''Map from u ~ uniform(0, 1) to random variable N ~ custom \
+        probability density function'''
+        return int(round(integral_inv(u*area_under_curve + offset)))
+
+    return iCDF
 
 
 # linear_count = [4, 7, 12]
@@ -16,6 +48,13 @@ import networkx as nx
 def get_random_normed_instance(site: nx.Graph, linear_count: int,
                                efficiency_factor: float, iter_max: int = 30
                                ) -> nx.Graph:
+    '''
+    `linear_count` defines the minimum distance between WT, which is the one
+    that enables that turbine count aligned along the shortest side of the
+    bounding box.
+
+    this is likely to be DEPRECATED.
+    '''
     boundary, ossC, (w, h) = normalize_site_single_oss(site)
     wt_clearance = min(w, h)/linear_count
     N = round(efficiency_factor/np.pi*wt_clearance**2/4)
@@ -45,7 +84,8 @@ def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
     return area_avail, lower_bound, upper_bound
 
 
-def normalize_site_single_oss(G: nx.Graph) -> Tuple[np.ndarray, np.ndarray]:
+def normalize_site_single_oss(G: nx.Graph) -> Tuple[np.ndarray, np.ndarray,
+                                                    np.ndarray, float, float]:
     boundary = G.graph['boundary'].copy()
     M = G.graph['M']
     VertexC = G.graph['VertexC']
@@ -53,11 +93,34 @@ def normalize_site_single_oss(G: nx.Graph) -> Tuple[np.ndarray, np.ndarray]:
     factor = 1/np.sqrt(area)
     boundary -= lower_bound
     boundary *= factor
-    oss = (VertexC[-M:].mean(axis=0) - lower_bound)*factor
+    oss = ((VertexC[-M:].mean(axis=0) - lower_bound)*factor)[np.newaxis, :]
     # perimeter calculation
     perimeter = np.linalg.norm(boundary - np.roll(boundary, 1, axis=0),
                                axis=1).sum()
     return boundary, oss, (upper_bound - lower_bound)*factor, perimeter, factor
+
+
+def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
+                         landscape_angle=0):
+    N = WTpos.shape[0]
+    if oss is not None:
+        M = oss.shape[0]
+        VertexC = np.concatenate((WTpos, oss))
+    else:
+        M = 0
+        VertexC = WTpos
+    G = nx.Graph(
+        name=name,
+        handle=handle,
+        M=M,
+        boundary=boundary,
+        landscape_angle=landscape_angle,
+        VertexC=VertexC)
+    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+                      for n in range(N)))
+    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+                      for r in range(-M, 0)))
+    return G
 
 
 @nb.njit(cache=True, inline='always')
@@ -68,7 +131,7 @@ def clears(repellers: nb.float64[:, :], clearance_sq: np.float64,
     `repellers` (K×2).
     Return boolean.
     '''
-    return (((pts[np.newaxis, :] - repellers)**2).sum(axis=1)
+    return (((point[np.newaxis, :] - repellers)**2).sum(axis=1)
             >= clearance_sq).all()
 
 
