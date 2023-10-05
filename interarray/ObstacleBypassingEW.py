@@ -9,7 +9,7 @@ import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from .geometric import (angle, apply_edge_exemptions, delaunay_deprecated,
+from .geometric import (angle, apply_edge_exemptions, delaunay,
                         edge_crossings, is_bunch_split_by_corner, is_crossing,
                         is_same_side)
 from .interarraylib import Alerter, NodeStr, NodeTagger, new_graph_like
@@ -86,11 +86,16 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
 
     # crossings = G_base.graph['crossings']
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    A = delaunay_deprecated(G_base)
-    triangles = A.graph['triangles']
-    triangles_exp = A.graph['triangles_exp']
+    A = delaunay(G_base, bind2root=True)
+    P = A.graph['planar']
+    diagonals = A.graph['diagonals']
+    #  A = delaunay_deprecated(G_base)
+    #  triangles = A.graph['triangles']
+    #  triangles_exp = A.graph['triangles_exp']
     # apply weightfun on all delaunay edges
     if weightfun is not None:
+        # TODO: fix `apply_edge_exemptions()` for the
+        #       `delaunay()` without triangles
         apply_edge_exemptions(A)
         options['weightfun'] = weightfun.__name__
         options['weight_attr'] = weight_attr
@@ -406,10 +411,13 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
         '''generic crossings checker
         common node is not crossing'''
         s_, t_ = fnT[[s, t]]
-        st = frozenset((s_, t_))
-        if st in triangles or st in triangles_exp:
+        #  st = frozenset((s_, t_))
+        st = (s_, t_) if s_ < t_ else (t_, s_)
+        #  if st in triangles or st in triangles_exp:
+        if st in P.edges or st in diagonals:
             # <(s_, t_) is in the expanded Delaunay edge set>
-            Xlist = edge_crossings(s_, t_, G, triangles, triangles_exp)
+            #  Xlist = edge_crossings(s_, t_, G, triangles, triangles_exp)
+            Xlist = edge_crossings(s_, t_, G, diagonals, P)
             # crossings with expanded Delaunay already checked
             # just detour edges missing
             nbunch = list(range(N, N + D))
@@ -1073,7 +1081,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
             # check if (u, v) crosses an existing edge
             # look for crossing edges within the neighborhood of (u, v)
             # only works if using the expanded delaunay edges
-            eX = edge_crossings(u, v, G, triangles, triangles_exp)
+            #  eX = edge_crossings(u, v, G, triangles, triangles_exp)
+            eX = edge_crossings(u, v, G, diagonals, P)
             # Detour edges need to be checked separately
             if not eX and D:
                 uC, vC = VertexC[fnT[[u, v]]]
@@ -1186,7 +1195,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
                 Subtree[n] = subtree
             debug and print(f'<loop> NEW EDGE {n2s(u, v)}, g2keep '
                             f'<{F[g2keep]}>, ' if pq else 'EMPTY heap')
-            G.add_edge(u, v, **A.edges[u, v])
+            #  G.add_edge(u, v, **A.edges[u, v])
+            G.add_edge(u, v, length=A[u][v]['length'])
             log.append((i, 'addE', (u, v)))
             # remove from consideration edges internal to Subtree
             A.remove_edge(u, v)

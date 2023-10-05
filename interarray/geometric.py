@@ -280,7 +280,10 @@ def is_blocking(root, u, v, w, y):
 
 
 def apply_edge_exemptions(G, allow_edge_deletion=True):
-    '''exemption is used by weighting functions that take
+    '''
+    should be DEPRECATED (depends on `delaunay_deprecated()`'s triangles)
+
+    exemption is used by weighting functions that take
     into account the angular sector blocked by each edge w.r.t.
     the closest root node
     '''
@@ -337,41 +340,39 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
                   '–'.join([F[n] for n in (u, v)]), '»')
 
 
-# TODO: rewrite using G.graph['planar'] or G.graph['xings']
-# possibly deprecated, since delaunay does not create
-# triangles and triangles_exp anymore
-def edge_crossings(u, v, G, triangles, triangles_exp):
-    '''
-    DEPRECATED!
-
-    This only works for subgraphs of a delaunay base with add_diagonals=True.
-    Other edges (e.g. gate edges) are not implemented here.
-    '''
-    uv = frozenset((u, v))
+def edge_crossings(s, t, G, diagonals, P):
+    s, t = (s, t) if s < t else (t, s)
+    v = diagonals.get((s, t))
     crossings = []
-    # n2s = NodeStr(G.graph['fnT'], G.graph['N'])
-    if uv in triangles:
-        # <(u, v) is a Delaunay edge>
-        st = triangles[uv]
-        if (len(st) > 1 and st in triangles_exp
-                and triangles_exp[st] == uv
-                and tuple(st) in G.edges):
-            return ([tuple(st)])
-    elif uv in triangles_exp:
-        # <(u, v) is an expanded Delaunay edge>
-        s, t = triangles_exp[uv]
-        if (s, t) in G.edges:
-            crossings.append((s, t))
-        for a_b in ((u, s), (u, t), (s, v), (t, v)):
-            ab = frozenset(a_b)
-            cd = triangles.get(ab)
-            if cd is None:
-                continue
-            if (cd in triangles_exp
-                    and triangles_exp[cd] == ab
-                    and tuple(cd) in G.edges):
-                crossings.append(tuple(cd))
-    return crossings
+    if v is None:
+        # ⟨s, t⟩ is a Delaunay edge
+        Pst = P[s][t]
+        Pts = P[t][s]
+        u = Pst['cw']
+        v = Pts['cw']
+        if u == Pts['ccw'] and v == Pst['ccw']:
+            diag = (u, v) if u < v else (v, u)
+            if diag in diagonals and diag in G.edges:
+                crossings.append(diag)
+    else:
+        # ⟨s, t⟩ is a diagonal
+        u = P[v][s]['cw']
+        triangles = ((u, v, s), (v, u, t))
+        u, v = (u, v) if u < v else (v, u)
+        # crossing with Delaunay edge
+        crossings.append((u, v))
+        # examine the two triangles (u, v) belongs to
+        for a, b, c in triangles:
+            # this is for diagonals crossing diagonals
+            d = P[c][b]['cw']
+            diag_da = (a, d) if a < d else (d, a)
+            if d == P[b][c]['ccw'] and diag_da in diagonals:
+                crossings.append(diag_da)
+            e = P[a][c]['cw']
+            diag_eb = (e, b) if e < b else (b, e)
+            if e == P[c][a]['ccw'] and diag_eb in diagonals:
+                crossings.append(diag_eb)
+    return [edge for edge in crossings if edge in G.edges]
 
 
 def make_planar_embedding(M: int, VertexC: np.ndarray,
@@ -457,7 +458,8 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
             if ((s, t) not in diagonals
                     and triangle_AR(fwdC, uC, backC) < max_tri_AR
                     and triangle_AR(fwdC, vC, backC) < max_tri_AR
-                    and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC, fwdC)):
+                    and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC,
+                                                                fwdC)):
                 diagonals[(s, t)] = v if s == back else u
         # start by circling vertex u in ccw direction
         add = planar.add_half_edge_ccw
@@ -500,7 +502,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     return planar, diagonals
 
 
-def delaunay(G_base, add_diagonals=True, debug=False,
+def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
              max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
     '''Creates a networkx graph from the Delaunay triangulation
     of the point in coordinates. Each edge gets an attribute `length`
@@ -535,13 +537,25 @@ def delaunay(G_base, add_diagonals=True, debug=False,
         # the reference vertex `v` that `diagonals` carries
         # could be stored as edge ⟨s, t⟩'s property (that
         # property would also mark the edge as a diagonal)
-        Length = np.hypot(*(VertexC[diagnodes[:, 0]] - VertexC[diagnodes[:, 1]]).T)
+        Length = np.hypot(*(VertexC[diagnodes[:, 0]]
+                            - VertexC[diagnodes[:, 1]]).T)
         for (u, v), length in zip(diagnodes, Length):
             A[u][v]['length'] = length
 
     d2roots = G_base.graph.get('d2roots')
     if d2roots is None:
         d2roots = cdist(VertexC[:-M], VertexC[-M:])
+    if bind2root:
+        for n, n_root in G_base.nodes(data='root'):
+            A.nodes[n]['root'] = n_root
+        # alternatively, if G_base nodes do not have 'root' attr:
+        #  for n, nodeD in A.nodes(data=True):
+        #      nodeD['root'] = -M + np.argmin(d2roots[n])
+        # assign each edge to the root closest to the edge's middle point
+        for u, v, edgeD in A.edges(data=True):
+            edgeD['root'] = -M + np.argmin(
+                    cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
+                          VertexC[-M:]))
     A.graph.update(M=M,
                    VertexC=VertexC,
                    planar=planar,
@@ -603,136 +617,6 @@ def make_graph_metrics(G):
     G.graph['anglesRank'] = np.argsort(np.argsort(angles, axis=0), axis=0)
     G.graph['anglesYhp'] = angles >= 0.
     G.graph['anglesXhp'] = abs(angles) < np.pi/2
-
-
-def delaunay_deprecated(G_base, add_diagonals=True, debug=False, MIN_TRI_AREA=1500.,
-             threshold=2.15, **qhull_options):
-    '''Creates a networkx graph from the Delaunay triangulation
-    of the point in coordinates. The weights of each edge is the
-    euclidean distance between its vertices.'''
-    G = nx.Graph()
-    G.graph.update(G_base.graph)
-    G.add_nodes_from(G_base.nodes(data=True))
-    M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
-    VertexC = G_base.graph['VertexC']
-    RootC = VertexC[N:]
-
-    tri = Delaunay(VertexC, **qhull_options)
-
-    triangles = defaultdict(list)
-    triangles_exp = defaultdict(list)
-
-    # from the triangles, create graph edges
-    for vertices in tri.simplices:
-        A, B, C = (V if V < N else V - N - M for V in vertices)
-        for V1, V2, V3 in ((A, B, C), (A, C, B), (C, B, A)):
-            pair = frozenset((V1, V2))
-            triangles[pair].append(V3)
-        nx.add_path(G, (A, B, C, A))
-
-    # make <triangles>'s values frozenset instead of list
-    triangles = {k: frozenset(v) for k, v in triangles.items()}
-
-    # find out the edges that form the convex hull
-    E_hull = set([frozenset((X, Y))
-                  for X, Y in ((V if V < N else V - N - M for V in edge) for
-                               edge in tri.convex_hull)])
-    N_hull = set(functools.reduce(operator.or_, E_hull))
-    N_inner = set(G.nodes) - N_hull
-
-    def hull_edge_is_overlapping(edge):
-        u, v = edge
-        for nb in (N_inner & set(G[u])):
-            uC, vC, nbC = VertexC[(u, v, nb), ]
-            discriminator = abs(np.cross(uC - nbC, vC - nbC))
-            if discriminator < 30e4:  # TODO: ARBITRARY - depends on scale
-                Ax, Ay = uC
-                Bx, By = vC
-                Cx, Cy = nbC
-                # TODO: move the test below to its own function
-                # t is the normalized projection of C over AB
-                t = ((Cx-Ax)*(Bx-Ax)+(Cy-Ay)*(By-Ay))/((Bx-Ax)**2+(By-Ay)**2)
-                # if nb is not between u and v, go to next nb
-                if t <= 0 or t >= 1:
-                    continue
-                E_hull.add(frozenset((u, nb)))
-                E_hull.add(frozenset((nb, v)))
-                uv = frozenset((u, v))
-                E_hull.remove(uv)
-                if uv in triangles:
-                    triangles.pop(uv)
-                if (u, v) in G.edges:
-                    G.remove_edge(u, v)
-                    # print('overlapping', [F[n] for n in uv])
-                N_hull.add(nb)
-                N_inner.remove(nb)
-                hull_edge_is_overlapping((nb, v))
-                return True
-        return False
-
-    # contract the convex hull to add nodes that are almost part of the hull
-    for edge in tuple(E_hull):
-        hull_edge_is_overlapping(edge)
-
-    # clean up edges that overlap the ones on the convex hull
-    for u in N_hull:
-        for v in list(G[u].keys()):
-            if (v in N_hull) and (frozenset((u, v)) not in E_hull):
-                uv = frozenset((u, v))
-                if uv in triangles:
-                    nn = VertexC[tuple(triangles[uv]), ]
-                    discriminator = abs(np.cross(VertexC[u] - nn,
-                                                 VertexC[v] - nn))
-                    # TODO: threshold is arbitary, depends on scale
-                    if all(discriminator > MIN_TRI_AREA):
-                        continue
-                    triangles.pop(uv)
-                G.remove_edge(u, v)
-                # print('clean up:', F[u], F[v])
-
-    # save the convex hull node set
-    G.graph['N_hull'] = N_hull
-    # save the convex hull edge set
-    G.graph['E_hull'] = E_hull
-
-    # sqrt(3) was not high enough to get all diagonals in the g.tess farm
-    # threshold = np.sqrt(3)
-    # threshold = 2  # value that augments tess
-    # threshold = 2.15  # value that augments horns
-    for u, v, edgeD in list(G.edges(data=True)):
-        # assign the edge to the root closest to the edge's middle point
-        edgeD['root'] = -M + np.argmin(
-            cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
-        # add edges' lengths
-        u2v = np.hypot(*(VertexC[u] - VertexC[v]).T)
-        edgeD['length'] = u2v
-        if add_diagonals:
-            # add additional diagonals
-            uv = frozenset((u, v))
-            opposites = triangles[uv]
-            if len(opposites) == 2:
-                wy = frozenset(opposites)
-                if wy in triangles:
-                    continue
-                w, y = opposites
-                uC, vC, wC, yC = VertexC[[u, v, w, y]]
-                w2y = np.hypot(*(wC - yC).T)
-                if ((not ((w in N_hull) and (y in N_hull)))
-                        and (w2y < u2v*threshold)
-                        and is_triangle_pair_a_convex_quadrilateral(uC, vC, wC, yC)
-                        and (abs(np.cross(wC - uC, yC - uC)) > MIN_TRI_AREA)
-                        and (abs(np.cross(wC - vC, yC - vC)) > MIN_TRI_AREA)):
-                    wy_root = -M + np.argmin(
-                        cdist(((VertexC[w] + VertexC[y])/2)[np.newaxis, :],
-                              RootC))
-                    G.add_edge(w, y, length=w2y, root=wy_root)
-                    triangles_exp[wy] = uv
-
-    G.graph['triangles'] = triangles
-    G.graph['triangles_exp'] = triangles_exp
-
-    return G
 
 
 # TODO: get new implementation from Xings.ipynb
@@ -886,7 +770,8 @@ def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     H = nx.Graph()
     H.add_nodes_from(G.nodes(data=True))
     for s, t in zip(S, T):
-        H.add_edge(s if s < N else s - V, t if t < N else t - V, length=Q_[s, t])
+        H.add_edge(s if s < N else s - V, t if t < N else t - V,
+                   length=Q_[s, t])
     H.graph.update(G.graph)
     return H
 
@@ -915,7 +800,8 @@ def check_crossings(G, debug=False, MARGIN=0.1):
         # fnT[N: N + D] = clone2prime
         # DetourC = VertexC[clone2prime].copy()
         fnT = G.graph['fnT']
-        AllnodesC = np.vstack((VertexC[:N], VertexC[fnT[N:N + D]], VertexC[-M:]))
+        AllnodesC = np.vstack((VertexC[:N], VertexC[fnT[N:N + D]],
+                               VertexC[-M:]))
     else:
         fnT = np.arange(N + M)
         AllnodesC = VertexC
@@ -986,7 +872,8 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                         # (u, v) crosses (s, t) away from nodes
                         crossings.append(((u, v), (s, t)))
                         # print(distances)
-                        print(f'ERROR <edge-edge>: edge «{F[fnT[u]]}–{F[fnT[v]]}» '
+                        print(f'ERROR <edge-edge>: '
+                              f'edge «{F[fnT[u]]}–{F[fnT[v]]}» '
                               f'crosses «{F[fnT[s]]}–{F[fnT[t]]}»')
                     elif close_count == 1:
                         # (u, v) and (s, t) touch node-to-edge
@@ -1002,9 +889,10 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                         # (u, v) and (s, t) touch node-to-node
                         touch_uv, touch_st = uvst[np.flatnonzero(nearmask)]
                         free_uv, free_st = uvst[np.flatnonzero(~nearmask)]
-                        # print(f'touch/free u, v :«{F[fnT[touch_uv]]}–'
-                        #       f'{F[fnT[free_uv]]}»; s, t:«{F[fnT[touch_st]]}–'
-                        #       f'{F[fnT[free_st]]}»')
+                        # print(
+                        #    f'touch/free u, v :«{F[fnT[touch_uv]]}–'
+                        #    f'{F[fnT[free_uv]]}»; s, t:«{F[fnT[touch_st]]}–'
+                        #    f'{F[fnT[free_st]]}»')
                         nb_uv, nb_st = list(G[touch_uv]), list(G[touch_st])
                         # print([F[fnT[n]] for n in nb_uv])
                         # print([F[fnT[n]] for n in nb_st])
@@ -1027,9 +915,11 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                             # mark as crossing just to make sure it is noticed
                             crossing = True
                         if crossing:
-                            print(f'ERROR <split>: edges «{F[fnT[u]]}–{F[fnT[v]]}» '
-                                  f'and «{F[fnT[s]]}–{F[fnT[t]]}» break a bunch '
-                                  f'apart at {F[fnT[touch_uv]]}, {F[fnT[touch_st]]}')
+                            print(f'ERROR <split>: edges '
+                                  f'«{F[fnT[u]]}–{F[fnT[v]]}» '
+                                  f'and «{F[fnT[s]]}–{F[fnT[t]]}» '
+                                  f'break a bunch apart at '
+                                  f'{F[fnT[touch_uv]]}, {F[fnT[touch_st]]}')
                             crossings.append(((u,  v), (s, t)))
                     else:  # close_count > 2:
                         # segments (u, v) and (s, t) are almost parallel
@@ -1063,7 +953,8 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                                     if is_same_side(*AllnodesC[[q, r, a, b]]):
                                         print(f'ERROR <partial ovelap>: edge '
                                               f'«{F[fnT[u]]}–{F[fnT[v]]}» '
-                                              f'crosses «{F[fnT[s]]}–{F[fnT[t]]}»')
+                                              f'crosses '
+                                              f'«{F[fnT[s]]}–{F[fnT[t]]}»')
                                         crossings.append(((u,  v), (s, t)))
     debug and potential and print(
         'potential crossings: ' +

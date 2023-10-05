@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        delaunay_deprecated, edge_crossings, is_crossing,
+                        delaunay, edge_crossings, is_crossing,
                         is_same_side)
 from .interarraylib import NodeTagger, new_graph_like
 from .priorityqueue import PriorityQueue
@@ -41,11 +41,16 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
     if delaunay_based:
-        A = delaunay_deprecated(G_base)
-        triangles = A.graph['triangles']
-        triangles_exp = A.graph['triangles_exp']
+        A = delaunay(G_base, bind2root=True)
+        P = A.graph['planar']
+        diagonals = A.graph['diagonals']
+        #  A = delaunay_deprecated(G_base)
+        #  triangles = A.graph['triangles']
+        #  triangles_exp = A.graph['triangles_exp']
         # apply weightfun on all delaunay edges
         if weightfun is not None:
+            # TODO: fix `apply_edge_exemptions()` for the
+            #       `delaunay()` without triangles
             apply_edge_exemptions(A)
         # TODO: decide whether to keep this 'else' (to get edge arcs)
         # else:
@@ -408,7 +413,8 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
         if delaunay_based:
             # look for crossing edges within the neighborhood of (u, v)
             # faster, but only works if using the expanded delaunay edges
-            eX = edge_crossings(u, v, G, triangles, triangles_exp)
+            #  eX = edge_crossings(u, v, G, triangles, triangles_exp)
+            eX = edge_crossings(u, v, G, diagonals, P)
         else:
             # when using the edges of a complete graph
             # alternate way - slower
@@ -556,7 +562,7 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
                         f'heap top: <{F[pq[0][-2]]}>, '
                         f'«{chr(8211).join([F[x] for x in pq[0][-1]])}»'
                         f' {pq[0][0]:.1e}' if pq else 'heap EMPTY')
-        G.add_edge(u, v, **A.edges[u, v])
+        G.add_edge(u, v, length=A[u][v]['length'])
         log.append((i, 'addE', (u, v)))
         # remove from consideration edges internal to subtrees
         A.remove_edge(u, v)
