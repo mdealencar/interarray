@@ -6,16 +6,19 @@ import networkx as nx
 
 
 def get_crossings_list(Edge, VertexC):
-    '''List all crossings between edges in the `Edge` E×2 numpy array.
-    Coordinates must be provided in the `VertexC` V×2 array.
-    
-    Used when edges are not limited to the expanded Delaunay set.'''
+    '''
+    List all crossings between edges in the `Edge` (E×2) numpy array.
+    Coordinates must be provided in the `VertexC` (V×2) array.
+
+    Used when edges are not limited to the expanded Delaunay set.
+    '''
     crossings = []
     V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
     for i, ((UVx, UVy), (u, v)) in enumerate(zip(V, Edge[:-1])):
         uCx, uCy = VertexC[u]
         vCx, vCy = VertexC[v]
-        for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:], start=i+1)):
+        for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:],
+                                                     start=i+1)):
             if s == u or t == u or s == v or t == v:
                 # <edges have a common node>
                 continue
@@ -57,7 +60,8 @@ def get_crossings_list(Edge, VertexC):
 
             C = uCx - sCx, uCy - sCy
             # alpha and beta numerators
-            for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, ST), (UV, C))):
+            for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, ST),
+                                                                 (UV, C))):
                 if f > 0:
                     if less(num, 0) or less(f, num):
                         continue
@@ -71,7 +75,7 @@ def get_crossings_list(Edge, VertexC):
 
 
 def edgeXing_iter(u, v, G, A):
-    '''This is broken, do not use!'''
+    '''This is broken, do not use! Use `edgeset_edgeXing_iter()` instead.'''
     planar = A.graph['planar']
     _, s = A.next_face_half_edge(u, v)
     _, t = A.next_face_half_edge(v, u)
@@ -194,9 +198,10 @@ def edgeset_edgeXing_iter_deprecated(A, include_roots=False):
 # delaunay() does not create `triangles` and `triangles_exp`
 # anymore, so this is broken
 def edgeXing_iter_deprecated(A):
-    '''DEPRECATED!
+    '''
+    DEPRECATED!
     This is broken, do not use!
-    
+
     Iterates over all pairs of crossing edges in `A`. This assumes `A`
     has only expanded Delaunay edges (with triangles and triangles_exp).
 
