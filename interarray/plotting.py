@@ -446,7 +446,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     for edge_type in ('detour', 'scaffold'):
         nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_type],
                                style=type2style[edge_type], label=edge_type,
-                               edgelist=[(u, v) for u, v, t in G.edges.data('type')
+                               edgelist=[(u, v) for u, v, t
+                                         in G.edges.data('type')
                                          if t == edge_type])
 
     # draw nodes
@@ -487,7 +488,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                                 labels=RootL)
 
     if scalebar:
-        bar = AnchoredSizeBar(ax.transData, 1000, '1 km', 'lower right', frameon=False)
+        bar = AnchoredSizeBar(ax.transData, 1000, '1 km', 'lower right',
+                              frameon=False)
         ax.add_artist(bar)
 
     if infobox:
@@ -502,8 +504,11 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                                zip(feeder_info, G.graph['overfed'][::-1])]
             info.extend(feeder_info)
             # legend.append(', '.join(feeder_info))
-            Gʹ = nx.subgraph_view(G, filter_edge=lambda u, v: 'length' in G[u][v])
-            info.append(f'Σl = {Gʹ.size(weight="length"):.0f} m')
+            Gʹ = nx.subgraph_view(G,
+                                  filter_edge=lambda u, v: 'length' in G[u][v])
+            length = Gʹ.size(weight="length")
+            intdigits = int(np.floor(np.log10(length))) + 1
+            info.append(f'Σl = {round(length, max(0, 5 - intdigits))} m')
             #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
             #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
             # for field, sym in (('weight', 'w'), ('length', 'l')):
