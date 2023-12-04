@@ -79,8 +79,9 @@ def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
     lower_bound = np.array((bX.min(), bY.min()), dtype=np.float64)
     upper_bound = np.array((bX.max(), bY.max()), dtype=np.float64)
     # Shoelace formula (https://stackoverflow.com/a/30408825/287217)
-    area_avail = 0.5*np.abs(np.dot(bX, np.roll(bY, 1))
-                            - np.dot(bY, np.roll(bX, 1)))
+    area_avail = 0.5*np.abs(bX[-1]*bY[0] - bY[-1]*bX[0]
+                            + np.dot(bX[:-1], bY[1:])
+                            - np.dot(bY[:-1], bX[1:]))
     return area_avail, lower_bound, upper_bound
 
 
