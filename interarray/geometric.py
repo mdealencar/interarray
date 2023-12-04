@@ -391,36 +391,63 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     mat[S[:, 2], S[:, 0]] = S[:, 1]
     del S
 
+    # Delaunay() produces a convex hull, but it is edge-based and unordered.
+    # Use that to make an array of nodes defining the convex hull in ccw order.
+    hull_edges = [(u, v) if u < v else (v, u)
+                  for u, v in (tri.convex_hull - M)]
+    hull_arcs = defaultdict(set)
+    for u, v in hull_edges:
+        hull_arcs[u].add(v)
+        hull_arcs[v].add(u)
+    #  hull_arcs = {u: v for u, v in hull_edges} | {v: u for u, v in hull_edges}
+    cur = start = hull_edges[0][0]
+    next = hull_arcs[cur].pop()
+    hull_nodes = []
+    while True:
+        hull_nodes.append(cur)
+        hull_arcs[next].remove(cur)
+        cur = next
+        next = hull_arcs[next].pop()
+        if next == start:
+            break
+    # use Shoelace formula to enforce ccw order for the convex hull
+    X, Y = VertexC[hull_nodes].T
+    shoelace = (X[-1]*Y[0] - Y[-1]*X[0]
+                + np.dot(X[:-1], Y[1:])
+                - np.dot(Y[:-1], X[1:]))
+    hull_nodes_cvx_ccw = np.int_(hull_nodes
+                                 if shoelace < 0 else
+                                 hull_nodes[::-1])
+
     # getting rid of nearly flat Delaunay triangles
     # qhull (used by scipy) seems not able to do it
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
-    old_hull = [(u, v) if u < v else (v, u) for u, v in (tri.convex_hull - M)]
-    new_hull = []
-    while old_hull:
-        u, v = old_hull.pop()
+    hull_noncvx = []
+    while hull_edges:
+        u, v = hull_edges.pop()
         t = max(mat[u, v], mat[v, u])
         AR = triangle_AR(*VertexC[(u, v, t),])
         if AR > max_tri_AR:
             # TODO: document this relaxation of MAX_ASPECT for root nodes
             if min(u, v, t) < 0 and AR < 50*max_tri_AR:
                 # when considering root nodes, be less strict with AR
-                if (u, v) not in new_hull:
-                    new_hull.append((u, v))
+                if (u, v) not in hull_noncvx:
+                    hull_noncvx.append((u, v))
                 continue
             # print(ut, vt, AR)
             ut = (u, t) if u < t else (t, u)
-            if ut not in old_hull:
-                old_hull.append(ut)
+            if ut not in hull_edges:
+                hull_edges.append(ut)
             vt = (v, t) if v < t else (t, v)
-            if vt not in old_hull:
-                old_hull.append(vt)
+            if vt not in hull_edges:
+                hull_edges.append(vt)
             mat[u, v] = mat[v, u] = NULL
             for a, b, c in ((u, t, v), (t, u, v), (v, t, u), (t, v, u)):
                 if mat[a, b] == c:
                     mat[a, b] = NULL
         else:
-            if (u, v) not in new_hull:
-                new_hull.append((u, v))
+            if (u, v) not in hull_noncvx:
+                hull_noncvx.append((u, v))
 
     planar = nx.PlanarEmbedding()
     planar.add_nodes_from(range(-M, N))
@@ -500,7 +527,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     del mat
     # raise an exception if `planar` is not proper:
     planar.check_structure()
-    return planar, diagonals
+    return planar, diagonals, hull_nodes_cvx_ccw
 
 
 def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
@@ -512,7 +539,7 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
     VertexC = G_base.graph['VertexC']
     N = VertexC.shape[0] - M
 
-    planar, diagonals = make_planar_embedding(
+    planar, diagonals, hull = make_planar_embedding(
             M, VertexC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
 
     # undirected Delaunay edge view
@@ -562,6 +589,7 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
                    planar=planar,
                    d2roots=d2roots,
                    diagonals=diagonals,
+                   hull=hull,
                    landscape_angle=G_base.graph.get('landscape_angle', 0),
                    boundary=G_base.graph['boundary'],
                    name=G_base.graph['name'],
@@ -734,7 +762,7 @@ def planar_over_layout(G: nx.Graph):
     '''
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    P, diagonals = make_planar_embedding(M, VertexC)
+    P, diagonals, hull = make_planar_embedding(M, VertexC)
     for r in range(-M, 0):
         for u, v in nx.edge_dfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
