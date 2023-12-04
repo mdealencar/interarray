@@ -20,8 +20,9 @@ from .priorityqueue import PriorityQueue
 F = NodeTagger()
 
 
-def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e-4,
-         debug=False, warnwhere=None, weightfun=None, weight_attr='length'):
+def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
+         MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None,
+         weight_attr='length'):
     '''Obstacle Bypassing Esau-Williams heuristic for C-MST
     inputs:
     G_base: networkx.Graph
