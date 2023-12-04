@@ -30,6 +30,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     M = A.graph['M']
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
+    W = sum(w for n, w in A.nodes(data='power', default=1) if n >= 0)
 
     # Create model
     m = pyo.ConcreteModel()
@@ -44,7 +45,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     Eʹ = tuple((v, u) for u, v in E)
 
     m.diE = pyo.Set(initialize=E + Eʹ)
-    m.N = pyo.RangeSet(0, N - 1)
+    #  m.N = pyo.RangeSet(0, N - 1)
+    m.N = pyo.Set(initialize=A_nodes.nodes.keys())
     m.R = pyo.RangeSet(-M, -1)
 
     ##############
@@ -165,11 +167,19 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     #          pyo.summation(m.k[t]*m.Bte[edge][t]) >= m.De[edge]
 
     # flow consevation at each node
+    #  m.cons_flow_conservation = pyo.Constraint(
+    #      m.N,
+    #      rule=lambda m, u: (sum((m.De[u, v] - m.De[v, u])
+    #                             for v in A_nodes.neighbors(u))
+    #                         + sum(m.Dg[r, u] for r in m.R)) == 1
+    #  )
+    # flow conservation with possibly non-unitary node power
     m.cons_flow_conservation = pyo.Constraint(
         m.N,
         rule=lambda m, u: (sum((m.De[u, v] - m.De[v, u])
                                for v in A_nodes.neighbors(u))
-                           + sum(m.Dg[r, u] for r in m.R)) == 1
+                           + sum(m.Dg[r, u] for r in m.R)
+                           == A.nodes[u].get('power', 1))
     )
 
     # gates limit
@@ -198,7 +208,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 
     # assert all nodes are connected to some root
     m.cons_all_nodes_connected = pyo.Constraint(
-        rule=lambda m: sum(m.Dg[r, n] for r in m.R for n in m.N) == N
+        rule=lambda m: sum(m.Dg[r, n] for r in m.R for n in m.N) == W
     )
 
     # valid inequalities
