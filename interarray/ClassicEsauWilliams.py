@@ -8,7 +8,8 @@ import numpy as np
 
 from .geometric import (angle, apply_edge_exemptions, complete_graph, delaunay,
                         is_same_side)
-from .interarraylib import NodeTagger, new_graph_like
+from .interarraylib import new_graph_like
+from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
 

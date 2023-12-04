@@ -12,7 +12,8 @@ from scipy.spatial.distance import cdist
 from .geometric import (angle, apply_edge_exemptions, delaunay,
                         edge_crossings, is_bunch_split_by_corner, is_crossing,
                         is_same_side)
-from .interarraylib import Alerter, NodeStr, NodeTagger, new_graph_like
+from .interarraylib import new_graph_like
+from .utils import Alerter, NodeStr, NodeTagger
 from .priorityqueue import PriorityQueue
 
 
@@ -29,7 +30,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4, MARGIN=1e
 
     warnwhere is for printing debugging info based on the iteration number and
     function name (see
-    interarraylib.Alerter)'''
+    utils.Alerter)'''
 
     start_time = time.perf_counter()
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from .fileio import file2graph
-from .interarraylib import namedtuplify
+from .utils import namedtuplify
 from .synthetic import equidistant, synthfarm2graph
 
 

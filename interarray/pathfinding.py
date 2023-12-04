@@ -14,7 +14,8 @@ from loguru import logger
 
 from .crossings import gateXing_iter
 from .geometric import planar_over_layout
-from .interarraylib import NodeStr, NodeTagger, bfs_subtree_loads
+from .interarraylib import bfs_subtree_loads
+from .utils import NodeStr, NodeTagger
 from .plotting import gplot, scaffolded
 
 trace, debug, info, success, warn, error, critical = (
@@ -24,6 +25,7 @@ trace, debug, info, success, warn, error, critical = (
 F = NodeTagger()
 
 PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
+
 
 def rotation_checkers_factory(VertexC: np.ndarray) -> Tuple[
         Callable[[int, int, int], bool],

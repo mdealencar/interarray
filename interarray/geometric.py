@@ -16,7 +16,7 @@ from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 
 from . import MAX_TRIANGLE_ASPECT_RATIO
-from .interarraylib import NodeStr, NodeTagger
+from .utils import NodeStr, NodeTagger
 
 F = NodeTagger()
 

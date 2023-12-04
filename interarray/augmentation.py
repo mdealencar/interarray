@@ -5,7 +5,7 @@ import itertools
 from typing import Optional, Tuple, Callable
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
-from .interarraylib import NodeTagger
+from .utils import NodeTagger
 
 import numpy as np
 import numba as nb

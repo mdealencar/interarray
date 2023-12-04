@@ -12,7 +12,7 @@ import utm
 import yaml
 
 from .geometric import make_graph_metrics
-from .interarraylib import NodeTagger
+from .utils import NodeTagger
 
 F = NodeTagger()
 

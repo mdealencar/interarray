@@ -11,7 +11,7 @@ import yaml
 from openpyxl import load_workbook
 
 from .geometric import make_graph_metrics, rotate
-from .interarraylib import NodeTagger
+from .utils import NodeTagger
 
 
 F = NodeTagger()

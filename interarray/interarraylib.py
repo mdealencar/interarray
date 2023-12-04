@@ -5,23 +5,14 @@ import inspect
 import itertools
 import pickle
 import sys
-from collections import namedtuple
 from hashlib import sha256
 from typing import Any, Dict, Tuple
 
 import networkx as nx
 import numpy as np
 
+from .utils import NodeTagger
 
-class DotDict(dict):
-    def __getattr__(self, key):
-        return self[key]
-
-
-def namedtuplify(namedtuple_typename='', **kwargs):
-    NamedTuplified = namedtuple(namedtuple_typename,
-                                tuple(str(kw) for kw in kwargs))
-    return NamedTuplified(**kwargs)
 
 
 class NodeStr():
@@ -42,41 +33,8 @@ class NodeStr():
         return out
 
 
-class NodeTagger():
-    # 50 digits, 'I' and 'l' were dropped
-    alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ'
-    value = {c: i for i, c in enumerate(alphabet)}
-
-    def __getattr__(self, b50):
-        dec = 0
-        digit_value = 1
-        if b50[0] < 'α':
-            for digit in b50[::-1]:
-                dec += self.value[digit]*digit_value
-                digit_value *= 50
-            return dec
-        else:
-            # for greek letters, only single digit is implemented
-            return ord('α') - ord(b50[0]) - 1
-
-    def __getitem__(self, dec):
-        if dec is None:
-            return '∅'
-        elif isinstance(dec, str):
-            return dec
-        b50 = []
-        if dec >= 0:
-            while True:
-                dec, digit = divmod(dec, 50)
-                b50.append(self.alphabet[digit])
-                if dec == 0:
-                    break
-            return ''.join(b50[::-1])
-        else:
-            return chr(ord('α') - dec - 1)
 
 
-F = NodeTagger()
 
 
 class Alerter():
