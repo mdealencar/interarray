@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import inspect
 import itertools
 import pickle
 import sys
@@ -13,42 +12,19 @@ import numpy as np
 
 from .utils import NodeTagger
 
-
-
-class NodeStr():
-
-    def __init__(self, fnT, N):
-        self.fnT = fnT
-        self.N = N
-
-    def __call__(self, u, *args):
-        nodes = tuple((self.fnT[n], n)
-                      for n in (u,) + args if n is not None)
-        out = '–'.join(F[n_] + ('' if n < self.N else f'({F[n]})')
-                       for n_, n in nodes)
-        if len(nodes) > 1:
-            out = f'«{out}»'
-        else:
-            out = f'<{out}>'
-        return out
+F = NodeTagger()
 
 
 
 
 
 
-class Alerter():
 
-    def __init__(self, where, varname):
-        self.where = where
-        self.varname = varname
-        self.f_creation = inspect.stack()[1].frame
 
-    def __call__(self, text):
-        i = self.f_creation.f_locals[self.varname]
-        function = inspect.stack()[1].function
-        if self.where(i, function):
-            print(f'[{i}|{function}] ' + text)
+
+
+
+
 
 
 def G_from_TG(T, G_base, capacity=None, load_col=4):
