@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import itertools
 import pickle
 import sys
 from hashlib import sha256
@@ -15,16 +14,49 @@ from .utils import NodeTagger
 F = NodeTagger()
 
 
+def cost(G):
+    if 'cables' not in G.graph:
+        return np.inf
+    cables = G.graph['cables']
+    total = 0.
+    N_cables = len(cables.cost)
+    for u, v, data in G.edges(data=True):
+        cable_idx = cables.capacity.searchsorted(data['load'])
+        if cable_idx == N_cables:
+            # available cables do not meet required capacity
+            return np.inf
+        total += data['length']*cables.cost[cable_idx]
+    return total
+
+
+def new_graph_like(G_base, edges=None):
+    '''copies graph and nodes attributes, but not edges'''
+    G = nx.Graph()
+    G.graph.update(G_base.graph)
+    G.add_nodes_from(G_base.nodes(data=True))
+    if edges:
+        G.add_edges_from(edges)
+    return G
 
 
 
 
 
+def G_from_site(site: dict) -> nx.Graph:
+    VertexC = site['VertexC']
+    M = site['M']
+    N = len(VertexC) - M
+    G = nx.Graph(name=site.get('name', 'unnamed site'),
+                 handle=site.get('handle', 'site'),
+                 M=M,
+                 VertexC=VertexC,
+                 boundary=site['boundary'])
 
-
-
-
-
+    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+                      for n in range(N)))
+    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+                      for r in range(-M, 0)))
+    return G
 
 
 def G_from_TG(T, G_base, capacity=None, load_col=4):
@@ -64,31 +96,6 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
     if capacity is not None:
         G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
                               for root in range(N, N + M)]
-    return G
-
-
-def cost(G):
-    if 'cables' not in G.graph:
-        return np.inf
-    cables = G.graph['cables']
-    total = 0.
-    N_cables = len(cables.cost)
-    for u, v, data in G.edges(data=True):
-        cable_idx = cables.capacity.searchsorted(data['load'])
-        if cable_idx == N_cables:
-            # available cables do not meet required capacity
-            return np.inf
-        total += data['length']*cables.cost[cable_idx]
-    return total
-
-
-def new_graph_like(G_base, edges=None):
-    '''copies graph and nodes attributes, but not edges'''
-    G = nx.Graph()
-    G.graph.update(G_base.graph)
-    G.add_nodes_from(G_base.nodes(data=True))
-    if edges:
-        G.add_edges_from(edges)
     return G
 
 
@@ -169,22 +176,6 @@ def pathdist(G, path):
         dist += np.hypot(*(VertexC[p] - VertexC[n]).T)
         p = n
     return dist
-
-
-def G_from_site(site):
-    VertexC = site['VertexC']
-    M = site['M']
-    N = len(VertexC) - M
-    G = nx.Graph(name=site.get('name', ''),
-                 M=M,
-                 VertexC=VertexC,
-                 boundary=site['boundary'])
-
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
-                      for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
-                      for r in range(-M, 0)))
-    return G
 
 
 def remove_detours(H: nx.Graph) -> nx.Graph:
