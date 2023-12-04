@@ -530,6 +530,17 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     return planar, diagonals, hull_nodes_cvx_ccw
 
 
+def perimeter(VertexC, vertices_ordered):
+    '''
+    `vertices_ordered` represent indices of `VertexC` in clockwise or counter-
+    clockwise order.
+    '''
+    vec = VertexC[vertices_ordered[:-1]] - VertexC[vertices_ordered[1:]]
+    return (np.hypot(*vec.T).sum()
+            + np.hypot(*(VertexC[vertices_ordered[-1]]
+                         - VertexC[vertices_ordered[0]])))
+
+
 def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
              max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
     '''Creates a networkx graph from the Delaunay triangulation
