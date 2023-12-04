@@ -448,8 +448,9 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
         # argmax() of boolean may use shortcircuiting logic
         # which means it would stop searching on the first True
         first = (next_ >= 0).argmax()
-        back = mat[first, u]
+        first = first % N - M*(first//N)
         v = first
+        back = mat[v, u]
         fwd = next_[v]
         planar.add_half_edge_first(u, v)
         if back != NULL and fwd != NULL:
