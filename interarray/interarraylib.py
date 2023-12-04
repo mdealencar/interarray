@@ -10,6 +10,7 @@ import networkx as nx
 import numpy as np
 
 from .utils import NodeTagger
+from .geometric import make_graph_metrics
 
 F = NodeTagger()
 
@@ -39,7 +40,26 @@ def new_graph_like(G_base, edges=None):
     return G
 
 
+def G_base_from_G(G: nx.Graph) -> nx.Graph:
+    '''
+    Return new graph with nodes (including label and type) and boundary of G.
+    In addition, output graph has metrics.
 
+    Similar to `new_graph_like()`, but works with layout solutions that carry
+    a lot of extra info (which it discards).
+    '''
+    M = G.graph['M']
+    N = G.graph['VertexC'].shape[0] - M
+    transfer_fields = ('name', 'handle', 'VertexC', 'M', 'boundary',
+                       'landscape_angle')
+    G_base = nx.Graph(**{k: G.graph[k] for k in transfer_fields})
+    G_base.add_nodes_from(((n, {'label': label})
+                           for n, label in G.nodes(data='label')
+                           if 0 <= n < N), type='wtg')
+    for r in range(-M, 0):
+        G_base.add_node(r, label=G.nodes[r]['label'], type='oss')
+    make_graph_metrics(G_base)
+    return G_base
 
 
 def G_from_site(site: dict) -> nx.Graph:
