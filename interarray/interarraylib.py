@@ -46,13 +46,13 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
 
     G.add_weighted_edges_from(zip(*edges.T, T[:, 2]), weight='length')
     # nx.set_edge_attributes(G, {(u, v): load for (u, v), load
-                               # in zip(edges, T[:, load_col])},
-                           # name='load')
+    #                            in zip(edges, T[:, load_col])},
+    #                        name='load')
     # try:
     calcload(G)
     # except AssertionError as err:
-        # print(f'>>>>>>>> SOMETHING WENT REALLY WRONG: {err} <<<<<<<<<<<')
-        # return G
+    #     print(f'>>>>>>>> SOMETHING WENT REALLY WRONG: {err} <<<<<<<<<<<')
+    #     return G
     if T.shape[1] >= 4:
         for (u, v), load in zip(edges, T[:, load_col]):
             Gload = G.edges[u, v]['load']
