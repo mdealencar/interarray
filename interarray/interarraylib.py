@@ -219,8 +219,10 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
 
 def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
         -> Tuple[bytes, Dict[str, bytes]]:
-    VertexCpkl = pickle.dumps(np.round(VertexC, 2))
-    boundarypkl = pickle.dumps(np.round(boundary, 2))
+    #  VertexCpkl = pickle.dumps(np.round(VertexC, 2))
+    #  boundarypkl = pickle.dumps(np.round(boundary, 2))
+    VertexCpkl = pickle.dumps(VertexC)
+    boundarypkl = pickle.dumps(boundary)
     return (sha256(VertexCpkl + boundarypkl).digest(),
             dict(VertexC=VertexCpkl, boundary=boundarypkl))
 
