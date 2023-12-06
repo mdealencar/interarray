@@ -14,6 +14,133 @@ from ..geometric import delaunay
 from ..interarraylib import G_from_site, fun_fingerprint
 
 
+def make_MILP_groupings(A, κ):
+    '''
+    Only works for κ in [2, 3]
+    '''
+    M = A.graph['M']
+    N = A.number_of_nodes() - M
+    q = N//κ
+    r = N % κ
+    Ne = q*(κ - 1) + ((r - 1) if r else 0)
+
+    # Create model
+    m = pyo.ConcreteModel()
+
+    # Sets
+    A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
+    m.E = pyo.Set(initialize=tuple(((u, v) if u < v else (v, u))
+                                   for u, v in A_nodes.edges()))
+    #  m.N = pyo.RangeSet(0, N - 1)
+    m.N = pyo.Set(initialize=A_nodes.nodes.keys())
+
+    ##############
+    # Parameters #
+    ##############
+
+    m.d = pyo.Param(m.E,
+                    domain=pyo.PositiveReals,
+                    name='edge_cost',
+                    initialize=lambda m, u, v: A[u][v]['length'])
+
+    m.k = pyo.Param(domain=pyo.PositiveIntegers,
+                    name='capacity', default=κ)
+
+    #############
+    # Variables #
+    #############
+
+    m.Be = pyo.Var(m.E, domain=pyo.Binary, initialize=0)
+    m.deg = pyo.Var(m.N, domain=pyo.NonNegativeIntegers,
+                    bounds=(0, m.k - 1), initialize=0)
+
+    ###############
+    # Constraints #
+    ###############
+
+    # calculate all nodes' degrees
+    m.cons_degrees = pyo.Constraint(
+        m.N,
+        rule=lambda m, u: sum((m.Be[u, v] if u < v else m.Be[v, u])
+                              for v in A_nodes.neighbors(u)) == m.deg[u])
+
+    # total number of edges
+    m.cons_edges_eq_nodes = pyo.Constraint(
+        rule=lambda m: (sum(m.Be[u, v] for u, v in m.E) == Ne)
+    )
+
+    # total degree sum
+    m.cons_degree_sum = pyo.Constraint(
+        rule=lambda m: sum(m.deg[u] for u in m.N) == 2*Ne)
+
+    # limit the group size by the degrees of connected nodes
+    # this is only relevant for κ=3
+    m.cons_group_size = pyo.Constraint(
+        m.E,
+        rule=lambda m, u, v: m.deg[u] + m.deg[v] + m.Be[u, v] <= m.k + 1)
+
+    # limit the group size by the degrees of connected nodes
+    # TODO: test if this constraint is redundant
+    m.cons_group_size2 = pyo.Constraint(
+        m.E,
+        rule=lambda m, u, v: m.Be[u, v]*2 <= m.deg[u] + m.deg[v])
+
+    #############
+    # Objective #
+    #############
+
+    m.length = pyo.Objective(
+        expr=lambda m: pyo.sum_product(m.d, m.Be),
+        sense=pyo.minimize,
+    )
+
+    #  m.creation_options = dict(gateXings_constraint=gateXings_constraint,
+    #                            gates_limit=gates_limit,
+    #                            branching=branching)
+    m.site = {key: A.graph[key]
+              for key in ('M', 'VertexC', 'boundary', 'name')}
+    m.fun_fingerprint = fun_fingerprint()
+    return m
+
+
+def MILP_grouping_to_G(model, solver=None, A=None):
+    '''Translate a MILP pyomo grouping to a networkx graph.'''
+    if A is None:
+        G = G_from_site(model.site)
+        A = delaunay(G)
+        P = A.graph['planar']
+    else:
+        G = nx.create_empty_copy(A)
+        P = A.graph['planar'].copy()
+    M = model.site['M']
+    N = G.number_of_nodes() - M
+    diagonals = A.graph['diagonals']
+
+    # node-node edges
+    G.add_edges_from(
+        ((u, v)
+         for (u, v), be in model.Be.items()
+         if be.value > 0.5)
+    )
+
+    # transfer edge attributes from A to G
+    nx.set_edge_attributes(
+        G, {(u, v): data
+            for u, v, data in A.edges(data=True)})
+
+    gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
+
+    G.graph.update(
+        planar=P,
+        rooted=False,
+        capacity=model.k.value,
+        edges_created_by='MILP.pyomo_grouping',
+        fun_fingerprint=model.fun_fingerprint,
+    )
+
+    return G
+
+
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                      branching=True):
     '''

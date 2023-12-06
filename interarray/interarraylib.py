@@ -233,3 +233,167 @@ def fun_fingerprint(fun=None) -> Dict[str, Any]:
             funfile=fcode.co_filename,
             funname=fcode.co_name,
             )
+
+
+def branches_to_nodes(Gsrc: nx.Graph, Asrc: nx.Graph) -> Tuple[nx.Graph, nx.Graph]:
+    G = Gsrc.copy()
+    A = Asrc.copy()
+    P = A.graph['planar'].copy()
+    A.graph['planar'] = P
+    diagonals = A.graph['diagonals'].copy()
+    A.graph['diagonals'] = diagonals
+    d2roots = A.graph['d2roots'].copy()
+    A.graph['d2roots'] = d2roots
+    M = A.graph['M']
+    diag2del = []
+    max_load = G.graph['capacity'] if G.graph['rooted'] else 2
+
+    # all edges in G are made Delaunay edges in A
+    # all crossings of an edge in G are removed from A
+    for u, v in G.edges:
+        if not A.has_edge(u, v):
+            continue
+        # remove the crossings with ⟨u, v⟩
+        if A[u][v]['type'] == 'extended':
+            # ⟨u, v⟩ is a diagonal
+            u_, v_ = (u, v) if u < v else (v, u)
+            #  print(f'\next({F[u_]}–{F[v_]}) ', end='')
+            t = diagonals[u_, v_]
+            s = P[t][u_]['cw']
+            # remove the Delaunay edge crossed by ⟨u, v⟩
+            A.remove_edge(s, t)
+            # remove two other diagonals
+            # by examining the two triangles ⟨u, v⟩ belongs to
+            triangles = ((s, t, u_), (t, s, v_))
+            for a, b, c in triangles:
+                d = P[c][b]['cw']
+                #  print(F[c], F[b], F[d])
+                diag_da = (a, d) if a < d else (d, a)
+                if (d == P[b][c]['ccw']) and (diag_da in diagonals):
+                    A.remove_edge(*diag_da)
+                    #  print(f'del {diag_da}', end='')
+                    # del diagonals[diag_da]
+                    diag2del.append(diag_da)
+                e = P[a][c]['cw']
+                #  print(F[a], F[c], F[e])
+                diag_eb = (e, b) if e < b else (b, e)
+                if (e == P[c][a]['ccw']) and (diag_eb in diagonals):
+                    A.remove_edge(*diag_eb)
+                    #  print(f'del {diag_eb}', end='')
+                    # del diagonals[diag_eb]
+                    diag2del.append(diag_eb)
+            A[u][v]['type'] = 'delaunay'
+            del diagonals[u_, v_]
+            # update P, otherwise this swap will have no effect
+            P.add_half_edge_cw(u, v, s)
+            P.add_half_edge_cw(v, u, t)
+            P.remove_edge(s, t)
+        else:
+            # ⟨u, v⟩ is a Delaunay edge -> remove diagonal
+            s = P[u][v]['ccw']
+            t = P[v][u]['ccw']
+            if (t == P[u][v]['cw']
+                    and s == P[v][u]['cw']
+                    and A.has_edge(s, t)):
+                A.remove_edge(s, t)
+                diag2del.append((s, t) if s < t else (t, s))
+                #  print(f' -{F[s]}–{F[t]}', end='')
+    #  print()
+
+    # merge together the connected nodes in G
+    G_nodes = nx.subgraph_view(G, filter_node=lambda n: n >= 0)
+    #  leaves = tuple(n for n in G.nodes if G.degree[n] == 1)
+    leaves = {n for n in G.nodes if G.degree[n] == 1}
+    retrace = {}
+    for level in range(1, max_load):
+        print(f'level: {level}')
+        next_leaves = []
+        #  for v in leaves:
+        while leaves:
+            v = leaves.pop()
+            print(f'v: {F[v]}', end=', ')
+            # merge node v to node u (u inherits v's neighbors)
+            u, = G[v]
+            print(f'u: {F[u]}', end=', ')
+            if u < 0:
+                # skip if u is a root
+                continue
+            if G.degree[u] == 1 and u in leaves:
+                # this is necessary for groupings that are not rooted
+                leaves.remove(u)
+            # print(f'{F[u]}–{F[v]} ({A[u][v]["type"][:3]}):', end='')
+            #  print(f'{F[u]}–{F[v]}:', end='')
+
+            A.remove_edge(u, v)
+            nbr_u = list(A.neighbors(u))
+            # print(f' nbr_u: {nbr_u}', end='')
+            for nbv in A.neighbors(v):
+                if nbv in nbr_u:
+                    # common neighbor of u and v
+                    A[u][nbv]['length'] = min(A[u][nbv]['length'],
+                                              A[v][nbv]['length'])
+                    if A[v][nbv]['type'] == 'delaunay':
+                        A[u][nbv]['type'] = 'delaunay'
+                        s, t = (u, nbv) if u < nbv else (nbv, u)
+                        if (s, t) in diagonals:
+                            print(f'deleting diagonal {F[s]}–{F[t]}')
+                            del diagonals[s, t]
+                else:
+                    # neighbor of v but not of u
+                    #  print(f' +{F[u]}–{F[nbv]}', end='')
+                    A.add_edge(u, nbv, **A[v][nbv])
+                    # TODO: add to P
+                s, t = (v, nbv) if v < nbv else (nbv, v)
+                if (s, t) in diagonals:
+                    del diagonals[s, t]
+                #  if A[v][nbv]['type'] == 'extended':
+                #      del diagonals[(v, nbv) if v < nbv else (nbv, v)]
+            merged = A.nodes[u].get('merged', [])
+            merged.append((v, A.nodes[v].get('merged', [])))
+            #  print(' ', merged, end='')
+            # merged.extend(A.nodes[v].get('merged', ()))
+            A.nodes[u]['merged'] = merged
+            G.remove_node(v)
+            if G.degree[u] == 1:
+                #  print(f' next_leaves <- {F[u]}', end='')
+                next_leaves.append(u)
+            A.nodes[u]['power'] = (A.nodes[u].get('power', 1)
+                                   + A.nodes[v].get('power', 1))
+            d2roots[u, -1] = min(d2roots[u, -1], d2roots[v, -1])
+            A.remove_node(v)
+            retrace[v] = u
+            # remove from P
+            last = P[v][u]['ccw']
+            if last != P[u][v]['cw']:
+                last = u
+            nbv = P[v][u]['cw']
+            ref = P[u][v]['ccw']
+            if nbv == ref:
+                nbv = P[v][ref]['cw']
+                P.remove_edge(v, ref)
+            while nbv != last:
+                P.add_half_edge_cw(u, nbv, ref)
+                P.add_half_edge_cw(nbv, u, v)
+                ref = nbv
+                nbv = P[v][ref]['cw']
+                P.remove_edge(v, ref)
+            #  print(f'removing from P: {F[v]}')
+            P.remove_node(v)
+            # log.append((plotP(A, P), P.copy()))
+
+            #  print()
+        leaves = next_leaves
+    # remove diag2del from diagonals
+    for diag in diag2del:
+        if diag in diagonals:
+            del diagonals[diag]
+    for (s, t), v in diagonals.items():
+        while v in retrace:
+            v = retrace[v]
+        #  if n not in A.nodes:
+        #      print(f'node {F[n]} not in A')
+        #      del diagonals[s, t]
+        #      continue
+        diagonals[s, t] = v
+
+    return G, A
