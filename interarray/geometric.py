@@ -399,7 +399,6 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     for u, v in hull_edges:
         hull_arcs[u].add(v)
         hull_arcs[v].add(u)
-    #  hull_arcs = {u: v for u, v in hull_edges} | {v: u for u, v in hull_edges}
     cur = start = hull_edges[0][0]
     next = hull_arcs[cur].pop()
     hull_nodes = []

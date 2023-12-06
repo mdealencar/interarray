@@ -9,13 +9,10 @@ import numpy as np
 
 from ortools.sat.python import cp_model
 
-from .core import Optimizer
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
 from ..geometric import delaunay
 from ..interarraylib import (G_from_site, calcload, fun_fingerprint,
                              remove_detours)
-
-
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
