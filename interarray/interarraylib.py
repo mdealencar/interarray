@@ -15,21 +15,6 @@ from .geometric import make_graph_metrics
 F = NodeTagger()
 
 
-def cost(G):
-    if 'cables' not in G.graph:
-        return np.inf
-    cables = G.graph['cables']
-    total = 0.
-    N_cables = len(cables.cost)
-    for u, v, data in G.edges(data=True):
-        cable_idx = cables.capacity.searchsorted(data['load'])
-        if cable_idx == N_cables:
-            # available cables do not meet required capacity
-            return np.inf
-        total += data['length']*cables.cost[cable_idx]
-    return total
-
-
 def new_graph_like(G_base, edges=None):
     '''copies graph and nodes attributes, but not edges'''
     G = nx.Graph()
