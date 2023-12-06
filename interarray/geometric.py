@@ -7,6 +7,7 @@ import operator
 from collections import defaultdict
 from itertools import chain, product
 from math import isclose
+from typing import Tuple
 
 import networkx as nx
 import numpy as np
@@ -738,9 +739,14 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
 
 
 def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
-    '''Return the "available edges" graph that is the base for edge search in
+    '''
+    Return the "available edges" graph that is the base for edge search in
     Esau-Williams. If `delaunay_based` is True, the edges are the expanded
-    Delaunay triangulation, otherwise a complete graph is returned.'''
+    Delaunay triangulation, otherwise a complete graph is returned.
+
+    This function is being kept for backward-compatibility. For the Delaunay
+    triangulation, call `delaunay()` directly.
+    '''
     if delaunay_based:
         A = delaunay(G_base)
         if weightfun is not None:
@@ -1000,3 +1006,67 @@ def check_crossings(G, debug=False, MARGIN=0.1):
         ', '.join([f'«{F[fnT[u]]}–{F[fnT[v]]}» × «{F[fnT[s]]}–{F[fnT[t]]}»'
                    for u, v, s, t in potential]))
     return crossings
+
+
+def rotating_calipers(convex_hull: np.ndarray) \
+        -> Tuple[np.ndarray, float, float, np.ndarray]:
+    # inspired by:
+    # jhultman/rotating-calipers:
+    #   CUDA and Numba implementations of computational geometry algorithms.
+    # (https://github.com/jhultman/rotating-calipers)
+    """
+    argument `convex_hull` is a (N, 2) array of coordinates of the convex hull
+        in counter-clockwise order.
+    Reference:
+        Toussaint, Godfried T. "Solving geometric problems with
+        the rotating calipers." Proc. IEEE Melecon. Vol. 83. 1983.
+    """
+    caliper_angles = np.float_([0.5*np.pi, 0, -0.5*np.pi, np.pi])
+    area_min = np.inf
+    N = convex_hull.shape[0]
+    left, bottom = convex_hull.argmin(axis=0)
+    right, top = convex_hull.argmax(axis=0)
+
+    calipers = np.int_([left, top, right, bottom])
+
+    for _ in range(N):
+        # Roll vertices counter-clockwise
+        calipers_advanced = (calipers - 1) % N
+        # Vectors from previous calipers to candidates
+        vec = convex_hull[calipers_advanced] - convex_hull[calipers]
+        # Find angles of candidate edgelines
+        angles = np.arctan2(vec[:, 1], vec[:, 0])
+        # Find candidate angle deltas
+        angle_deltas = caliper_angles - angles
+        # Select pivot with smallest rotation
+        pivot = np.abs(angle_deltas).argmin()
+        # Advance selected pivot caliper
+        calipers[pivot] = calipers_advanced[pivot]
+        # Rotate all supporting lines by angle delta
+        caliper_angles -= angle_deltas[pivot]
+
+        # calculate area for current calipers
+        angle = caliper_angles[np.abs(caliper_angles).argmin()]
+        c, s = np.cos(angle), np.sin(angle)
+        calipers_rot = convex_hull[calipers] @ np.array(((c, -s), (s, c)))
+        bbox_rot_min = calipers_rot.min(axis=0)
+        bbox_rot_max = calipers_rot.max(axis=0)
+        area = (bbox_rot_max - bbox_rot_min).prod()
+        # check if area is a new minimum
+        if area < area_min:
+            area_min = area
+            best_calipers = calipers.copy()
+            best_caliper_angle = angle
+            best_bbox_rot_min = bbox_rot_min
+            best_bbox_rot_max = bbox_rot_max
+
+    c, s = np.cos(-best_caliper_angle), np.sin(-best_caliper_angle)
+    t = best_bbox_rot_max
+    b = best_bbox_rot_min
+    # calculate bbox coordinates in original reference frame, ccw vertices
+    bbox = np.float_(((b[0], b[1]),
+                      (b[0], t[1]),
+                      (t[0], t[1]),
+                      (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
+
+    return best_calipers, best_caliper_angle, area_min, bbox
