@@ -401,11 +401,11 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
         hull_arcs[v].add(u)
     cur = start = hull_edges[0][0]
     next = hull_arcs[cur].pop()
-    hull_nodes = []
+    hull_nodes = [cur]
     while True:
-        hull_nodes.append(cur)
         hull_arcs[next].remove(cur)
         cur = next
+        hull_nodes.append(cur)
         next = hull_arcs[next].pop()
         if next == start:
             break
