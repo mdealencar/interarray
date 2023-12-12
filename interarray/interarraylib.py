@@ -64,10 +64,43 @@ def G_from_site(site: dict) -> nx.Graph:
     return G
 
 
-def G_from_TG(T, G_base, capacity=None, load_col=4):
+def G_from_T(T, G_base, capacity=None, cost_scale=1e3):
     '''Creates a networkx graph with nodes and data from G_base and edges from
+    a T matrix. (suitable for converting the output of juru's `global_optimizer`)
+    T matrix: [ [u, v, length, cable type, load (WT number), cost] ]'''
+    G = nx.Graph()
+    G.graph.update(G_base.graph)
+    G.add_nodes_from(G_base.nodes(data=True))
+    M = G_base.graph['M']
+    N = G_base.number_of_nodes() - M
+
+    # indexing differences:
+    # T starts at 1, while G starts at -M
+    edges = (T[:, :2].astype(int) - M - 1)
+
+    G.add_edges_from(edges)
+    nx.set_edge_attributes(
+        G, {(int(u), int(v)): dict(length=length, cable=cable, load=load, cost=cost)
+            for (u, v), length, (cable, load), cost in
+            zip(edges, T[:, 2], T[:, 3:5].astype(int), cost_scale*T[:, 5])})
+    G.graph['has_loads'] = True
+    G.graph['has_costs'] = True
+    G.graph['edges_created_by'] = 'G_from_T()'
+    if capacity is not None:
+        G.graph['capacity'] = capacity
+        G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
+                              for root in range(-M, 0)]
+    return G
+
+
+def G_from_TG(T, G_base, capacity=None, load_col=4):
+    '''
+    DEPRECATED in favor of `G_from_T()`
+
+    Creates a networkx graph with nodes and data from G_base and edges from
     a T matrix.
-    T matrix: [ [u, v, length, load (WT number), cable type], ...]'''
+    T matrix: [ [u, v, length, load (WT number), cable type], ...]
+    '''
     G = nx.Graph()
     G.graph.update(G_base.graph)
     G.add_nodes_from(G_base.nodes(data=True))
