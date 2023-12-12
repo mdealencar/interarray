@@ -415,7 +415,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
                 + np.dot(X[:-1], Y[1:])
                 - np.dot(Y[:-1], X[1:]))
     hull_nodes_cvx_ccw = np.int_(hull_nodes
-                                 if shoelace < 0 else
+                                 if shoelace > 0 else
                                  hull_nodes[::-1])
 
     # getting rid of nearly flat Delaunay triangles
