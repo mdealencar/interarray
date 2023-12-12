@@ -2,6 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import numpy as np
+import numpy.lib.recfunctions as nprec
 import networkx as nx
 from functools import partial
 
@@ -26,9 +27,10 @@ def translate2global_optimizer(G):
 
 def assign_cables(G, cables):
     '''
-    G: networkx graph with edges (and edges have a 'load' attribute - call calcload(G) first)
-    cables: [(«cross section», «capacity», «cost»), ...] in increasing capacity order
-    (each cable entry must be a tuple)
+    G: networkx graph with edges having a 'load' attribute (use calcload(G))
+    cables: [(«cross section», «capacity», «cost»), ...] in increasing
+            capacity order (each cable entry must be a tuple)
+            or numpy.ndarray where each row represents one cable type
 
     The attribute 'cost' of the edges of G will be updated with their cost,
     considering the cheapest cable that can handle their load.
@@ -37,23 +39,45 @@ def assign_cables(G, cables):
     '''
 
     Nc = len(cables)
-    cable_ = np.fromiter(cables,
-                         dtype=[('area', float),
-                                ('capacity', int),
-                                ('cost', float)],
-                         count=Nc)
+    dt = np.dtype([('area', float),
+                   ('capacity', int),
+                   ('cost', float)])
+    if isinstance(cables, np.ndarray):
+        cable_ = nprec.unstructured_to_structured(cables, dtype=dt)
+    else:
+        cable_ = np.fromiter(cables, dtype=dt, count=Nc)
     κ_ = cable_['capacity']
+    capacity = 1
 
     # for e, data in G.edges.items():
     for u, v, data in G.edges(data=True):
         i = κ_.searchsorted(data['load'])
-        if i > len(κ_):
+        if i >= len(κ_):
             print(f'ERROR: Load for edge ⟨{u, v}⟩: {data["load"]} '
                   f'exceeds maximum cable capacity {κ_[-1]}.')
         data['cable'] = i
         data['cost'] = data['length']*cable_['cost'][i]
+        if data['load'] > capacity:
+            capacity = data['load']
     G.graph['cables'] = cable_
     G.graph['has_costs'] = True
+    if 'capacity' not in G.graph:
+        G.graph['capacity'] = capacity
+
+
+def assign_subtree(G):
+    start = 0
+    queue = []
+    for root in range(-G.graph['M'], 0):
+        for subtree, gate in enumerate(G[root], start=start):
+            queue.append((root, gate))
+            while queue:
+                parent, node = queue.pop()
+                G.nodes[node]['subtree'] = subtree
+                for nbr in G[node]:
+                    if nbr != parent:
+                        queue.append((node, nbr))
+        start = subtree + 1
 
 
 def G_from_XYM(X, Y, M=1, name='unnamed', boundary=None):
