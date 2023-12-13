@@ -59,20 +59,23 @@ def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
     return area_avail, lower_bound, upper_bound
 
 
-def normalize_site_single_oss(G: nx.Graph) -> Tuple[np.ndarray, np.ndarray,
-                                                    np.ndarray, float, float]:
-    boundary = G.graph['boundary'].copy()
+def normalize_site_single_oss(G: nx.Graph)\
+        -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
+    '''
+    Calculate the area and scale the boundary so that it has area 1.
+    The boundary is also translated to the 1st quadrant, near the origin.
+
+    IF SITE HAS MULTIPLE OSSs, ONLY 1 IS RETURNED (mean of the OSSs' coords).
+    '''
+    bounds = G.graph['boundary'].copy()
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    area, lower_bound, upper_bound = area_and_bbox(boundary)
+    area, corner_lo, corner_hi = area_and_bbox(bounds)
     factor = 1/np.sqrt(area)
-    boundary -= lower_bound
-    boundary *= factor
-    oss = ((VertexC[-M:].mean(axis=0) - lower_bound)*factor)[np.newaxis, :]
-    # perimeter calculation
-    perimeter = np.linalg.norm(boundary - np.roll(boundary, 1, axis=0),
-                               axis=1).sum()
-    return boundary, oss, (upper_bound - lower_bound)*factor, perimeter, factor
+    bounds -= corner_lo
+    bounds *= factor
+    oss = ((VertexC[-M:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
+    return factor, corner_lo, bounds, oss, (corner_hi - corner_lo)*factor
 
 
 def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
