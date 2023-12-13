@@ -43,32 +43,6 @@ def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
     return iCDF
 
 
-# linear_count = [4, 7, 12]
-# efficiency_factor = [0.6, 0.4, 0.2]
-def get_random_normed_instance(site: nx.Graph, linear_count: int,
-                               efficiency_factor: float, iter_max: int = 30
-                               ) -> nx.Graph:
-    '''
-    `linear_count` defines the minimum distance between WT, which is the one
-    that enables that turbine count aligned along the shortest side of the
-    bounding box.
-
-    this is likely to be DEPRECATED.
-    '''
-    boundary, ossC, (w, h) = normalize_site_single_oss(site)
-    wt_clearance = min(w, h)/linear_count
-    N = round(efficiency_factor/np.pi*wt_clearance**2/4)
-    for i in range(1, iter_max + 1):
-        wtC = poisson_disc_filler(N, wt_clearance, boundary, ossC,
-                                  clearance=0.5*wt_clearance,
-                                  iter_max_factor=2000)
-        if len(wtC) == N:
-            break
-    if i == N:
-        print('WARNING: unable to fulfill.')
-    return boundary, wtC, ossC
-
-
 def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
                                                  np.ndarray]:
     '''
