@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from pathlib import Path
+from importlib.resources import files
 
 import numpy as np
 
@@ -32,7 +32,7 @@ def tess3sm(radius, spacing=1000):
                            handle='tess3sm')
 
 
-datapath = Path(__file__).resolve().parent.parent / 'data'
+datapath = files('interarray.data')
 
 g = namedtuplify(
     namedtuple_typename='FarmGraphs',

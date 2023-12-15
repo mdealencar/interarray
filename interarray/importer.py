@@ -5,6 +5,7 @@ import os
 from collections import namedtuple
 from pathlib import Path
 from typing import NamedTuple
+from importlib.resources import files
 
 import networkx as nx
 import numpy as np
@@ -48,7 +49,7 @@ def _tags_and_array_from_key(key, parsed_dict):
 
 def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     '''Import wind farm data from .yaml file.'''
-    fpath = Path(filepath).with_suffix('.yaml')
+    fpath = filepath.with_suffix('.yaml')
     # read wind power plant site YAML file
     parsed_dict = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
     Boundary, BoundaryTag = _tags_and_array_from_key('EXTENTS', parsed_dict)
@@ -101,7 +102,8 @@ _site_handles = dict(
 )
 
 
-def load_repository(base_dir='data', handles2name=_site_handles) -> NamedTuple:
+def load_repository(handles2name=_site_handles) -> NamedTuple:
+    base_dir = files('interarray.data')
     return namedtuple('SiteRepository', handles2name)(
-        *(graph_from_yaml(os.path.join(base_dir, fname), handle)
+        *(graph_from_yaml(base_dir / fname, handle)
           for handle, fname in handles2name.items()))
