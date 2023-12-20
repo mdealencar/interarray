@@ -9,13 +9,16 @@ TURBINE:
 
 LANDSCAPE_ANGLE: 48
 
+#  F 53°58.433'N 06°29.483'E -> was not including G04
+#  C 53°57.650'N 06°37.016'E -> was not including R06
+#  D 53°56.417'N 06°37.016'E -> was not including R09
 EXTENTS: |-
   A 53°59.666'N 06°29.467'E
   B 53°59.666'N 06°33.600'E
-  C 53°57.650'N 06°37.016'E
-  D 53°56.417'N 06°37.016'E
+  C 53°57.650'N 06°37.020'E
+  D 53°56.417'N 06°37.020'E
   E 53°56.417'N 06°32.900'E
-  F 53°58.433'N 06°29.483'E
+  F 53°58.433'N 06°29.476'E
 
 # OSS coordinates estimated from map
 # (Engauge Digitizer)
