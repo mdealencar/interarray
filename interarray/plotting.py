@@ -356,6 +356,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     type2style = dict(
         detour='dashed',
         scaffold='dotted',
+        extended='dashed',
+        delaunay='solid',
         unspecified='solid',
     )
     if dark:
@@ -363,6 +365,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         type2color.update(
             detour='darkorange',
             scaffold='gray',
+            delaunay='darkcyan',
+            extended='darkcyan',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
@@ -375,6 +379,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         type2color.update(
             detour='royalblue',
             scaffold='gray',
+            delaunay='black',
+            extended='black',
             unspecified='firebrick',
         )
         root_color = 'black' if node_tag is None else 'yellow'
@@ -395,21 +401,21 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
 
     # draw farm boundary
     if 'boundary' in G.graph:
-        boundaryC = (rotate(G.graph['boundary'], landscape_angle)
+        BoundaryC = (rotate(G.graph['boundary'], landscape_angle)
                      if landscape and landscape_angle else
                      G.graph['boundary'])
         if ax is None and not dark:
             limX, limY = figlims
             r = limX/limY
-            XYrange = np.abs(np.amax(boundaryC, axis=0)
-                             - np.amin(boundaryC, axis=0))
+            XYrange = np.abs(np.amax(BoundaryC, axis=0)
+                             - np.amin(BoundaryC, axis=0))
             d = XYrange[0]/XYrange[1]
             if d < r:
                 figsize = (limY*d, limY)
             else:
                 figsize = (limX, limX/d)
 
-        area_polygon = Polygon(boundaryC, zorder=0, linestyle='--',
+        area_polygon = Polygon(BoundaryC, zorder=0, linestyle='--',
                                facecolor=polygon_face, edgecolor=polygon_edge,
                                linewidth=0.3)
         if ax is None:
@@ -443,7 +449,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                            style=type2style['unspecified'], label='direct',
                            edgelist=[(u, v) for u, v, t in G.edges.data('type')
                                      if t is None])
-    for edge_type in ('detour', 'scaffold'):
+    for edge_type in type2style:
         nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_type],
                                style=type2style[edge_type], label=edge_type,
                                edgelist=[(u, v) for u, v, t
