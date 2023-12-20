@@ -9,6 +9,7 @@ from itertools import chain, product
 from math import isclose
 from typing import Tuple
 
+import shapely as shp
 import networkx as nx
 import numpy as np
 from scipy.sparse import coo_array
@@ -376,7 +377,7 @@ def edge_crossings(s, t, G, diagonals, P):
     return [edge for edge in crossings if edge in G.edges]
 
 
-def make_planar_embedding(M: int, VertexC: np.ndarray,
+def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                           max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO):
     V = VertexC.shape[0]
     N = V - M
@@ -387,6 +388,8 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     mat = np.full((V, V), NULL, dtype=tri.simplices.dtype)
 
     S = tri.simplices - M
+    # simplices (i.e. triangles) are oriented ccw
+    # mat[u, v] returns the next ccw vertice following v
     mat[S[:, 0], S[:, 1]] = S[:, 2]
     mat[S[:, 1], S[:, 2]] = S[:, 0]
     mat[S[:, 2], S[:, 0]] = S[:, 1]
@@ -394,61 +397,79 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
 
     # Delaunay() produces a convex hull, but it is edge-based and unordered.
     # Use that to make an array of nodes defining the convex hull in ccw order.
-    hull_edges = [(u, v) if u < v else (v, u)
-                  for u, v in (tri.convex_hull - M)]
-    hull_arcs = defaultdict(set)
-    for u, v in hull_edges:
-        hull_arcs[u].add(v)
-        hull_arcs[v].add(u)
-    cur = start = hull_edges[0][0]
-    next = hull_arcs[cur].pop()
+    # this will make all hull_edges point ccw
+    hull_edges = np.array(
+        [(u, v) if mat[v, u] == NULL else (v, u)
+         for u, v in (tri.convex_hull - M)],
+        dtype=[('src', int), ('dst', int)])
+    hull_edges.sort(order='src')
+    cur = start = hull_edges['src'][0]
+    next = hull_edges['dst'][0]
     hull_nodes = [cur]
-    while True:
-        hull_arcs[next].remove(cur)
+    while next != start:
         cur = next
+        next = hull_edges['dst'][hull_edges['src'].searchsorted(cur)]
         hull_nodes.append(cur)
-        next = hull_arcs[next].pop()
-        if next == start:
-            break
-    # use Shoelace formula to enforce ccw order for the convex hull
-    X, Y = VertexC[hull_nodes].T
-    shoelace = (X[-1]*Y[0] - Y[-1]*X[0]
-                + np.dot(X[:-1], Y[1:])
-                - np.dot(Y[:-1], X[1:]))
-    hull_nodes_cvx_ccw = np.int_(hull_nodes
-                                 if shoelace > 0 else
-                                 hull_nodes[::-1])
 
     # getting rid of nearly flat Delaunay triangles
     # qhull (used by scipy) seems not able to do it
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
-    hull_noncvx = []
-    while hull_edges:
-        u, v = hull_edges.pop()
-        t = max(mat[u, v], mat[v, u])
+    hull_stack = hull_nodes[0:1] + hull_nodes[::-1]
+    u, v = hull_nodes[-1], hull_stack.pop()
+    hull_nodes_noncvx = []
+    while hull_stack:
+        t = mat[u, v]
         AR = triangle_AR(*VertexC[(u, v, t),])
-        if AR > max_tri_AR:
-            # TODO: document this relaxation of MAX_ASPECT for root nodes
-            if min(u, v, t) < 0 and AR < 50*max_tri_AR:
-                # when considering root nodes, be less strict with AR
-                if (u, v) not in hull_noncvx:
-                    hull_noncvx.append((u, v))
-                continue
-            # print(ut, vt, AR)
-            ut = (u, t) if u < t else (t, u)
-            if ut not in hull_edges:
-                hull_edges.append(ut)
-            vt = (v, t) if v < t else (t, v)
-            if vt not in hull_edges:
-                hull_edges.append(vt)
-            mat[u, v] = mat[v, u] = NULL
-            for a, b, c in ((u, t, v), (t, u, v), (v, t, u), (t, v, u)):
-                if mat[a, b] == c:
-                    mat[a, b] = NULL
+        # TODO: document this relaxation of max_tri_AR for root nodes
+        #       (i.e. when considering root nodes, be less strict with AR)
+        if AR <= max_tri_AR or (min(u, v, t) < 0 and AR < 50*max_tri_AR):
+            hull_nodes_noncvx.append(v)
+            u = v
+            v = hull_stack.pop()
         else:
-            if (u, v) not in hull_noncvx:
-                hull_noncvx.append((u, v))
+            mat[u, v] = mat[v, t] = mat[t, u] = NULL
+            hull_stack.append(v)
+            v = t
 
+    # prevent edges that cross the boudaries from going into PlanarEmbedding
+    # an exception is made for edges that include a root node
+    if BoundaryC is not None:
+        hull_poly = shp.Polygon(VertexC[hull_nodes])
+        bound_poly = shp.Polygon(BoundaryC)
+        holes = hull_poly - bound_poly
+        hull_prunned = []
+        singled_nodes = {}
+        if not holes.is_empty:
+            #  iter = 0
+            hull_stack = hull_nodes_noncvx[0:1] + hull_nodes_noncvx[::-1]
+            u, v = hull_nodes_noncvx[-1], hull_stack.pop()
+            while hull_stack:
+                edge_line = shp.LineString(VertexC[[u, v]])
+                if (u >= 0 and v >= 0
+                        and holes.intersects(edge_line)
+                        and not bound_poly.covers(edge_line)):
+                    t = mat[u, v]
+                    if t == NULL:
+                        # degenerate case 1
+                        singled_nodes[v] = u
+                        hull_prunned.append(v)
+                        t = v
+                        v = u
+                        u = t
+                        continue
+                    mat[u, v] = mat[v, t] = mat[t, u] = NULL
+                    if t in hull_nodes_noncvx:
+                        # degenerate case 2
+                        singled_nodes[u] = t
+                        hull_prunned.append(t)
+                        u = t
+                        continue
+                    hull_stack.append(v)
+                    v = t
+                else:
+                    hull_prunned.append(v)
+                    u = v
+                    v = hull_stack.pop()
     planar = nx.PlanarEmbedding()
     planar.add_nodes_from(range(-M, N))
     # add planar embedding half-edges, using
@@ -468,13 +489,18 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
     # or:
     #     u = PlanarEmbedding[v][s]['cw']
     diagonals = {}
-
     for u, next_ in zip(chain(range(N), range(-M, 0)), mat):
         # first rotate ccw, so next_ is a row
         # get any of node's edge
         # argmax() of boolean may use shortcircuiting logic
         # which means it would stop searching on the first True
-        first = (next_ >= 0).argmax()
+        first = (next_ >= -M).argmax()
+        if first == 0 and next_[0] == NULL:
+            # degenerate case
+            v = singled_nodes[u]
+            print('degenerate:', F[u], F[v])
+            planar.add_half_edge_first(u, v)
+            continue
         first = first % N - M*(first//N)
         v = first
         back = mat[v, u]
@@ -524,10 +550,16 @@ def make_planar_embedding(M: int, VertexC: np.ndarray,
             else:
                 # cw direction ended at the convex hull
                 break
+    if BoundaryC is not None:
+        # add the other half-edge for degenerate cases
+        for u, v in singled_nodes.items():
+            i = hull_prunned.index(v)
+            ref = hull_prunned[i - 1]
+            planar.add_half_edge_ccw(v, u, ref)
     del mat
     # raise an exception if `planar` is not proper:
     planar.check_structure()
-    return planar, diagonals, hull_nodes_cvx_ccw
+    return planar, diagonals, hull_nodes
 
 
 def perimeter(VertexC, vertices_ordered):
@@ -549,9 +581,10 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
     M = G_base.graph['M']
     VertexC = G_base.graph['VertexC']
     N = VertexC.shape[0] - M
+    BoundaryC = G_base.graph.get('boundary', None)
 
-    planar, diagonals, hull = make_planar_embedding(
-            M, VertexC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
+    planar, diagonals, hull = make_planar_embedding(M, VertexC,
+        BoundaryC=BoundaryC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
 
     # undirected Delaunay edge view
     undirected = planar.to_undirected(as_view=True)
