@@ -416,14 +416,14 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
     hull_stack = hull_nodes[0:1] + hull_nodes[::-1]
     u, v = hull_nodes[-1], hull_stack.pop()
-    hull_nodes_noncvx = []
+    hull_prunned_tri = []
     while hull_stack:
         t = mat[u, v]
         AR = triangle_AR(*VertexC[(u, v, t),])
         # TODO: document this relaxation of max_tri_AR for root nodes
         #       (i.e. when considering root nodes, be less strict with AR)
         if AR <= max_tri_AR or (min(u, v, t) < 0 and AR < 50*max_tri_AR):
-            hull_nodes_noncvx.append(v)
+            hull_prunned_tri.append(v)
             u = v
             v = hull_stack.pop()
         else:
@@ -433,16 +433,18 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
 
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
-    if BoundaryC is not None:
+    if BoundaryC is None:
+        hull_concave = hull_prunned_tri
+    else:
         hull_poly = shp.Polygon(VertexC[hull_nodes])
         bound_poly = shp.Polygon(BoundaryC)
         holes = hull_poly - bound_poly
-        hull_prunned = []
+        hull_concave = []
         singled_nodes = {}
         if not holes.is_empty:
             #  iter = 0
-            hull_stack = hull_nodes_noncvx[0:1] + hull_nodes_noncvx[::-1]
-            u, v = hull_nodes_noncvx[-1], hull_stack.pop()
+            hull_stack = hull_prunned_tri[0:1] + hull_prunned_tri[::-1]
+            u, v = hull_prunned_tri[-1], hull_stack.pop()
             while hull_stack:
                 edge_line = shp.LineString(VertexC[[u, v]])
                 if (u >= 0 and v >= 0
@@ -452,25 +454,25 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                     if t == NULL:
                         # degenerate case 1
                         singled_nodes[v] = u
-                        hull_prunned.append(v)
+                        hull_concave.append(v)
                         t = v
                         v = u
                         u = t
                         continue
                     mat[u, v] = mat[v, t] = mat[t, u] = NULL
-                    if t in hull_nodes_noncvx:
+                    if t in hull_prunned_tri:
                         # degenerate case 2
                         singled_nodes[u] = t
-                        hull_prunned.append(t)
+                        hull_concave.append(t)
                         u = t
                         continue
                     hull_stack.append(v)
                     v = t
                 else:
-                    hull_prunned.append(v)
+                    hull_concave.append(v)
                     u = v
                     v = hull_stack.pop()
-    planar = nx.PlanarEmbedding()
+    planar = nx.PlanarEmbedding(hull=hull, hull_concave=hull_concave)
     planar.add_nodes_from(range(-M, N))
     # add planar embedding half-edges, using
     # Delaunay triangles (vertices in ccw order)
@@ -553,13 +555,13 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     if BoundaryC is not None:
         # add the other half-edge for degenerate cases
         for u, v in singled_nodes.items():
-            i = hull_prunned.index(v)
-            ref = hull_prunned[i - 1]
+            i = hull_concave.index(v)
+            ref = hull_concave[i - 1]
             planar.add_half_edge_ccw(v, u, ref)
     del mat
     # raise an exception if `planar` is not proper:
     planar.check_structure()
-    return planar, diagonals, hull_nodes
+    return planar, diagonals
 
 
 def perimeter(VertexC, vertices_ordered):
@@ -583,7 +585,7 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
     N = VertexC.shape[0] - M
     BoundaryC = G_base.graph.get('boundary', None)
 
-    planar, diagonals, hull = make_planar_embedding(M, VertexC,
+    planar, diagonals = make_planar_embedding(M, VertexC,
         BoundaryC=BoundaryC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
 
     # undirected Delaunay edge view
@@ -633,7 +635,7 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
                    planar=planar,
                    d2roots=d2roots,
                    diagonals=diagonals,
-                   hull=hull,
+                   hull=P.graph['hull'],
                    landscape_angle=G_base.graph.get('landscape_angle', 0),
                    boundary=G_base.graph['boundary'],
                    name=G_base.graph['name'],
@@ -811,7 +813,7 @@ def planar_over_layout(G: nx.Graph):
     '''
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    P, diagonals, hull = make_planar_embedding(M, VertexC)
+    P, diagonals = make_planar_embedding(M, VertexC)
     for r in range(-M, 0):
         for u, v in nx.edge_dfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
