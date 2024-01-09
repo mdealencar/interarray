@@ -433,16 +433,13 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
 
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
-    if BoundaryC is None:
-        hull_concave = hull_prunned_tri
-    else:
+    hull_concave = []
+    if BoundaryC is not None:
+        singled_nodes = {}
         hull_poly = shp.Polygon(VertexC[hull_nodes])
         bound_poly = shp.Polygon(BoundaryC)
         holes = hull_poly - bound_poly
-        hull_concave = []
-        singled_nodes = {}
         if not holes.is_empty:
-            #  iter = 0
             hull_stack = hull_prunned_tri[0:1] + hull_prunned_tri[::-1]
             u, v = hull_prunned_tri[-1], hull_stack.pop()
             while hull_stack:
@@ -472,7 +469,48 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                     hull_concave.append(v)
                     u = v
                     v = hull_stack.pop()
-    planar = nx.PlanarEmbedding(hull=hull, hull_concave=hull_concave)
+    if not hull_concave:
+        hull_concave = hull_prunned_tri
+
+    # find the hull for non-root nodes only
+    hull_stack = hull_concave[2:0:-1] + hull_concave[::-1]
+    u, v = hull_concave[-1], hull_stack.pop()
+    hull_nonroot = []
+    while len(hull_stack) > 1:
+        if v < 0:
+            # v is a root
+            s = hull_stack[-1]
+            if ((np.cross(VertexC[s] - VertexC[v],
+                          VertexC[v] - VertexC[u]) < 0)
+                or (BoundaryC is not None
+                    and not bound_poly.covers(shp.Point(VertexC[v])))):
+                # This root should not be inside hull_nonroot. Either the
+                # angle at v is > π or the root is outside the boundary.
+                # This segment of hull_nonroot follows v's neighbors.
+                while True:
+                    u = mat[u, v]
+                    if u < 0:
+                        # TODO: handle this case
+                        raise NotImplementedError(
+                            "2 roots are Delaunay neighbors and hull+nonhull."
+                        )
+                    if u == s:
+                        u = hull_nonroot[-1]
+                        break
+                    hull_nonroot.append(u)
+            else:
+                # 〈u, v, s〉 is not convex
+                u = v
+                hull_nonroot.append(v)
+        else:
+            # v is not a root
+            u = v
+            hull_nonroot.append(v)
+        v = hull_stack.pop()
+
+    planar = nx.PlanarEmbedding(hull=hull_nodes,
+                                hull_concave=hull_concave,
+                                hull_nonroot=hull_nonroot)
     planar.add_nodes_from(range(-M, N))
     # add planar embedding half-edges, using
     # Delaunay triangles (vertices in ccw order)
@@ -635,7 +673,7 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
                    planar=planar,
                    d2roots=d2roots,
                    diagonals=diagonals,
-                   hull=P.graph['hull'],
+                   hull=planar.graph['hull'],
                    landscape_angle=G_base.graph.get('landscape_angle', 0),
                    boundary=G_base.graph['boundary'],
                    name=G_base.graph['name'],
