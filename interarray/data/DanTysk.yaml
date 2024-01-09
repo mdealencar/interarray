@@ -22,6 +22,8 @@ TURBINE:
 LANDSCAPE_ANGLE: 90
 
 #  D 55°13.367'N 7°12.533'E
+#  J 55°9.667'N 7°11.050'E
+#  T-70 55°9.657324'N 7°11.000784'E
 EXTENTS: |-
   A 55°13.684'N 7°9.983'E
   B 55°14.100'N 7°10.200'E
@@ -33,7 +35,7 @@ EXTENTS: |-
   G 55°3.800'N 7°10.667'E
   H 55°4.267'N 7°10.250'E
   I 55°9.583'N 7°10.084'E
-  J 55°9.667'N 7°11.050'E
+  J 55°9.667'N 7°10.999'E
 
 # Conflicting substation position:
 # https://www.helidecks.de/windparks-north-sea-21.html
