@@ -110,8 +110,8 @@ def packnodes(G: nx.Graph) -> PackType:
     N = G.number_of_nodes() - D - M
     digest, pickled_coordinates = site_fingerprint(G.graph['VertexC'],
                                                    G.graph['boundary'])
-    if G.name.startswith('rnd '):
-        name = G.name + ' ' + base64.b64encode(digest).decode('ascii')
+    if G.name[0] == '!':
+        name = G.name + base64.b64encode(digest).decode('ascii')
     else:
         name = G.name
     pack = dict(
