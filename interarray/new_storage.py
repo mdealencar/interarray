@@ -187,8 +187,12 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
         u, v = (u, v) if u < v else (v, u)
         i, target = (u, v) if reverse else (v, u)
         edges[i] = target
-    print('Storing in `misc`:',
-          *(key for key in G.graph.keys() - misc_not))
+    misc = {key: G.graph[key]
+            for key in G.graph.keys() - misc_not}
+    print('Storing in `misc`:', *misc.keys())
+    for k, v in misc.items():
+        if isinstance(v, np.ndarray):
+            misc[k] = v.tolist()
     edgepack = dict(
             handle=G.graph.get('handle',
                                G.graph['name'].strip().replace(' ', '_')),
@@ -198,8 +202,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
             gates=[len(G[root]) for root in range(-M, 0)],
             N=N,
             M=M,
-            misc={key: G.graph[key]
-                  for key in G.graph.keys() - misc_not},
+            misc=misc,
             edges=edges,
     )
     D = G.graph.get('D')
