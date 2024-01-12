@@ -173,7 +173,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
                 'crossings', 'landscape_angle', 'Root', 'creation_options', 
                 'Subtree', 'funfile', 'funhash', 'funname', 'diagonals',
                 'planar', 'has_loads', 'M', 'gates_not_in_A', 'overfed',
-                'gnT', 'fun_fingerprint', 'handle'}
+                'gnT', 'fun_fingerprint', 'handle', 'hull'}
     nodesetID = nodeset_from_graph(G, db)
     methodID = method_from_graph(G, db),
     machineID = get_machine_pk(db)
@@ -193,6 +193,8 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
     for k, v in misc.items():
         if isinstance(v, np.ndarray):
             misc[k] = v.tolist()
+        elif isinstance(v, np.int64):
+            misc[k] = int(v)
     edgepack = dict(
             handle=G.graph.get('handle',
                                G.graph['name'].strip().replace(' ', '_')),
