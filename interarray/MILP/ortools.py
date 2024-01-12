@@ -34,12 +34,13 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     M = A.graph['M']
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
+    W = sum(w for n, w in A.nodes(data='power', default=1) if n >= 0)
 
     # Prepare data from A
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
-    G = tuple((r, n) for n in range(N) for r in range(-M, 0))
+    G = tuple((r, n) for n in A_nodes.nodes.keys() for r in range(-M, 0))
     w_E = tuple(A[u][v]['length'] for u, v in E)
     w_G = tuple(d2roots[n, r] for r, n in G)
 
@@ -72,7 +73,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     if gates_limit:
         if isinstance(gates_limit, bool) or gates_limit == min_gates:
             # fixed number of gates
-            m.Add((sum(Bg[r, u] for r in range(-M, 0) for u in range(N))
+            m.Add((sum(Bg[r, u] for r in range(-M, 0)
+                       for u in A_nodes.nodes.keys())
                    == math.ceil(N/k)))
             min_gate_load = N % k
         else:
@@ -81,14 +83,15 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                     f' gates_limit = {gates_limit}).')
             # number of gates within range
             m.AddLinearConstraint(
-                sum(Bg[r, u] for r in range(-M, 0) for u in range(N)),
+                sum(Bg[r, u] for r in range(-M, 0)
+                    for u in A_nodes.nodes.keys()),
                 min_gates,
                 gates_limit)
     else:
         # valid inequality: number of gates is at least the minimum
         m.Add(min_gates <= sum(Bg[r, n]
                                for r in range(-M, 0)
-                               for n in range(N)))
+                               for n in A_nodes.nodes.keys()))
 
     # link edges' demand and binary
     for e in E:
@@ -99,7 +102,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         ).OnlyEnforceIf(Be[e])
 
     # link gates' demand and binary
-    for n in range(N):
+    for n in A_nodes.nodes.keys():
         for r in range(-M, 0):
             m.Add(Dg[r, n] == 0).OnlyEnforceIf(Bg[r, n].Not())
             m.Add(Dg[r, n] >= min_gate_load).OnlyEnforceIf(Bg[r, n])
@@ -118,14 +121,15 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                        for u, v in Xing)
 
     # flow consevation at each node
-    for u in range(N):
+    for u in A_nodes.nodes.keys():
         m.Add(sum(De[u, v] if u < v else -De[v, u]
                   for v in A_nodes.neighbors(u))
-              + sum(Dg[r, u] for r in range(-M, 0)) == 1)
+              + sum(Dg[r, u] for r in range(-M, 0))
+              == A.nodes[u].get('power', 1))
 
     if not branching:
         # non-branching (limit the nodes' degrees to 2)
-        for u in range(N):
+        for u in A_nodes.nodes.keys():
             m.Add(sum((Be[u, v] if u < v else Be[v, u])
                       for v in A_nodes.neighbors(u))
                   + sum(Bg[r, u] for r in range(-M, 0)) <= 2)
@@ -150,7 +154,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
             m.Add(De[u, v] < 0).OnlyEnforceIf(reverse)
             m.Add(De[u, v] >= 0).OnlyEnforceIf(reverse.Not())
             upstream[v][u] = reverse
-        for n in range(N):
+        for n in A_nodes.nodes.keys():
             # single root enforcement is encompassed here
             m.AddAtMostOne(
                 *upstream[n].values(), *tuple(Bg[r, n] for r in range(-M, 0))
@@ -158,7 +162,8 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
         m.upstream = upstream
 
     # assert all nodes are connected to some root (using gate edge demands)
-    m.Add(sum(Dg[r, n] for r in range(-M, 0) for n in range(N)) == N)
+    m.Add(sum(Dg[r, n] for r in range(-M, 0)
+              for n in A_nodes.nodes.keys()) == W)
 
     #############
     # Objective #
