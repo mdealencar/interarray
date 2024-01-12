@@ -34,10 +34,10 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     M = A.graph['M']
     N = A.number_of_nodes() - M
     d2roots = A.graph['d2roots']
-    W = sum(w for n, w in A.nodes(data='power', default=1) if n >= 0)
 
     # Prepare data from A
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
+    W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
     G = tuple((r, n) for n in A_nodes.nodes.keys() for r in range(-M, 0))
