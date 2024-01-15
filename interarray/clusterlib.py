@@ -227,6 +227,8 @@ def memory_usage_model_MB(N, solver_name):
 
 def unify_roots(G_base):
     '''
+    `G_base` is changed in-place.
+
     Modify the provided nx.Graph `G_base` by reducing its root node to one.
         - nonroot nodes and boundary of `G_base` are not changed;
         - root nodes of `G_base` are replaced by a single root that is the
@@ -234,7 +236,7 @@ def unify_roots(G_base):
     '''
     M = G_base.graph['M']
     if M <= 1:
-        return G_base
+        return
     N = G_base.number_of_nodes() - M
     VertexC = G_base.graph['VertexC']
     G_base.remove_nodes_from(range(-M, -1))
@@ -246,7 +248,7 @@ def unify_roots(G_base):
     G_base.graph['name'] += '.1_OSS'
     G_base.graph['handle'] = handle = handle + '_1'
     make_graph_metrics(G_base)
-    return G_base
+    return
 
 
 solver_options = {}
