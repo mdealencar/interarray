@@ -12,12 +12,14 @@ import subprocess
 
 import dill
 from pony.orm import db_session
+import numpy as np
 
 from interarray import new_dbmodel as dbmodel
 from interarray.new_storage import packmethod, packnodes
 from interarray.pathfinding import PathFinder
 from interarray.MILP.pyomo import MILP_solution_to_G as cplex_MILP_solution_to_G
 from interarray.interarraylib import fun_fingerprint
+from interarray.geometric import make_graph_metrics
 
 
 class DBhelper():
