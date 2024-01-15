@@ -248,7 +248,7 @@ def unify_roots(G_base):
             ]
     G_base.graph['M'] = M = 1
     G_base.graph['name'] += '.1_OSS'
-    G_base.graph['handle'] = handle = handle + '_1'
+    G_base.graph['handle'] += '_1'
     make_graph_metrics(G_base)
     return
 
