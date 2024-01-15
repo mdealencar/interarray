@@ -416,14 +416,14 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
     hull_stack = hull_nodes[0:1] + hull_nodes[::-1]
     u, v = hull_nodes[-1], hull_stack.pop()
-    hull_prunned_tri = []
+    hull_prunned = []
     while hull_stack:
         t = mat[u, v]
         AR = triangle_AR(*VertexC[(u, v, t),])
         # TODO: document this relaxation of max_tri_AR for root nodes
         #       (i.e. when considering root nodes, be less strict with AR)
         if AR <= max_tri_AR or (min(u, v, t) < 0 and AR < 50*max_tri_AR):
-            hull_prunned_tri.append(v)
+            hull_prunned.append(v)
             u = v
             v = hull_stack.pop()
         else:
@@ -436,16 +436,16 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     hull_concave = []
     if BoundaryC is not None:
         singled_nodes = {}
-        hull_poly = shp.Polygon(VertexC[hull_nodes])
+        hull_prunned_poly = shp.Polygon(VertexC[hull_prunned])
+        shp.prepare(hull_prunned_poly)
         bound_poly = shp.Polygon(BoundaryC)
-        holes = hull_poly - bound_poly
-        if not holes.is_empty:
-            hull_stack = hull_prunned_tri[0:1] + hull_prunned_tri[::-1]
-            u, v = hull_prunned_tri[-1], hull_stack.pop()
+        shp.prepare(bound_poly)
+        if not bound_poly.covers(hull_prunned_poly):
+            hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
+            u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
                 edge_line = shp.LineString(VertexC[[u, v]])
                 if (u >= 0 and v >= 0
-                        and holes.intersects(edge_line)
                         and not bound_poly.covers(edge_line)):
                     t = mat[u, v]
                     if t == NULL:
@@ -457,7 +457,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                         u = t
                         continue
                     mat[u, v] = mat[v, t] = mat[t, u] = NULL
-                    if t in hull_prunned_tri:
+                    if t in hull_prunned:
                         # degenerate case 2
                         singled_nodes[u] = t
                         hull_concave.append(t)
@@ -470,7 +470,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                     u = v
                     v = hull_stack.pop()
     if not hull_concave:
-        hull_concave = hull_prunned_tri
+        hull_concave = hull_prunned
 
     # find the hull for non-root nodes only
     hull_stack = hull_concave[2:0:-1] + hull_concave[::-1]
@@ -623,8 +623,8 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
     N = VertexC.shape[0] - M
     BoundaryC = G_base.graph.get('boundary', None)
 
-    planar, diagonals = make_planar_embedding(M, VertexC,
-        BoundaryC=BoundaryC, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO)
+    planar, diagonals = make_planar_embedding(
+        M, VertexC, BoundaryC=BoundaryC, max_tri_AR=max_tri_AR)
 
     # undirected Delaunay edge view
     undirected = planar.to_undirected(as_view=True)
