@@ -13,7 +13,7 @@ import numpy as np
 from loguru import logger
 
 from .crossings import gateXing_iter
-from .geometric import planar_over_layout
+from .geometric import planar_over_layout, rotate
 from .interarraylib import bfs_subtree_loads
 from .utils import NodeStr, NodeTagger
 from .plotting import gplot, scaffolded
@@ -458,7 +458,12 @@ class PathFinder():
         J = nx.Graph()
         J.add_nodes_from(self.G.nodes)
         self._apply_all_best_paths(J)
-        nx.draw_networkx_edges(J, pos=self.VertexC, edge_color='y',
+        landscape_angle = self.G.graph.get('landscape_angle')
+        if landscape_angle:
+            VertexC = rotate(self.VertexC, landscape_angle)
+        else:
+            VertexC = self.VertexC
+        nx.draw_networkx_edges(J, pos=VertexC, edge_color='y',
                                alpha=0.3, ax=ax)
         return ax
 
