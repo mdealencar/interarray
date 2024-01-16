@@ -24,6 +24,7 @@ trace, debug, info, success, warn, error, critical = (
 
 F = NodeTagger()
 
+NULL = np.iinfo(int).min
 PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 
 
@@ -136,24 +137,33 @@ class PathFinder():
         `dists` contains the lengths of the segments defined by `paths`.
         '''
         paths = self.paths
-        dist, id = min((paths[id].dist, id)
-                       for id in self.I_path[n].values())
-        path = [n]
-        dists = []
-        pseudonode = paths[id]
-        while id >= 0:
-            dists.append(pseudonode.d_hop)
-            id = pseudonode.parent
-            path.append(paths.base_from_id[id])
+        paths_available = tuple((paths[id].dist, id)
+                                for id in self.I_path[n].values())
+        if paths_available:
+            dist, id = min(paths_available)
+            path = [n]
+            dists = []
             pseudonode = paths[id]
-        return path, dists
+            while id >= 0:
+                dists.append(pseudonode.d_hop)
+                id = pseudonode.parent
+                path.append(paths.base_from_id[id])
+                pseudonode = paths[id]
+            return path, dists
+        else:
+            info('Path not found for «{}»', F[n])
+            return [], []
 
     def _get_sector(self, _node, portal):
         # TODO: there is probably a better way to avoid spinning around _node
         is_gate = any(_node in Gate for Gate in self.nonembed_Gates)
         _node_degree = len(self.G._adj[_node])
         if is_gate and _node_degree == 1:
-            return self.G.nodes[_node]['root']
+            root = self.G.nodes[_node]['root']
+            return (NULL
+                    if _node == portal[0] else
+                    root)
+            #  return self.G.nodes[_node]['root']
 
         _opposite = portal[0] if _node == portal[1] else portal[1]
         _nbr = self.P[_node][_opposite]['ccw']
@@ -177,7 +187,7 @@ class PathFinder():
         is_better = incumbent is None or d_new < paths[incumbent].dist
         yield d_new, portal, (_new, _apex), is_better
         new = self.paths.add(_new, new_sector, apex, d_new, d_hop)
-        self.uncharted[portal] = False
+        self.uncharted[portal] = max(self.uncharted[portal] - 1, 0)
         #  self.uncharted[portal[1], portal[0]] = False
         # get incumbent again, as the situation may have changed
         incumbent = I_path[_new].get(new_sector)
@@ -325,7 +335,7 @@ class PathFinder():
         prioqueue = []
         # `uncharted` records whether portals have been traversed
         # (it is orientation-sensitive – two permutations)
-        uncharted = defaultdict(lambda: True)
+        uncharted = defaultdict(lambda: 2)
         paths = self.paths = PathNodes()
         self.uncharted = uncharted
         self.bifurcation = None
@@ -352,12 +362,14 @@ class PathFinder():
                     # (u, v, r) not a triangle or (u, v) is in G
                     continue
                 # flag initial portals as visited
-                self.uncharted[portal] = False
-                self.uncharted[right, left] = False
+                self.uncharted[portal] = 0
+                self.uncharted[right, left] = 0
 
                 sec_left = P[left][right]['ccw']
                 while (left, sec_left) not in G.edges:
                     sec_left = P[left][sec_left]['ccw']
+                if sec_left == r:
+                    sec_left = NULL
 
                 d_left, d_right = d2roots[left, r], d2roots[right, r]
                 # add the first pseudo-nodes to paths
@@ -474,7 +486,7 @@ class PathFinder():
         Plot the PlanarEmbedding of G, overlaid by the edges of G that coincide
         with it.
         '''
-        return gplot(scaffolded(self.G, P=self.P), ax=ax)
+        return gplot(scaffolded(self.G, P=self.P), ax=ax, infobox=False)
 
     def create_detours(self, in_place: bool = False):
         '''
