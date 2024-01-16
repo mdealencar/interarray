@@ -170,7 +170,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
     misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
                 'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
                 'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
-                'crossings', 'landscape_angle', 'Root', 'creation_options', 
+                'landscape_angle', 'Root', 'creation_options',
                 'Subtree', 'funfile', 'funhash', 'funname', 'diagonals',
                 'planar', 'has_loads', 'M', 'gates_not_in_A', 'overfed',
                 'gnT', 'fun_fingerprint', 'handle', 'hull'}
