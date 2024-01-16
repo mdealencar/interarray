@@ -35,7 +35,15 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     root_side = round(1.77*node_size)
     # TODO: ¿use SVG's attr overflow="visible" instead of margin?
     VertexC = G.graph['VertexC']
-    BoundaryC = G.graph['boundary']
+    BoundaryC = G.graph.get('boundary')
+    if BoundaryC is None:
+        hull = G.graph.get('hull')
+        if hull is not None:
+            BoundaryC = VertexC[hull]
+        else:
+            import shapely as shp
+            BoundaryC = np.array(tuple(zip(*shp.MultiPoint(
+                G.graph['VertexC']).convex_hull.exterior.coords.xy))[:-1])
     landscape_angle = G.graph.get('landscape_angle')
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
