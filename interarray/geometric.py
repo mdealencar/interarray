@@ -405,17 +405,17 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     hull_edges.sort(order='src')
     cur = start = hull_edges['src'][0]
     next = hull_edges['dst'][0]
-    hull_nodes = [cur]
+    hull_vertices = [cur]
     while next != start:
         cur = next
         next = hull_edges['dst'][hull_edges['src'].searchsorted(cur)]
-        hull_nodes.append(cur)
+        hull_vertices.append(cur)
 
     # getting rid of nearly flat Delaunay triangles
     # qhull (used by scipy) seems not able to do it
     # reference: http://www.qhull.org/html/qh-faq.htm#flat
-    hull_stack = hull_nodes[0:1] + hull_nodes[::-1]
-    u, v = hull_nodes[-1], hull_stack.pop()
+    hull_stack = hull_vertices[0:1] + hull_vertices[::-1]
+    u, v = hull_vertices[-1], hull_stack.pop()
     hull_prunned = []
     while hull_stack:
         t = mat[u, v]
@@ -508,7 +508,8 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
             hull_nonroot.append(v)
         v = hull_stack.pop()
 
-    planar = nx.PlanarEmbedding(hull=hull_nodes,
+    planar = nx.PlanarEmbedding(hull=hull_vertices,
+                                hull_prunned=hull_prunned,
                                 hull_concave=hull_concave,
                                 hull_nonroot=hull_nonroot)
     planar.add_nodes_from(range(-M, N))
@@ -839,7 +840,7 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
     return A
 
 
-def planar_over_layout(G: nx.Graph):
+def planar_over_layout(G: nx.Graph, use_boundary=False):
     '''
     Return a PlanarEmbedding of a triangulation of the nodes in G, provided
     G has been created using the extended Delaunay edges.
@@ -851,7 +852,9 @@ def planar_over_layout(G: nx.Graph):
     '''
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    P, diagonals = make_planar_embedding(M, VertexC)
+    BoundaryC = G.graph['boundary']
+    P, diagonals = make_planar_embedding(
+            M, VertexC, BoundaryC=BoundaryC if use_boundary else None)
     for r in range(-M, 0):
         for u, v in nx.edge_dfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
