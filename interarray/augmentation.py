@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from itertools import batched
 from typing import Optional, Tuple, Callable
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
@@ -54,8 +53,8 @@ def normalize_site_single_oss(G: nx.Graph)\
     '''
     BoundaryC = G.graph['boundary']
     bound_poly = shp.Polygon(BoundaryC)
-    corner_lo, corner_hi = tuple(np.array((X, Y))
-                                 for X, Y in batched(bound_poly.bounds, 2))
+    corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
+                                 for A, B in ((0, 2), (2, 4)))
     M = G.graph['M']
     VertexC = G.graph['VertexC']
     factor = 1/np.sqrt(bound_poly.area)
@@ -177,8 +176,8 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
 
     bound_poly = shp.Polygon(boundary)
     area_avail = bound_poly.area
-    corner_lo, corner_hi = tuple(np.array((X, Y))
-                                 for X, Y in batched(bound_poly.bounds, 2))
+    corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
+                                 for A, B in ((0, 2), (2, 4)))
 
     # quick check for outrageous densities
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
