@@ -614,15 +614,16 @@ def perimeter(VertexC, vertices_ordered):
                          - VertexC[vertices_ordered[0]])))
 
 
-def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
-             max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
+def delaunay(G_base, add_diagonals=True, avoid_holes=True, debug=False,
+             bind2root=False, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO,
+             **qhull_options):
     '''Creates a networkx graph from the Delaunay triangulation
     of the point in coordinates. Each edge gets an attribute `length`
     with the euclidean distance between its vertices.'''
     M = G_base.graph['M']
     VertexC = G_base.graph['VertexC']
     N = VertexC.shape[0] - M
-    BoundaryC = G_base.graph.get('boundary', None)
+    BoundaryC = G_base.graph.get('boundary', None) if avoid_holes else None
 
     planar, diagonals = make_planar_embedding(
         M, VertexC, BoundaryC=BoundaryC, max_tri_AR=max_tri_AR)
