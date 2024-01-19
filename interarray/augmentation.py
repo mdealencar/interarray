@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import itertools
+from itertools import batched
 from typing import Optional, Tuple, Callable
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from .utils import NodeTagger
 
+import shapely as shp
 import numpy as np
 import numba as nb
 import networkx as nx
@@ -43,39 +44,25 @@ def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
     return iCDF
 
 
-def area_and_bbox(boundary: np.ndarray) -> Tuple[float, np.ndarray,
-                                                 np.ndarray]:
-    '''
-    Calculate the area and bounding box from a polygon's boundary (K×2 CCW
-    vertex array).
-    '''
-    bX, bY = boundary.T
-    lower_bound = np.array((bX.min(), bY.min()), dtype=np.float64)
-    upper_bound = np.array((bX.max(), bY.max()), dtype=np.float64)
-    # Shoelace formula (https://stackoverflow.com/a/30408825/287217)
-    area_avail = 0.5*np.abs(bX[-1]*bY[0] - bY[-1]*bX[0]
-                            + np.dot(bX[:-1], bY[1:])
-                            - np.dot(bY[:-1], bX[1:]))
-    return area_avail, lower_bound, upper_bound
-
-
 def normalize_site_single_oss(G: nx.Graph)\
         -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
     '''
     Calculate the area and scale the boundary so that it has area 1.
-    The boundary is also translated to the 1st quadrant, near the origin.
+    The boundary and OSS are translated to the 1st quadrant, near the origin.
 
     IF SITE HAS MULTIPLE OSSs, ONLY 1 IS RETURNED (mean of the OSSs' coords).
     '''
-    bounds = G.graph['boundary'].copy()
+    BoundaryC = G.graph['boundary']
+    bound_poly = shp.Polygon(BoundaryC)
+    corner_lo, corner_hi = tuple(np.array((X, Y))
+                                 for X, Y in batched(bound_poly.bounds, 2))
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    area, corner_lo, corner_hi = area_and_bbox(bounds)
-    factor = 1/np.sqrt(area)
-    bounds -= corner_lo
-    bounds *= factor
+    factor = 1/np.sqrt(bound_poly.area)
+    BoundaryC -= corner_lo
+    BoundaryC *= factor
     oss = ((VertexC[-M:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
-    return factor, corner_lo, bounds, oss, (corner_hi - corner_lo)*factor
+    return factor, corner_lo, BoundaryC, oss, (corner_hi - corner_lo)*factor
 
 
 def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
@@ -188,7 +175,10 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
     if exclude is not None:
         raise NotImplementedError
 
-    area_avail, lower_bound, upper_bound = area_and_bbox(boundary)
+    bound_poly = shp.Polygon(boundary)
+    area_avail = bound_poly.area
+    corner_lo, corner_hi = tuple(np.array((X, Y))
+                                 for X, Y in batched(bound_poly.bounds, 2))
 
     # quick check for outrageous densities
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
@@ -210,14 +200,14 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
     # create auxiliary grid covering the defined boundary
     cell_size = min_dist/np.sqrt(2)
     i_len, j_len = np.ceil(
-        (upper_bound - lower_bound)/cell_size
+        (corner_hi - corner_lo)/cell_size
     ).astype(np.int_)
-    boundary_scaled = (boundary - lower_bound)/cell_size
+    boundary_scaled = (boundary - corner_lo)/cell_size
     if repellers is None:
         repellers_scaled = None
         clearance_sq = 0.
     else:
-        repellers_scaled = (repellers - lower_bound)/cell_size
+        repellers_scaled = (repellers - corner_lo)/cell_size
         clearance_sq = (clearance/cell_size)**2
 
     # Alternate implementation using np.mgrid
@@ -288,7 +278,7 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
                f'efficiency limit: {efficiency_optimal:.3f})')
         print('WARNING:', msg)
 
-    return points*cell_size + lower_bound
+    return points*cell_size + corner_lo
 
 
 @nb.njit(cache=True)
