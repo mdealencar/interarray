@@ -137,7 +137,7 @@ def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
         dx2, dy2 = point - p
 
         F = (dx - dx2)*dy - dx*(dy - dy2)
-        if np.isclose(F, 0., rtol=0) and dx*dx2 <= 0 and dy*dy2 <= 0:
+        if np.isclose(F, 0., rtol=0.) and dx*dx2 <= 0 and dy*dy2 <= 0:
             return True
 
         if (dy >= 0 and dy2 < 0) or (dy2 >= 0 and dy < 0):
