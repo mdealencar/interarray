@@ -323,9 +323,9 @@ class Job:
                 ## notify on end
                 #BSUB -N
                 '''
-        self.jobscript += (os.environ['CONDA_EXE']
-                           + f' run -n {conda_env} python '
-                           + py_file)
+        self.jobscript += ' '.join(
+            (os.environ['CONDA_EXE'], 'run', '--no-capture-output',
+             '-n', conda_env, 'python', py_file))
         self.summary = \
             f'''submitted: {jobname} (# of cores: {cores}, memory: \
             {mem_per_core*cores/1000:.1f} GB, time limit: {job_time_limit}h)'''
