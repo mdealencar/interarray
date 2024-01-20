@@ -274,7 +274,7 @@ def MILP_warmstart_from_G(m: pyo.ConcreteModel, G: nx.Graph):
 def MILP_solution_to_G(model, solver=None, A=None):
     '''Translate a MILP pyomo solution to a networkx graph.'''
     if A is None:
-        G = G_from_site(model.site)
+        G = G_from_site(**model.site)
         A = delaunay(G)
         P = A.graph['planar']
     else:

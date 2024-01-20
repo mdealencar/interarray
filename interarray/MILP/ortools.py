@@ -216,7 +216,7 @@ def MILP_solution_to_G(model, solver, A=None):
     '''Translate a MILP OR-tools solution to a networkx graph.'''
     # the solution is in the solver object not in the model
     if A is None:
-        G = G_from_site(model.site)
+        G = G_from_site(**model.site)
         A = delaunay(G)
     else:
         G = nx.create_empty_copy(A)
