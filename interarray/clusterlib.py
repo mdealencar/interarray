@@ -292,7 +292,8 @@ solver_options['ortools'] = {}
 class CondaJob:
 
     def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
-                 mem_per_core, max_mem, cores, job_time_limit, email=None):
+                 mem_per_core, max_mem, cores, job_time_limit, email=None,
+                 cwd=None):
         self.jobscript = \
             f'''#!/usr/bin/env sh
             ## queue
@@ -316,6 +317,11 @@ class CondaJob:
             ## stderr
             #BSUB -e {jobname}_%J.err
             '''
+        if cwd is not None:
+            self.jobscript += \
+                f'''## job's current working directory
+                #BSUB -cwd {cwd}
+                '''
         if email is not None:
             self.jobscript += \
                 f'''## email
