@@ -78,6 +78,7 @@ def to_environment(problem_options: dict, method_options: dict,
     os.environ['INTERARRAY_METHOD'] = json.dumps(method_options)
     os.environ['INTERARRAY_PROBLEM'] = json.dumps(problem_options)
     os.environ['INTERARRAY_DATABASE'] = database
+    return ['INTERARRAY_METHOD', 'INTERARRAY_PROBLEM', 'INTERARRAY_DATABASE']
 
 
 def dict_from_solver_status(solver_name, solver, status):
@@ -293,15 +294,13 @@ class CondaJob:
 
     def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
                  mem_per_core, max_mem, cores, job_time_limit, email=None,
-                 cwd=None):
+                 cwd=None, env_variables=None):
         self.jobscript = \
             f'''#!/usr/bin/env sh
             ## queue
             #BSUB -q {queue_name}
             ## job name
             #BSUB -J {jobname}
-            ## environment variables to propagate
-            #BSUB -env INTERARRAY_METHOD,INTERARRAY_PROBLEM,INTERARRAY_DATABASE,TMPDIR
             ## cores
             #BSUB -n {cores}
             ## cores must be on the same host
@@ -321,6 +320,11 @@ class CondaJob:
             self.jobscript += \
                 f'''## job's current working directory
                 #BSUB -cwd {cwd}
+                '''
+        if env_variables is not None:
+            self.jobscript += \
+                f''' ## environment variables to propagate
+                #BSUB -env {",".join(env_variables)}
                 '''
         if email is not None:
             self.jobscript += \
