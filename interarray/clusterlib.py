@@ -289,10 +289,10 @@ solver_options['beta'] = solver_options['cplex']
 solver_options['ortools'] = {}
 
 
-class Job:
+class CondaJob:
 
-    def __init__(self, py_file, conda_env, queue_name, jobname, mem_per_core,
-                 max_mem, cores, job_time_limit, email=None):
+    def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
+                 mem_per_core, max_mem, cores, job_time_limit, email=None):
         self.jobscript = \
             f'''#!/usr/bin/env sh
             ## queue
@@ -324,8 +324,8 @@ class Job:
                 #BSUB -N
                 '''
         self.jobscript += ' '.join(
-            (os.environ['CONDA_EXE'], 'run', '--no-capture-output',
-             '-n', conda_env, 'python', py_file))
+            [os.environ['CONDA_EXE'], 'run', '--no-capture-output',
+             '-n', conda_env] + cmdlist)
         self.summary = \
             f'''submitted: {jobname} (# of cores: {cores}, memory: \
             {mem_per_core*cores/1000:.1f} GB, time limit: {job_time_limit}h)'''
