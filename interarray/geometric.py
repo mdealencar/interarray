@@ -614,16 +614,16 @@ def perimeter(VertexC, vertices_ordered):
                          - VertexC[vertices_ordered[0]])))
 
 
-def delaunay(G_base, add_diagonals=True, avoid_holes=True, debug=False,
-             bind2root=False, max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO,
-             **qhull_options):
-    '''Creates a networkx graph from the Delaunay triangulation
-    of the point in coordinates. Each edge gets an attribute `length`
-    with the euclidean distance between its vertices.'''
+def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
+             max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
+    '''Create a new networkx.Graph from the Delaunay triangulation of the
+    coordinate positions of the vertices in `G_base`. Each edge gets an
+    attribute `length` that is the euclidean distance between its vertices.'''
     M = G_base.graph['M']
     VertexC = G_base.graph['VertexC']
     N = VertexC.shape[0] - M
-    BoundaryC = G_base.graph.get('boundary', None) if avoid_holes else None
+    relax_boundary = G_base.graph.get('relax_boundary', False)
+    BoundaryC = None if relax_boundary else G_base.graph.get('boundary', None)
 
     planar, diagonals = make_planar_embedding(
         M, VertexC, BoundaryC=BoundaryC, max_tri_AR=max_tri_AR)
@@ -841,10 +841,12 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
     return A
 
 
-def planar_over_layout(G: nx.Graph, use_boundary=False):
+def planar_over_layout(G: nx.Graph):
     '''
     Return a PlanarEmbedding of a triangulation of the nodes in G, provided
     G has been created using the extended Delaunay edges.
+
+    If `G` does not have a `relax_boundary` attribute, it is assumed True.
 
     The PlanarEmbedding is different from the one generated in `A_graph()` in
     that it takes into account the actual edges used in G (i.e. used diagonals
@@ -853,9 +855,10 @@ def planar_over_layout(G: nx.Graph, use_boundary=False):
     '''
     M = G.graph['M']
     VertexC = G.graph['VertexC']
-    BoundaryC = G.graph['boundary']
+    BoundaryC = G.graph.get('boundary')
+    relax_boundary = G.graph.get('relax_boundary', True)
     P, diagonals = make_planar_embedding(
-            M, VertexC, BoundaryC=BoundaryC if use_boundary else None)
+            M, VertexC, BoundaryC=None if relax_boundary else BoundaryC)
     for r in range(-M, 0):
         for u, v in nx.edge_dfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
