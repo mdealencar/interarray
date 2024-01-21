@@ -340,9 +340,9 @@ class CondaJob:
         self.jobscript += ' '.join(
             [os.environ['CONDA_EXE'], 'run', '--no-capture-output',
              '-n', conda_env] + cmdlist)
-        self.summary = \
-            f'''submitted: {jobname} (# of cores: {cores}, memory: \
-            {mem_per_core*cores/1000:.1f} GB, time limit: {time_limit})'''
+        self.summary = (f'submitted: {jobname} (# of cores: {cores}, memory: '
+                        f'{mem_per_core*cores/1000:.1f} GB, time limit: '
+                        f'{time_limit})')
 
     def run(self, quiet=False):
         subprocess.run(['bsub'], input=self.jobscript.encode())
