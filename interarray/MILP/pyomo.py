@@ -271,7 +271,7 @@ def MILP_warmstart_from_G(m: pyo.ConcreteModel, G: nx.Graph):
             m.Dg[r, n] = G[n][ref]['load']
 
 
-def MILP_solution_to_G(model, solver=None, A=None):
+def MILP_solution_to_G(model, *, solver=None, A=None):
     '''Translate a MILP pyomo solution to a networkx graph.'''
     if A is None:
         G = G_from_site(**model.site)

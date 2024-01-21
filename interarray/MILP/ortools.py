@@ -212,7 +212,7 @@ def MILP_warmstart_from_G(m: cp_model.CpModel, G: nx.Graph):
         m.AddHint(Dg, G.edges[rn]['load'] if is_in_G else 0)
 
 
-def MILP_solution_to_G(model, solver, A=None):
+def MILP_solution_to_G(model, *, solver, A=None):
     '''Translate a MILP OR-tools solution to a networkx graph.'''
     # the solution is in the solver object not in the model
     if A is None:
