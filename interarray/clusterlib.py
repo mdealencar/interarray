@@ -291,9 +291,13 @@ solver_options['ortools'] = {}
 
 
 class CondaJob:
+    '''
+    `mem_per_core` and `max_mem` in MB
+    `time_limit` must be datetime.timedelta
+    '''
 
     def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
-                 mem_per_core, max_mem, cores, job_time_limit, email=None,
+                 mem_per_core, max_mem, cores, time_limit, email=None,
                  cwd=None, env_variables=None):
         self.jobscript = \
             f'''#!/usr/bin/env sh
@@ -310,7 +314,7 @@ class CondaJob:
             ## job termination threshold: RAM per core/slot (Resident set size)
             #BSUB -M {math.ceil(max_mem)}MB
             ## job termination threshold: execution time (hh:mm)
-            #BSUB -W {job_time_limit}
+            #BSUB -W {':'.join(str(time_limit).split(':')[:2])}
             ## stdout
             #BSUB -o {jobname}_%J.out
             ## stderr
@@ -338,7 +342,7 @@ class CondaJob:
              '-n', conda_env] + cmdlist)
         self.summary = \
             f'''submitted: {jobname} (# of cores: {cores}, memory: \
-            {mem_per_core*cores/1000:.1f} GB, time limit: {job_time_limit}h)'''
+            {mem_per_core*cores/1000:.1f} GB, time limit: {time_limit})'''
 
     def run(self, quiet=False):
         subprocess.run(['bsub'], input=self.jobscript.encode())
