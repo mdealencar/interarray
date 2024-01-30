@@ -10,6 +10,7 @@ import sys
 import traceback
 import subprocess
 
+from textwrap import dedent
 import dill
 from pony.orm import db_session
 import numpy as np
@@ -299,8 +300,9 @@ class CondaJob:
     def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
                  mem_per_core, max_mem, cores, time_limit, email=None,
                  cwd=None, env_variables=None):
-        self.jobscript = \
-            f'''#!/usr/bin/env sh
+        self.jobscript = dedent(
+            f'''\
+            #!/usr/bin/env sh
             ## queue
             #BSUB -q {queue_name}
             ## job name
@@ -319,27 +321,31 @@ class CondaJob:
             #BSUB -o {jobname}_%J.out
             ## stderr
             #BSUB -e {jobname}_%J.err
-            '''
+            ''')
         if cwd is not None:
-            self.jobscript += \
-                f'''## job's current working directory
+            self.jobscript += dedent(
+                f'''\
+                ## job's current working directory
                 #BSUB -cwd {cwd}
-                '''
+                ''')
         if env_variables is not None:
-            self.jobscript += \
-                f''' ## environment variables to propagate
+            self.jobscript += dedent(
+                f'''\
+                ## environment variables to propagate
                 #BSUB -env {",".join(env_variables)}
-                '''
+                ''')
         if email is not None:
-            self.jobscript += \
-                f'''## email
+            self.jobscript += dedent(
+                f'''\
+                ## email
                 #BSUB -u {email}
                 ## notify on end
                 #BSUB -N
-                '''
+                ''')
         self.jobscript += ' '.join(
             [os.environ['CONDA_EXE'], 'run', '--no-capture-output',
-             '-n', conda_env] + cmdlist)
+             '-n', conda_env]
+            + cmdlist)
         self.summary = (f'submitted: {jobname} (# of cores: {cores}, memory: '
                         f'{mem_per_core*cores/1000:.1f} GB, time limit: '
                         f'{time_limit})')
@@ -348,3 +354,6 @@ class CondaJob:
         subprocess.run(['bsub'], input=self.jobscript.encode())
         if not quiet:
             print(self.summary)
+
+    def print(self):
+        print(self.jobscript)
