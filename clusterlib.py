@@ -15,7 +15,7 @@ import dill
 from pony.orm import db_session
 import numpy as np
 
-import .new_dbmodel as dbmodel
+from .new_dbmodel import open_database
 from .new_storage import packmethod, packnodes
 from .pathfinding import PathFinder
 from .MILP.pyomo import MILP_solution_to_G as cplex_MILP_solution_to_G
@@ -31,7 +31,7 @@ class DBhelper():
 
     def __init__(self, database):
         # initialize database connection
-        self.db = dbmodel.open_database(database)
+        self.db = open_database(database)
 
     def is_in_database(self, G, capacity, edges_fun, method_options):
         # Make sure nodeset is compatible with the database.
