@@ -46,61 +46,24 @@ def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
 
 def graph_from_edgeset(edgeset: object) -> nx.Graph:
     nodeset = edgeset.nodes
-    VertexC = pickle.loads(nodeset.VertexC)
     N = nodeset.N
     M = nodeset.M
-    G = nx.Graph(name=nodeset.name,
-                 handle=edgeset.handle,
-                 M=M,
-                 VertexC=VertexC,
-                 capacity=edgeset.capacity,
-                 boundary=pickle.loads(nodeset.boundary),
-                 landscape_angle=nodeset.landscape_angle,
-                 funhash=edgeset.method.funhash,
-                 funfile=edgeset.method.funfile,
-                 funname=edgeset.method.funname,
-                 creation_options=edgeset.method.options,
-                 **edgeset.misc)
+    G = base_graph_from_nodeset(nodeset)
+    G.graph.update(handle=edgeset.handle,
+                   capacity=edgeset.capacity,
+                   funhash=edgeset.method.funhash,
+                   funfile=edgeset.method.funfile,
+                   funname=edgeset.method.funname,
+                   creation_options=edgeset.method.options,
+                   **edgeset.misc)
 
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
-                      for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
-                      for r in range(-M, 0)))
-
-    D = edgeset.D or 0
-    if D > 0:
-        G.graph['D'] = D
-        detournodes = range(N, N + D)
-        G.add_nodes_from(((s, {'type': 'detour'})
-                          for s in detournodes))
-        clone2prime = edgeset.clone2prime
-        assert len(clone2prime) == D, \
-            'len(EdgeSet.clone2prime) != EdgeSet.D'
-        fnT = np.arange(N + D + M)
-        fnT[N: N + D] = clone2prime
-        fnT[-M:] = range(-M, 0)
-        G.graph['fnT'] = fnT
-        AllnodesC = np.vstack((VertexC[:N],
-                               VertexC[clone2prime],
-                               VertexC[-M:]))
-    else:
-        AllnodesC = VertexC
-
-    Length = np.hypot(*(AllnodesC[:-M] - AllnodesC[edgeset.edges]).T)
-    G.add_weighted_edges_from(zip(range(N + D), edgeset.edges, Length),
-                              weight='length')
-    if D > 0:
-        for _, _, edgeD in G.edges(detournodes, data=True):
-            edgeD['type'] = 'detour'
+    add_edges_to(G, edges=edgeset.edges, clone2prime=edgeset.clone2prime)
     G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')
     assert abs(calc_length - edgeset.length) < 1, (
         f"recreated graph's total length ({calc_length:.0f}) != "
         f"stored total length ({edgeset.length:.0f})")
-
-    # make_graph_metrics(G)
-    calcload(G)
     return G
 
 
@@ -161,6 +124,69 @@ def nodeset_from_graph(G: nx.Graph, db: orm.Database) -> bytes:
     return add_if_absent(db.NodeSet, pack)
 
 
+def terse_graph_from_G(G: nx.Graph) -> dict:
+    '''
+    Returns a dict with:
+        edges: where ⟨i, edge[i]⟩ is a directed edge
+        clone2prime: mapping the above-N clones to below-N nodes
+    '''
+    M = G.graph['M']
+    V = G.number_of_nodes() - M
+    edges = np.empty((V,), dtype=int)
+    if not G.graph.get('has_loads'):
+        calcload(G)
+    for u, v, reverse in G.edges(data='reverse'):
+        u, v = (u, v) if u < v else (v, u)
+        i, target = (u, v) if reverse else (v, u)
+        edges[i] = target
+    terse_graph = dict(edges=edges)
+    D = G.graph.get('D', 0)
+    if D > 0:
+        N = V - D
+        terse_graph['clone2prime'] = G.graph['fnT'][N: N + D]
+    return terse_graph
+
+
+def add_edges_to(G: nx.Graph, edges: np.ndarray,
+                 clone2prime: np.ndarray | None = None) -> None:
+    '''
+    Changes G in place if it has no edges, else copies G nodes and graph
+    attributes.
+    '''
+    if G.number_of_edges() > 0:
+        G = nx.create_empty_copy(G, with_data=True)
+    VertexC = G.graph['VertexC']
+    M = G.graph['M']
+    N = G.graph['VertexC'].shape[0] - M
+    N = G.number_of_nodes() - M
+    if clone2prime:
+        D = len(clone2prime)
+        detournodes = range(N, N + D)
+        G.add_nodes_from(((s, {'type': 'detour'})
+                          for s in detournodes))
+        clone2prime = edgepack['clone2prime']
+        assert len(clone2prime) == D, \
+            'len(EdgeSet.clone2prime) != EdgeSet.D'
+        fnT = np.arange(N + D + M)
+        fnT[N: N + D] = clone2prime
+        fnT[-M:] = range(-M, 0)
+        G.graph['fnT'] = fnT
+        AllnodesC = np.vstack((VertexC[:N],
+                               VertexC[clone2prime],
+                               VertexC[-M:]))
+    else:
+        D = 0
+        AllnodesC = VertexC
+    Length = np.hypot(*(AllnodesC[:-M] - AllnodesC[edges]).T)
+    G.add_weighted_edges_from(zip(range(N + D), edges, Length),
+                              weight='length')
+    if D > 0:
+        for _, _, edgeD in G.edges(detournodes, data=True):
+            edgeD['type'] = 'detour'
+    calcload(G)
+    return G
+
+
 def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
     '''Add a new EdgeSet entry in the database, using the data in `G`.
     If the NodeSet or Method are not yet in the database, they will be added.
@@ -179,14 +205,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
     machineID = get_machine_pk(db)
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
-    V = G.number_of_nodes() - M
-    edges = np.empty((V,), dtype=int)
-    if not G.graph.get('has_loads'):
-        calcload(G)
-    for u, v, reverse in G.edges(data='reverse'):
-        u, v = (u, v) if u < v else (v, u)
-        i, target = (u, v) if reverse else (v, u)
-        edges[i] = target
+    terse_graph = terse_graph_from_G(G)
     misc = {key: G.graph[key]
             for key in G.graph.keys() - misc_not}
     print('Storing in `misc`:', *misc.keys())
@@ -196,24 +215,18 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
         elif isinstance(v, np.int64):
             misc[k] = int(v)
     edgepack = dict(
-            handle=G.graph.get('handle',
-                               G.graph['name'].strip().replace(' ', '_')),
-            capacity=G.graph['capacity'],
-            length=G.size(weight='length'),
-            runtime=G.graph['runtime'],
-            gates=[len(G[root]) for root in range(-M, 0)],
-            N=N,
-            M=M,
-            misc=misc,
-            edges=edges,
+        handle=G.graph.get('handle',
+                           G.graph['name'].strip().replace(' ', '_')),
+        capacity=G.graph['capacity'],
+        length=G.size(weight='length'),
+        runtime=G.graph['runtime'],
+        gates=[len(G[root]) for root in range(-M, 0)],
+        N=N,
+        M=M,
+        misc=misc,
+        D=G.graph.get('D', 0),
+        **terse_graph,
     )
-    D = G.graph.get('D')
-    if D is not None and D > 0:
-        N = V - D
-        edgepack['D'] = D
-        edgepack['clone2prime'] = G.graph['fnT'][N: N + D]
-    else:
-        edgepack['D'] = 0
     with orm.db_session:
         edgepack.update(
             nodes=db.NodeSet[nodesetID],
