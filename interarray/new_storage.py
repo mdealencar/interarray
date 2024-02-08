@@ -164,9 +164,6 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
         detournodes = range(N, N + D)
         G.add_nodes_from(((s, {'type': 'detour'})
                           for s in detournodes))
-        clone2prime = edgepack['clone2prime']
-        assert len(clone2prime) == D, \
-            'len(EdgeSet.clone2prime) != EdgeSet.D'
         fnT = np.arange(N + D + M)
         fnT[N: N + D] = clone2prime
         fnT[-M:] = range(-M, 0)
