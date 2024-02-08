@@ -109,7 +109,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # BEGIN: create initial star graph
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n > 0),
+                               G_base.nodes(data='root') if n >= 0),
                               weight_attr='length')
     # END: create initial star graph
 

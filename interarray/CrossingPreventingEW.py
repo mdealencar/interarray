@@ -70,7 +70,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     # BEGIN: create initial star graph
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n > 0),
+                               G_base.nodes(data='root') if n >= 0),
                               weight_attr=weight_attr)
     # END: create initial star graph
 
