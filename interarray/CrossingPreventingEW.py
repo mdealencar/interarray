@@ -9,7 +9,6 @@ import numpy as np
 from .geometric import (angle, apply_edge_exemptions, complete_graph,
                         delaunay, edge_crossings, is_crossing,
                         is_same_side)
-from .interarraylib import new_graph_like
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -69,11 +68,10 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     # END: prepare auxiliary graph with all allowed edges and metrics
 
     # BEGIN: create initial star graph
-    star_edges = []
-    for n in range(N):
-        root = G_base.nodes[n]['root']
-        star_edges.append((root, n, {'length': d2roots[n, root]}))
-    G = new_graph_like(G_base, star_edges)
+    G = nx.create_empty_copy(G_base)
+    G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
+                               G_base.nodes(data='root') if n > 0),
+                              weight_attr=weight_attr)
     # END: create initial star graph
 
     # BEGIN: helper data structures
@@ -528,7 +526,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
                         f'«{chr(8211).join([F[x] for x in pq[0][-1]])}»'
                         f' {pq[0][0]:.1e}' if pq else 'heap EMPTY')
         #  G.add_edge(u, v, **A.edges[u, v])
-        G.add_edge(u, v, length=A[u][v]['length'])
+        G.add_edge(u, v, **{weight_attr: A[u][v][weight_attr]})
         log.append((i, 'addE', (u, v)))
         # remove from consideration edges internal to subtrees
         A.remove_edge(u, v)

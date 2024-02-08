@@ -12,7 +12,6 @@ from scipy.spatial.distance import cdist
 from .geometric import (angle, apply_edge_exemptions, delaunay,
                         edge_crossings, is_bunch_split_by_corner, is_crossing,
                         is_same_side)
-from .interarraylib import new_graph_like
 from .utils import Alerter, NodeStr, NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -21,8 +20,7 @@ F = NodeTagger()
 
 
 def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
-         MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None,
-         weight_attr='length'):
+         MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None):
     '''Obstacle Bypassing Esau-Williams heuristic for C-MST
     inputs:
     G_base: networkx.Graph
@@ -100,20 +98,19 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         #       `delaunay()` without triangles
         apply_edge_exemptions(A)
         options['weightfun'] = weightfun.__name__
-        options['weight_attr'] = weight_attr
+        options['weight_attr'] = 'length'
         for u, v, data in A.edges(data=True):
-            data[weight_attr] = weightfun(data)
+            data['length'] = weightfun(data)
     # removing root nodes from A to speedup find_option4gate
     # this may be done because G already starts with gates
     A.remove_nodes_from(roots)
     # END: prepare auxiliary graph with all allowed edges and metrics
 
     # BEGIN: create initial star graph
-    star_edges = []
-    for n in range(N):
-        root = G_base.nodes[n]['root']
-        star_edges.append((root, n, {'length': d2roots[n, root]}))
-    G = new_graph_like(G_base, star_edges)
+    G = nx.create_empty_copy(G_base)
+    G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
+                               G_base.nodes(data='root') if n > 0),
+                              weight_attr='length')
     # END: create initial star graph
 
     # BEGIN: helper data structures
@@ -242,7 +239,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                     edges2discard.append((u, v))
                 else:
                     # newd2root = d2roots[fnT[gnT[v]], G.nodes[fnT[v]]['root']]
-                    W = A[u][v][weight_attr]
+                    W = A[u][v]['length']
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
@@ -271,7 +268,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                     edges2discard.append((u, v))
                 else:
                     d2rGain = d2root - d2roots[gnT[v], G.nodes[fnT[v]]['root']]
-                    W = A[u][v][weight_attr]
+                    W = A[u][v]['length']
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges

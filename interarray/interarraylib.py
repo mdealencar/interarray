@@ -15,23 +15,13 @@ from .geometric import make_graph_metrics
 F = NodeTagger()
 
 
-def new_graph_like(G_base, edges=None):
-    '''copies graph and nodes attributes, but not edges'''
-    G = nx.Graph()
-    G.graph.update(G_base.graph)
-    G.add_nodes_from(G_base.nodes(data=True))
-    if edges:
-        G.add_edges_from(edges)
-    return G
-
-
 def G_base_from_G(G: nx.Graph) -> nx.Graph:
     '''
     Return new graph with nodes (including label and type) and boundary of G.
     In addition, output graph has metrics.
 
-    Similar to `new_graph_like()`, but works with layout solutions that carry
-    a lot of extra info (which it discards).
+    Similar to `nx.create_empty_copy()`, but works with layout solutions that
+    carry a lot of extra info (which it discards).
     '''
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
