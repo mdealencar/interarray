@@ -116,7 +116,8 @@ class PathFinder():
             np.fromiter(set(G.neighbors(r)) - set(P.neighbors(r)), dtype=int)
             for r in range(-M, 0))
         self.nonembed_Gates = nonembed_Gates
-        if G.graph['edges_created_by'][:5] == 'MILP.':
+        edges_created_by = G.graph.get('edges_created_by')
+        if edges_created_by is not None and edges_created_by[:5] == 'MILP.':
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
