@@ -516,12 +516,6 @@ class PathFinder():
         clone2prime = []
         D = 0
         subtree_map = G.nodes(data='subtree')
-        # if G.graph['edges_created_by'] == 'make_MILP_length':
-        if G.graph['edges_created_by'][:5] == 'MILP.':
-            branching = G.graph['creation_options']['branching']
-        else:
-            branching = True
-        #  print(f'branching: {branching}')
         paths = self.paths
         I_path = self.I_path
         for r, n in gates2detour:
@@ -530,7 +524,7 @@ class PathFinder():
             # set of nodes to examine is different depending on `branching`
             hookchoices = (  # all the subtree's nodes
                            [n for n, v in subtree_map if v == subtree_id]
-                           if branching else
+                           if self.branching else
                            # only each subtree's head and tail
                            [n] + [n for n, v in subtree_map
                                   if v == subtree_id and len(G._adj[n]) == 1])
