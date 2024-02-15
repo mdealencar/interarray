@@ -161,6 +161,7 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     N = G.number_of_nodes() - M
     if clone2prime:
         D = len(clone2prime)
+        G.graph['D'] = D
         detournodes = range(N, N + D)
         G.add_nodes_from(((s, {'type': 'detour'})
                           for s in detournodes))
