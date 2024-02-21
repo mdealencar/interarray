@@ -300,6 +300,11 @@ class CondaJob:
     def __init__(self, cmdlist, *, conda_env, queue_name, jobname,
                  mem_per_core, max_mem, cores, time_limit, email=None,
                  cwd=None, env_variables=None):
+        hours, remainder = divmod(time_limit.seconds, 3600)
+        hours += time_limit.days*24
+        minutes, seconds = divmod(remainder, 60)
+        if seconds > 0:
+            minutes += 1
         self.jobscript = dedent(
             f'''\
             #!/usr/bin/env sh
@@ -316,7 +321,7 @@ class CondaJob:
             ## job termination threshold: RAM per core/slot (Resident set size)
             #BSUB -M {math.ceil(max_mem)}MB
             ## job termination threshold: execution time (hh:mm)
-            #BSUB -W {':'.join(str(time_limit).split(':')[:2])}
+            #BSUB -W {hours:02}:{minutes:02}
             ## stdout
             #BSUB -o {jobname}_%J.out
             ## stderr
