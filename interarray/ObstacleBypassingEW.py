@@ -815,7 +815,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         # update detourLoNotHi
         detourLoNotHi[corner] = loNotHi
         # add Detour node
-        G.add_node(corner, type='detour', root=root)
+        G.add_node(corner, type='detour', root=G.nodes[hook]['root'])
         log.append((i, 'addDN', (corner_, corner)))
         # add detour edges
         length = np.hypot(*(VertexC[fnT[hook]] -
