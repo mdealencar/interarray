@@ -164,7 +164,7 @@ def cplex_investigate_pool_inplace(A, G, m, solver, info2store):
             print('Finished analyzing solution pool.')
             break
         cplex_load_solution_from_pool(solver, soln)
-        G = cplex_MILP_solution_to_G(m, solver, A)
+        G = cplex_MILP_solution_to_G(m, solver=solver, A=A)
         try_pathfinding_with_exc_handling(info2store, solver, G, in_place=True)
         L_contender = G.size(weight='length')
         if L_contender < L_incumbent:
