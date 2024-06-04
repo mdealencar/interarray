@@ -459,7 +459,10 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                     mat[u, v] = mat[v, t] = mat[t, u] = NULL
                     if t in hull_prunned:
                         # degenerate case 2
-                        singled_nodes[u] = t
+                        if t == hull_concave[-2]:
+                            singled_nodes[u] = t
+                        else:
+                            singled_nodes[v] = t
                         hull_concave.append(t)
                         u = t
                         continue
