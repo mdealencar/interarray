@@ -597,9 +597,11 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     if BoundaryC is not None:
         # add the other half-edge for degenerate cases
         for u, v in singled_nodes.items():
-            i = hull_concave.index(v)
-            ref = hull_concave[i - 1]
-            planar.add_half_edge_ccw(v, u, ref)
+            if (u, v) in planar.edges:
+                uI = hull_concave.index(u)
+                planar.add_half_edge(v, u, cw=hull_concave[uI - 2])
+            else:
+                planar.add_half_edge(u, v)
     del mat
     # raise an exception if `planar` is not proper:
     planar.check_structure()
