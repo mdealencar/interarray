@@ -5,6 +5,7 @@ import operator
 import time
 
 import numpy as np
+import networkx as nx
 
 from .geometric import (angle, apply_edge_exemptions, complete_graph, delaunay,
                         is_same_side)
