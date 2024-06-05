@@ -81,6 +81,7 @@ _site_handles = dict(
     borkum2='Borkum Riffgrund 2',
     borssele='Borssele',
     dantysk='DanTysk',
+    doggerA='Dogger Bank A',
     dudgeon='Dudgeon',
     anglia='East Anglia ONE',
     gode='Gode Wind 1',
