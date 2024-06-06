@@ -80,6 +80,7 @@ _site_handles = dict(
     borkum='Borkum Riffgrund 1',
     borkum2='Borkum Riffgrund 2',
     borssele='Borssele',
+    butendiek='Butendiek',
     dantysk='DanTysk',
     doggerA='Dogger Bank A',
     dudgeon='Dudgeon',
@@ -100,6 +101,9 @@ _site_handles = dict(
     rødsand2='Rødsand 2',
     thanet='Thanet',
     triton='Triton Knoll',
+    walney1='Walney 1',
+    walney2='Walney 2',
+    walneyext='Walney Extension',
     sands='West of Duddon Sands',
 )
 
