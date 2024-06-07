@@ -255,16 +255,16 @@ def unify_roots(G_base):
     return
 
 
-solver_options = {}
+solvers_options = {}
 # Solver's settings
 # Gurobi
-solver_options['gurobi'] = dict(
+solvers_options['gurobi'] = dict(
     factory=dict(
         _name='gurobi',
         solver_io='python',),
 )
 # CPLEX
-solver_options['cplex'] = dict(
+solvers_options['cplex'] = dict(
     factory=dict(
         _name='cplex',
         solver_io='python',),
@@ -286,9 +286,12 @@ solver_options['cplex'] = dict(
              or os.environ.get('TMP')
              or '/tmp'),
 )
-solver_options['beta'] = solver_options['cplex']
+solvers_options['beta'] = solvers_options['cplex']
 # Google OR-Tools CP-SAT
-solver_options['ortools'] = {}
+solvers_options['ortools'] = {}
+
+# transitional binding (TODO: remove this)
+solver_options = solvers_options
 
 
 class CondaJob:
