@@ -185,6 +185,17 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     return G
 
 
+def numpy_to_serializable(obj):
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(numpy_to_serializable(item) for item in obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.int64):
+        return int(obj)
+    else:
+        return obj
+
+
 def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
     '''Add a new EdgeSet entry in the database, using the data in `G`.
     If the NodeSet or Method are not yet in the database, they will be added.
@@ -208,10 +219,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
             for key in G.graph.keys() - misc_not}
     print('Storing in `misc`:', *misc.keys())
     for k, v in misc.items():
-        if isinstance(v, np.ndarray):
-            misc[k] = v.tolist()
-        elif isinstance(v, np.int64):
-            misc[k] = int(v)
+        misc[k] = numpy_to_serializable(v)
     edgepack = dict(
         handle=G.graph.get('handle',
                            G.graph['name'].strip().replace(' ', '_')),
