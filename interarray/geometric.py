@@ -1155,3 +1155,46 @@ def rotating_calipers(convex_hull: np.ndarray) \
                       (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
 
     return best_calipers, best_caliper_angle, area_min, bbox
+
+
+def normalize_area(G_base: nx.Graph) -> nx.Graph:
+    """
+    Rescale graph's coordinates and distances such as to make the rootless
+    concave hull of nodes enclose an area of 1.
+    Graph is first rotated by attribute 'landscape_angle' and afterward it's
+    coordinates are translated to the first quadrant, touching the axes.
+    The last step is the scaling.
+    Graph attributes added/changed:
+        'angle': original landscape_angle value
+        'offset': values subtracted from coordinates (x, y) before scaling
+        'scale': multiplicative factor applied
+        'landscape_angle': set to 0
+    """
+    G = nx.create_empty_copy(G_base)
+    #  make_graph_metrics(G)
+    VertexC = G.graph['VertexC']
+    BoundaryC = G.graph.get('boundary')
+    A = delaunay(G)
+    P = A.graph['planar']
+    hull_nonroot = P.graph['hull_nonroot']
+    nodes_poly = shp.Polygon(VertexC[hull_nonroot])
+    scale = 1/np.sqrt(nodes_poly.area)
+    G.graph['scale'] = scale
+    print('scale', scale)
+    landscape_angle = G.graph.get('landscape_angle')
+    G.graph['angle'] = landscape_angle
+    G.graph['landscape_angle'] = 0
+    if landscape_angle:
+        # landscape_angle is not None and not 0
+        VertexC = rotate(VertexC, landscape_angle)
+        BoundaryC = rotate(BoundaryC, landscape_angle)
+    Woff = min(VertexC[:, 0].min(), BoundaryC[:, 0].min())
+    Hoff = min(VertexC[:, 1].min(), BoundaryC[:, 1].min())
+    offset = np.array((Woff, Hoff))
+    G.graph['offset'] = offset
+    print('offset', offset)
+    VertexC -= offset
+    BoundaryC -= offset
+    VertexC *= scale
+    BoundaryC *= scale
+    return G
