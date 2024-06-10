@@ -1172,8 +1172,19 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     """
     G = nx.create_empty_copy(G_base)
     #  make_graph_metrics(G)
-    VertexC = G.graph['VertexC']
-    BoundaryC = G.graph.get('boundary')
+    VertexC = G.graph['VertexC'] = G_base.graph['VertexC'].copy()
+    landscape_angle = G.graph.get('landscape_angle')
+    if landscape_angle:
+        # landscape_angle is not None and not 0
+        VertexC[...] = rotate(VertexC, landscape_angle)
+    offX = VertexC[:, 0].min()
+    offY = VertexC[:, 1].min()
+    if G_base.graph.get('boundary') is not None:
+        BoundaryC = G.graph['boundary'] = G_base.graph['boundary'].copy()
+        if landscape_angle:
+            BoundaryC[...] = rotate(BoundaryC, landscape_angle)
+        offX = min(offX, BoundaryC[:, 0].min())
+        offY = min(offY, BoundaryC[:, 1].min())
     A = delaunay(G)
     P = A.graph['planar']
     hull_nonroot = P.graph['hull_nonroot']
@@ -1181,16 +1192,9 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     scale = 1/np.sqrt(nodes_poly.area)
     G.graph['scale'] = scale
     print('scale', scale)
-    landscape_angle = G.graph.get('landscape_angle')
     G.graph['angle'] = landscape_angle
     G.graph['landscape_angle'] = 0
-    if landscape_angle:
-        # landscape_angle is not None and not 0
-        VertexC = rotate(VertexC, landscape_angle)
-        BoundaryC = rotate(BoundaryC, landscape_angle)
-    Woff = min(VertexC[:, 0].min(), BoundaryC[:, 0].min())
-    Hoff = min(VertexC[:, 1].min(), BoundaryC[:, 1].min())
-    offset = np.array((Woff, Hoff))
+    offset = np.array((offX, offY))
     G.graph['offset'] = offset
     print('offset', offset)
     VertexC -= offset
