@@ -3,19 +3,22 @@ from dataclasses import asdict
 import numpy as np
 import networkx as nx
 import hygese as hgs
-from scipy.spatial.distance import cdist
 
 from ..interarraylib import calcload
 from ..pathfinding import PathFinder
-from ..geometric import make_graph_metrics, delaunay
+from ..geometric import make_graph_metrics
+from . import weight_matrix_single_depot_from_G
 
 # [[2012.10384] Hybrid Genetic Search for the CVRP: Open-Source Implementation
 #  and SWAP\* Neighborhood]
 # (https://arxiv.org/abs/2012.10384)
 
 
-def pyhygese(G_base, *, capacity, time_limit, precision_factor=10):
+def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
+             precision_factor=1e8) -> nx.Graph:
     G = nx.create_empty_copy(G_base)
+    M = G.graph['M']
+    assert M == 1, 'ERROR: only single depot supported'
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
     # class AlgorithmParameters:
@@ -35,32 +38,15 @@ def pyhygese(G_base, *, capacity, time_limit, precision_factor=10):
         # nbIter=2000,  # max iterations without improvement (20,000)
     )
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    M = G.graph['M']
-    assert M == 1
     VertexC = G.graph['VertexC']
     N = VertexC.shape[0] - M
     VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
-    # alternatively, G_base could have attribute "capacity"
-    # κ = G.graph['capacity']
     # data preparation
     data = dict()
     data['x_coordinates'], data['y_coordinates'] = VertexCmod.T
 
-    # TODO: make this scaling more robust
-    # weight = np.round(cdist(VertexCmod, VertexCmod)*precision_factor).astype(int)
-
-    weight = np.full((N + M, N + M), precision_factor, dtype=int)
-    A = delaunay(G)
-    for u, v, w in A.edges(data='length'):
-        s = u + M
-        t = v + M
-        w *= precision_factor
-        w = round(w)
-        weight[s, t] = w
-        weight[t, s] = w
-    weight[0, 1:] = np.round(A.graph['d2roots'][:, 0]*precision_factor)
-    # make return to root always free
-    weight[:, 0] = 0
+    weight, A = weight_matrix_single_depot_from_G(
+            G, precision_factor=precision_factor)
 
     # Distance_matrix may be provided instead of coordinates, or in addition to
     # coordinates. Distance_matrix is used for cost calculation if provided.
