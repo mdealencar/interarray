@@ -13,8 +13,18 @@ from ..pathfinding import PathFinder
 from ..geometric import make_graph_metrics, delaunay
 
 
-def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs=50,
-              precision_factor: float = 1e8, complete=False) -> nx.Graph:
+def write_edge_file(G: nx.Graph, f) -> None:
+    '''
+    LKH's EDGE_FILE param
+    node numbering starts from 0
+    every node number is incremented by 1 when loaded
+    '''
+    pass
+
+
+def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs: int = 50,
+              precision_factor: float = 1e8, complete=False, per_run_limit: float = 5
+              ) -> nx.Graph:
     G = nx.create_empty_copy(G_base)
     M = G.graph['M']
     assert M == 1  # LKH allows only 1 depot
@@ -42,25 +52,37 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs=50,
         DEPOT_SECTION=f'1\n-1',
         EDGE_WEIGHT_SECTION=edge_weights,
     )
-    if not complete:
+    #  if not complete:
+    if False:  # adding edges just makes the solver fail
         specs['EDGE_DATA_FORMAT'] = 'EDGE_LIST'
-        data['EDGE_DATA_SECTION'] = '\n'.join(f'{u + 2} {v + 2}'
-                                              for u, v in A.edges) + '\n-1\n',
+        data['EDGE_DATA_SECTION'] = '\n'.join((
+                '\n'.join(f'{u + 2} {v + 2}\n{v + 2} {u + 2}'
+                          for u, v in A.edges if u >= 0 and v >= 0),
+                '\n'.join(f'{n} 1\n1 {n}' for n in range(2, N + 2)),
+                '-1\n'))
 
     spec_str = '\n'.join(f'{k}: {v}' for k, v in specs.items())
     data_str = '\n'.join(f'{k}\n{v}' for k, v in data.items()) + '\nEOF'
     params = dict(
         SPECIAL=None,  # None -> output only the key
-        TIME_LIMIT=time_limit,
+        TOTAL_TIME_LIMIT=time_limit,
+        TIME_LIMIT=per_run_limit,
         RUNS=runs,  # default: 10
         # MAX_TRIALS=100,  # default: number of nodes (DIMENSION)
         # TRACE_LEVEL=1,  # default is 1, 0 supresses output
-        # INITIAL_TOUR_ALGORITHM='CVRP',  # { … | CVRP | MTSP | SOP } Default: WALK
+        #  INITIAL_TOUR_ALGORITHM='GREEDY',  # { … | CVRP | MTSP | SOP } Default: WALK
         VEHICLES=math.ceil(N/capacity),
         MTSP_MIN_SIZE=(N % capacity) or capacity,
         MTSP_MAX_SIZE=capacity,
         MTSP_OBJECTIVE='MINSUM',  # [ MINMAX | MINMAX_SIZE | MINSUM ]
         MTSP_SOLUTION_FILE=output_fname,
+        #  MOVE_TYPE='5 SPECIAL',  # <integer> [ SPECIAL ]
+        #  GAIN23='NO',
+        #  KICKS=1,
+        #  KICK_TYPE=4,
+        #  MAX_SWAPS=0,
+        #  POPULATION_SIZE=12,  # default 10
+        #  EDGE_FILE=  # Concorde format, maybe can replace EDGE_WEIGHT_SECTION and EDGE_DATA_SECTION
     )
 
     problem_fname = 'problem.txt'
@@ -82,7 +104,8 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs=50,
         print('===stdout===', result.stdout.decode('utf8'), sep='\n')
         print('===stderr===', result.stderr.decode('utf8'), sep='\n')
         with open(os.path.join(tmpdir, output_fname), 'r') as f_sol:
-            next(f_sol), next(f_sol)  # discard first two lines (unstructured)
+            metric, optimum = next(f_sol).split(':')[-1][:-1].split('_')
+            next(f_sol)  # discard second line
             branches = [[int(node) - 2 for node in line.split(' ')[1:-5]]
                         for line in f_sol]
     d2roots = G.graph['d2roots']
@@ -109,6 +132,8 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs=50,
     PathFinder(G).create_detours(in_place=True)
     make_graph_metrics(G)
     G.graph['nonAedges'] = nonAedges
+    G.graph['metric'] = int(metric)
+    G.graph['optimum'] = int(optimum)
     # G.graph['iterations'] = ???
     G.graph['capacity'] = capacity
     # G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
@@ -117,8 +142,9 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int, runs=50,
     G.graph['edges_fun'] = lkh_acvrp
     G.graph['creation_options'] = dict(
             type=specs['TYPE'],
-            time_limit=params['TIME_LIMIT'],
-            runs=params['RUNS'],
+            time_limit=time_limit,
+            runs=runs,
+            per_run_limit=per_run_limit,
             precision_factor=precision_factor,
             complete=complete)
     G.graph['runtime_unit'] = 's'

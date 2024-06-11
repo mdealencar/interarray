@@ -32,7 +32,8 @@ def weight_matrix_single_depot_from_G(G: nx.Graph, *, precision_factor: float,
         # using max int32 value (2_147_483_647), because this is used in the
         # context of old C libraries
         #  weight = np.full((N + M, N + M), 2_147_483_647, dtype=int)
-        weight = np.full((N + M, N + M), 3*precision_factor, dtype=int)
+        weight = np.full((N + M, N + M), 100*precision_factor, dtype=int)
+        #  weight = np.zeros((N + M, N + M), dtype=int)
         #  weight = np.full((N + M, N + M), -1, dtype=int)
         A = delaunay(G)
         for u, v, w in A.edges(data='length'):
