@@ -1172,17 +1172,18 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     """
     G = nx.create_empty_copy(G_base)
     #  make_graph_metrics(G)
-    VertexC = G.graph['VertexC'] = G_base.graph['VertexC'].copy()
     landscape_angle = G.graph.get('landscape_angle')
-    if landscape_angle:
-        # landscape_angle is not None and not 0
-        VertexC[...] = rotate(VertexC, landscape_angle)
+    VertexC = (rotate(G_base.graph['VertexC'], landscape_angle)
+               if landscape_angle else
+               G_base.graph['VertexC'].copy())
+    G.graph['VertexC'] = VertexC
     offX = VertexC[:, 0].min()
     offY = VertexC[:, 1].min()
     if G_base.graph.get('boundary') is not None:
-        BoundaryC = G.graph['boundary'] = G_base.graph['boundary'].copy()
-        if landscape_angle:
-            BoundaryC[...] = rotate(BoundaryC, landscape_angle)
+        BoundaryC = (rotate(G_base.graph['boundary'], landscape_angle)
+                     if landscape_angle else
+                     G_base.graph['boundary'].copy())
+        G.graph['boundary'] = BoundaryC
         offX = min(offX, BoundaryC[:, 0].min())
         offY = min(offY, BoundaryC[:, 1].min())
     A = delaunay(G)
@@ -1190,6 +1191,9 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     hull_nonroot = P.graph['hull_nonroot']
     nodes_poly = shp.Polygon(VertexC[hull_nonroot])
     scale = 1/np.sqrt(nodes_poly.area)
+    d2roots = G.graph.get('d2roots')
+    if d2roots is not None:
+        G.graph['d2roots'] = d2roots*scale
     G.graph['scale'] = scale
     print('scale', scale)
     G.graph['angle'] = landscape_angle
