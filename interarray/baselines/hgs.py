@@ -1,4 +1,5 @@
 import math
+import time
 from dataclasses import asdict
 import numpy as np
 import networkx as nx
@@ -37,7 +38,9 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
         timeLimit=time_limit,  # seconds
         # nbIter=2000,  # max iterations without improvement (20,000)
     )
+    start_time = time.perf_counter()
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
+    run_time = time.perf_counter() - start_time
     VertexC = G.graph['VertexC']
     N = VertexC.shape[0] - M
     VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
@@ -81,5 +84,5 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
     G.graph['edges_fun'] = pyhygese
     G.graph['creation_options'] = asdict(ap)
     G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = time_limit
+    G.graph['runtime'] = run_time
     return G
