@@ -136,7 +136,7 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
         #  Path(edge_fpath).write_text(edge_str)
         start_time = time.perf_counter()
         result = subprocess.run(['LKH', params_fpath], capture_output=True)
-        run_time = time.perf_counter() - start_time
+        elapsed_time = time.perf_counter() - start_time
         with open(os.path.join(tmpdir, output_fname), 'r') as f_sol:
             penalty, minimum = next(f_sol).split(':')[-1][:-1].split('_')
             next(f_sol)  # discard second line
@@ -144,23 +144,26 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
                         for line in f_sol]
     #  print('===stdout===', result.stdout.decode('utf8'), sep='\n')
     #  print('===stderr===', result.stderr.decode('utf8'), sep='\n')
-    tail = result.stdout[result.stdout.rfind(b'Cost.min'):].decode('ascii')
+    tail = result.stdout[result.stdout.rfind(b'Successes/'):].decode('ascii')
     entries = iter(tail.splitlines())
-    cost = tuple(float(v) for v in rre.match(
-        r'Cost\.min = (\d+), Cost\.avg = (\d+\.?\d*), Cost\.max = (\d+)',
+    # Decision to drop avg. stats: unreliable, possibly due to time_limit
+    next(entries)  # skip sucesses line
+    G.graph['cost_extrema'] = tuple(float(v) for v in re.match(
+        r'Cost\.min = (\d+), Cost\.avg = \d+\.?\d*, Cost\.max = (\d+)',
         next(entries)).groups())
     next(entries)  # skip gap line
-    penalty = tuple(float(v) for v in rre.match(
-        r'Penalty\.min = (\d+), Penalty\.avg = (\d+\.?\d*), Penalty\.max = (\d+)',
+    G.graph['penalty_extrema'] = tuple(float(v) for v in re.match(
+        r'Penalty\.min = (\d+), Penalty\.avg = \d+\.?\d*,'
+        r' Penalty\.max = (\d+)',
         next(entries)).groups())
-    trials = tuple(float(v) for v in rre.match(
-        r'Trials\.min = (\d+), Trials\.avg = (\d+\.?\d*), Trials\.max = (\d+)',
+    G.graph['trials_extrema'] = tuple(float(v) for v in re.match(
+        r'Trials\.min = (\d+), Trials\.avg = \d+\.?\d*, Trials\.max = (\d+)',
         next(entries)).groups())
-    time = tuple(float(v) for v in re.match(
-        r'Time\.min = (\d+\.?\d*), Time\.avg = (\d+\.?\d*), Time\.max = (\d+\.?\d*)',
+    G.graph['runtime_extrema'] = tuple(float(v) for v in re.match(
+        r'Time\.min = (\d+\.?\d*) sec., Time\.avg = \d+\.?\d* sec.,'
+        r' Time\.max = (\d+\.?\d*) sec.',
         next(entries)).groups())
     d2roots = G.graph['d2roots']
-    #  return G, branches
     VertexC = G.graph['VertexC']
     nonAedges = []
     if A is None:
@@ -186,10 +189,7 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
     G.graph['nonAedges'] = nonAedges
     G.graph['penalty'] = int(penalty)
     G.graph['minimum'] = int(minimum)
-    # G.graph['iterations'] = ???
     G.graph['capacity'] = capacity
-    # G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
-    #                       for root in roots]
     G.graph['edges_created_by'] = 'LKH-3'
     G.graph['edges_fun'] = lkh_acvrp
     G.graph['creation_options'] = dict(
@@ -200,5 +200,5 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
             precision_factor=precision_factor,
             complete=complete)
     G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = run_time
+    G.graph['runtime'] = elapsed_time
     return G
