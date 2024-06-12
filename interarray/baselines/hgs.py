@@ -1,5 +1,4 @@
 import math
-import time
 from dataclasses import asdict
 import numpy as np
 import networkx as nx
@@ -8,15 +7,18 @@ import hygese as hgs
 from ..interarraylib import calcload
 from ..pathfinding import PathFinder
 from ..geometric import make_graph_metrics
+from ..utils import NodeTagger
 from . import weight_matrix_single_depot_from_G
 
 # [[2012.10384] Hybrid Genetic Search for the CVRP: Open-Source Implementation
 #  and SWAP\* Neighborhood]
 # (https://arxiv.org/abs/2012.10384)
 
+F = NodeTagger()
+
 
 def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
-             precision_factor=1e8) -> nx.Graph:
+             precision_factor: float = 1e4) -> nx.Graph:
     G = nx.create_empty_copy(G_base)
     M = G.graph['M']
     assert M == 1, 'ERROR: only single depot supported'
@@ -38,9 +40,7 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
         timeLimit=time_limit,  # seconds
         # nbIter=2000,  # max iterations without improvement (20,000)
     )
-    start_time = time.perf_counter()
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    run_time = time.perf_counter() - start_time
     VertexC = G.graph['VertexC']
     N = VertexC.shape[0] - M
     VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
@@ -68,21 +68,28 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
 
     for branch in result.routes:
         s = -1
-        for t in branch:
+        t = branch[0] - 1
+        G.add_edge(s, t, length=G.graph['d2roots'][t, s])
+        #  print(f'{F[s]}–{F[t]}', end='')
+        s = t
+        for t in branch[1:]:
             t -= 1
-            G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
+            #  print(f'–{F[t]}', end='')
+            if (s, t) in A.edges:
+                G.add_edge(s, t, length=A[s][t]['length'])
+            else:
+                print(f'WARNING: edge {F[s]}-{F[t]} is not in A')
+                G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
             s = t
 
     calcload(G)
     PathFinder(G).create_detours(in_place=True)
     make_graph_metrics(G)
-    # G.graph['iterations'] = ???
     G.graph['capacity'] = capacity
-    # G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
-    #                       for root in roots]
+    G.graph['undetoured_cost'] = result.cost
     G.graph['edges_created_by'] = 'PyHygese'
     G.graph['edges_fun'] = pyhygese
     G.graph['creation_options'] = asdict(ap)
     G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = run_time
+    G.graph['runtime'] = result.time
     return G
