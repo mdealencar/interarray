@@ -86,7 +86,7 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
     PathFinder(G).create_detours(in_place=True)
     make_graph_metrics(G)
     G.graph['capacity'] = capacity
-    G.graph['undetoured_cost'] = result.cost
+    G.graph['undetoured_length'] = result.cost/precision_factor
     G.graph['edges_created_by'] = 'PyHygese'
     G.graph['edges_fun'] = pyhygese
     G.graph['creation_options'] = asdict(ap)

@@ -1215,6 +1215,9 @@ def denormalize(G_scaled, G_base):
     G.graph['boundary'] = G_base.graph['boundary']
     G.graph['d2roots'] = G_base.graph['d2roots']
     G.graph['landscape_angle'] = G_base.graph['landscape_angle']
+    ulength = G.graph.get('undetoured_length')
+    if ulength is not None:
+        G.graph['undetoured_length'] = ulength/G.graph['scale']
     for key in ('angle', 'scale', 'offset'):
         del G.graph[key]
     for u, v, edgeD in G.edges(data=True):

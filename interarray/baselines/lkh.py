@@ -185,10 +185,9 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
     calcload(G)
     if not nonAedges:
         PathFinder(G).create_detours(in_place=True)
-    make_graph_metrics(G)
     G.graph['nonAedges'] = nonAedges
     G.graph['penalty'] = int(penalty)
-    G.graph['minimum'] = int(minimum)
+    G.graph['undetoured_length'] = minimum/precision_factor
     G.graph['capacity'] = capacity
     G.graph['edges_created_by'] = 'LKH-3'
     G.graph['edges_fun'] = lkh_acvrp
