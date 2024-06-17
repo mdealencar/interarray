@@ -245,10 +245,10 @@ def edgeXing_iter_deprecated(A):
                        ((c, d) if c < d else (d, c)))
 
 
-def gateXing_iter(A, gates=None, touch_is_cross=True):
+def gateXing_iter(G, gates=None, touch_is_cross=True):
     '''
     Iterate over all crossings between non-gate edges and the edges in `gates`.
-    If `gates` is not provided, the gates that are not in `A` will be used.
+    If `gates` is None, all nodes that are not a root neighbor are considered.
     Arguments:
     - `gates`: sequence of #root sequences of gate nodes; if None, all nodes
     - `touch_is_cross`: if True, count as crossing a gate going over a node
@@ -256,23 +256,23 @@ def gateXing_iter(A, gates=None, touch_is_cross=True):
     The order of items in `gates` must correspond to roots in range(-M, 0).
     Used in constraint generation for MILP model.
     '''
-    M = A.graph['M']
-    N = A.number_of_nodes() - M
+    M = G.graph['M']
+    VertexC = G.graph['VertexC']
+    N = VertexC.shape[0] - M
     roots = range(-M, 0)
-    VertexC = A.graph['VertexC']
-    anglesRank = A.graph.get('anglesRank', None)
+    anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
-        make_graph_metrics(A)
-        anglesRank = A.graph['anglesRank']
-    anglesXhp = A.graph['anglesXhp']
-    anglesYhp = A.graph['anglesYhp']
+        make_graph_metrics(G)
+        anglesRank = G.graph['anglesRank']
+    anglesXhp = G.graph['anglesXhp']
+    anglesYhp = G.graph['anglesYhp']
     # iterable of non-gate edges:
-    Edge = nx.subgraph_view(A, filter_node=lambda n: n >= 0).edges()
+    Edge = nx.subgraph_view(G, filter_node=lambda n: n >= 0).edges()
     if gates is None:
         all_nodes = set(range(N))
         IGate = []
         for r in roots:
-            nodes = all_nodes.difference(A.neighbors(r))
+            nodes = all_nodes.difference(G.neighbors(r))
             IGate.append(np.fromiter(nodes, dtype=int, count=len(nodes)))
     else:
         IGate = gates
