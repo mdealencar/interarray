@@ -509,21 +509,22 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                                zip(feeder_info, G.graph['overfed'][::-1])]
             info.extend(feeder_info)
             # legend.append(', '.join(feeder_info))
-            GÊ¹ = nx.subgraph_view(G,
+            Gʹ = nx.subgraph_view(G,
                                   filter_edge=lambda u, v: 'length' in G[u][v])
-            length = GÊ¹.size(weight="length")
-            intdigits = int(np.floor(np.log10(length))) + 1
-            info.append(f'Î£l = {round(length, max(0, 5 - intdigits))} m')
-            #  assert GÊ¹.number_of_edges() == G.number_of_nodes() - 1, \
-            #          f'{GÊ¹.number_of_edges()} != {G.number_of_nodes()}'
-            # for field, sym in (('weight', 'w'), ('length', 'l')):
-            #  for field, sym in (('length', ''),):
-            #      weight = field if all([(field in data)
-            #                             for _, _, data in G.edges.data()]) else None
-            #      legend.append('Î£{} = {:.0f}'.format(sym, G.size(weight=weight)) +
-            #                    ' m' if field == 'length' else '')
+            length = Gʹ.size(weight="length")
+            if length > 0:
+                intdigits = int(np.floor(np.log10(length))) + 1
+                info.append(f'Σl = {round(length, max(0, 5 - intdigits))} m')
+                #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
+                #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
+                # for field, sym in (('weight', 'w'), ('length', 'l')):
+                #  for field, sym in (('length', ''),):
+                #      weight = field if all([(field in data)
+                #                             for _, _, data in G.edges.data()]) else None
+                #      legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
+                #                    ' m' if field == 'length' else '')
         if ('has_costs' in G.graph):
-            info.append('{:.0f} â‚¬'.format(G.size(weight='cost')))
+            info.append('{:.0f} €'.format(G.size(weight='cost')))
         if 'capacity' in G.graph:
             infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX,
                                 title='\n'.join(info), labelspacing=0)
