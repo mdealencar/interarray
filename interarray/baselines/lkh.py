@@ -252,8 +252,26 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
             scale=scale)
     G.graph['runtime_unit'] = 's'
     G.graph['runtime'] = elapsed_time
-    G.graph['solver_log'] = result.stdout.decode('utf8')
+    log = result.stdout.decode('utf8')
+    G.graph['solver_log'] = log
+    G.graph['solution_time'] = _solution_time(log, minimum)
     return G
+
+
+def _solution_time(log, undetoured_length) -> float:
+    sol_repr = f'{undetoured_length}'
+    time = 0.
+    for line in log.splitlines():
+        if not line or line[0] == '*':
+            continue
+        if line[:4] == 'Run ':
+            # example: Run 4: Cost = 84_129583, Time = 2.87 sec.
+            cost_, time_ = line.split(': ')[1].split(', ')
+            # example time_: Time = 2.87 sec.
+            time += float(time_.split(' = ')[1].split(' ')[0])
+            # example cost_: Cost = 84_8724588,
+            if cost_.split('_')[1] == sol_repr:
+                return time
 
 
 def get_sol_time(G: nx.Graph) -> float:

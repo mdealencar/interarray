@@ -134,7 +134,20 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     G.graph['runtime_unit'] = 's'
     G.graph['runtime'] = result.time
     G.graph['solver_log'] = out
+    G.graph['solution_time'] = _solution_time(out, result.cost)
     return G
+
+
+def _solution_time(log, undetoured_length) -> float:
+    sol_repr = f'{undetoured_length:.2f}'
+    for line in log.splitlines():
+        if line[0] == '-':
+            continue
+        fields = line.split(' | ')
+        incumbent = fields[2].split(' ')[2]
+        if incumbent == sol_repr:
+            _, time = fields[1].split(' ')
+            return float(time)
 
 
 def get_sol_time(G: nx.Graph) -> float:
