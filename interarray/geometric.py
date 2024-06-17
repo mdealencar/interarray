@@ -621,9 +621,12 @@ def perimeter(VertexC, vertices_ordered):
 
 def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
              max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
-    '''Create a new networkx.Graph from the Delaunay triangulation of the
+    """Create a new networkx.Graph from the Delaunay triangulation of the
     coordinate positions of the vertices in `G_base`. Each edge gets an
-    attribute `length` that is the euclidean distance between its vertices.'''
+    attribute `length` that is the euclidean distance between its vertices.
+
+    If `G` does not have a `relax_boundary` attribute, it is assumed False.
+    """
     M = G_base.graph['M']
     VertexC = G_base.graph['VertexC']
     N = VertexC.shape[0] - M
