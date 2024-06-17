@@ -1,36 +1,57 @@
 import math
 from dataclasses import asdict
 import numpy as np
+from typing import Optional
 import networkx as nx
 import hygese as hgs
+from py.io import StdCaptureFD
 
 from ..interarraylib import calcload
 from ..pathfinding import PathFinder
 from ..geometric import make_graph_metrics
-from ..utils import NodeTagger
-from . import weight_matrix_single_depot_from_G
+from . import length_matrix_single_depot_from_G
 
 # [[2012.10384] Hybrid Genetic Search for the CVRP: Open-Source Implementation
 #  and SWAP\* Neighborhood]
 # (https://arxiv.org/abs/2012.10384)
 
-F = NodeTagger()
+#  from ..utils import NodeTagger
+#  F = NodeTagger()
 
 
-def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
-             precision_factor: float = 1e4) -> nx.Graph:
+def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
+             A: Optional[nx.Graph], scale: float = 1e4,
+             vehicles: Optional[int] = None) -> nx.Graph:
+    '''
+    Wrapper for PyHygese module, which provides bindings to the HGS-CVRP library
+    (Hybrid Genetic Search solver for Capacitated Vehicle Routing Problems).
+
+    Normalization of input graph is recommended before calling this function.
+
+    Arguments:
+        `G_base`: graph with the site's coordinates and boundary
+        `capacity`: maximum vehicle capacity
+        `time_limit`: [s] solver run time limit
+        `A`: graph with allowed edges (if None, use complete graph)
+        `scale`: factor to scale lengths
+        `vehicles`: number of vehicles (if None, use the minimum feasible)
+    '''
     G = nx.create_empty_copy(G_base)
     M = G.graph['M']
     assert M == 1, 'ERROR: only single depot supported'
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
     # class AlgorithmParameters:
-    #     nbGranular: int = 20  # Granular search parameter, limits the number of moves in the RI local search
+    #     nbGranular: int = 20  # Granular search parameter, limits the number
+    #                           # of moves in the RI local search
     #     mu: int = 25  # Minimum population size
-    #     lambda_: int = 40  # Number of solutions created before reaching the maximum population size (i.e., generation size).
+    #     lambda_: int = 40  # Number of solutions created before reaching the
+    #                        # maximum population size (i.e., generation size).
     #     nbElite: int = 4  # Number of elite individuals
-    #     nbClose: int = 5  # Number of closest solutions/individuals considered when calculating diversity contribution
-    #     targetFeasible: float = 0.2  # target ratio of feasible individuals between penalty updates
+    #     nbClose: int = 5  # Number of closest solutions/individuals consider-
+    #                       # ed when calculating diversity contribution
+    #     targetFeasible: float = 0.2  # target ratio of feasible individuals
+    #                                  # between penalty updates
     #     seed: int = 0  # fixed seed
     #     nbIter: int = 20000  # max iterations without improvement
     #     timeLimit: float = 0.0  # seconds
@@ -43,29 +64,45 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
     VertexC = G.graph['VertexC']
     N = VertexC.shape[0] - M
-    VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
+    VertexCmod = np.c_[VertexC[-M:].T, VertexC[:N].T]*scale
     # data preparation
-    data = dict()
-    data['x_coordinates'], data['y_coordinates'] = VertexCmod.T
-
-    weight, A = weight_matrix_single_depot_from_G(
-            G, precision_factor=precision_factor)
-
     # Distance_matrix may be provided instead of coordinates, or in addition to
     # coordinates. Distance_matrix is used for cost calculation if provided.
     # The additional coordinates will be helpful in speeding up the algorithm.
-    data['distance_matrix'] = weight
+    demands = np.ones(N + M, dtype=float)
+    demands[0] = 0.  # depot demand = 0
+    weights, w_max = length_matrix_single_depot_from_G(A or G, scale)
+    d2roots = G.graph.get('d2roots')
+    if d2roots is None:
+        d2roots = weights[0, 1:, None].copy()/scale
+        G.graph['d2roots'] = d2roots
+    vehicles_min = math.ceil(N/capacity)
+    if vehicles is None or vehicles <= vehicles_min:
+        if vehicles < vehicles_min:
+            print(f'Vehicle number ({vehicles}) too low for feasibilty '
+                  f'with capacity ({capacity}). Setting to {vehicles_min}.')
+        # set to minimum feasible vehicle number
+        vehicles = vehicles_min
+    if A is not None:
+        # HGS-CVRP crashes if distance_matrix has inf values
+        distance_matrix = weights.clip(max=2*w_max)
+    else:
+        distance_matrix = weights
+    data = dict(
+        x_coordinates=VertexCmod[0],
+        y_coordinates=VertexCmod[1],
+        # HGS-CVRP crashes if distance_matrix has inf values
+        distance_matrix=distance_matrix,
+        service_times=np.zeros(N + M),
+        demands=demands,
+        vehicle_capacity=capacity,
+        num_vehicles=vehicles,
+        depot=0,
+    )
 
-    data['service_times'] = np.zeros(N + M)
-    demands = np.ones(N + M)
-    demands[0] = 0  # depot demand = 0
-    data['demands'] = demands
-    data['vehicle_capacity'] = capacity
-    data['num_vehicles'] = math.ceil(N/capacity)
-    data['depot'] = 0
+    result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data)
 
-    result = hgs_solver.solve_cvrp(data)
-
+    nonAedges = []
     for branch in result.routes:
         s = -1
         t = branch[0] - 1
@@ -75,21 +112,25 @@ def pyhygese(G_base: nx.Graph, *, capacity: float, time_limit: int,
         for t in branch[1:]:
             t -= 1
             #  print(f'–{F[t]}', end='')
-            if (s, t) in A.edges:
+            if A is not None and (s, t) in A.edges:
                 G.add_edge(s, t, length=A[s][t]['length'])
             else:
-                print(f'WARNING: edge {F[s]}-{F[t]} is not in A')
+                #  print(f'WARNING: edge {F[s]}-{F[t]} is not in A')
                 G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
+                nonAedges.append((s, t))
             s = t
 
     calcload(G)
-    PathFinder(G).create_detours(in_place=True)
-    make_graph_metrics(G)
+    if nonAedges:
+        G.graph['nonAedges'] = nonAedges
+    else:
+        PathFinder(G).create_detours(in_place=True)
     G.graph['capacity'] = capacity
-    G.graph['undetoured_length'] = result.cost/precision_factor
+    G.graph['undetoured_length'] = result.cost/scale
     G.graph['edges_created_by'] = 'PyHygese'
-    G.graph['edges_fun'] = pyhygese
-    G.graph['creation_options'] = asdict(ap)
+    G.graph['edges_fun'] = hgs_cvrp
+    G.graph['creation_options'] = asdict(ap) | dict(complete=A is None)
     G.graph['runtime_unit'] = 's'
     G.graph['runtime'] = result.time
+    G.graph['solver_log'] = out
     return G

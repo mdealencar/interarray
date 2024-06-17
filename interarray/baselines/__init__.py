@@ -3,40 +3,54 @@ import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
 
-from ..geometric import delaunay
 
-
-def weight_matrix_single_depot_from_G(G: nx.Graph, *, precision_factor: float,
-        complete=False) -> Tuple[np.ndarray, nx.Graph]:
-    """
-    Edge cost matrix for VRP-based solvers.
+def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
+        -> Tuple[np.ndarray, float]:
+    """Edge length matrix for VRP-based solvers.
     It is assumed that the problem has been pre-scaled, such that multiplying
-    all weights by `precision_factor` will place them within the int range.
-    Arguments:
-        `complete` [bool]: True -> calculate weights for the complete graph
-                           False -? do it only for the extended Delaunay edges
+    all lengths by `scale` will place them within a numerically stable range.
+    Length of return to depot from all nodes is set to 0 (i.e. Open-VRP).
+    Order of nodes in the returned matrix is depot, clients (required by some
+    VRP methods), which differs from interrarray order (i.e clients, depot).
+
+    Parameters
+    ----------
+    G: NetworkX Graph
+        Must contain graph attributes `M` and `VertexC`. If G has no edges,
+        calculate lengths of the complete graph of G's nodes, otherwise only
+        calculate lengths of G's edges and assign +inf to non-existing edges.
+        G's edges must have the 'length' attribute.
+
+    scale: float
+        Factor to multiply all lengths by.
+
+    Returns
+    -------
+    L, len_max:
+        Matrix of lengths and maximum length value (below +inf).
     """
     M = G.graph['M']
     assert M == 1, 'ERROR: only single depot supported'
     VertexC = G.graph['VertexC']
     N = VertexC.shape[0] - M
-    d2roots = G.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
-        G.graph['d2roots'] = d2roots
-    if complete:
+    if G.number_of_edges() == 0:
         # bring depot to before the clients
         VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
-        weight = (cdist(VertexCmod, VertexCmod)*precision_factor).astype(int)
+        L = cdist(VertexCmod, VertexCmod)*scale
+        len_max = L.max()
     else:
-        # using max int32 value (2_147_483_647), because this is used in the
-        # context of old C libraries
-        #  weight = np.full((N + M, N + M), 2_147_483_647, dtype=np.int32)
-        weight = np.full((N + M, N + M), 3*precision_factor, dtype=int)
-        A = delaunay(G)
-        for u, v, w in A.edges(data='length'):
-            weight[u + 1, v + 1] = weight[v + 1, u + 1] = round(w*precision_factor)
-    weight[0, 1:] = np.round(d2roots[:, 0]*precision_factor).astype(int)
+        d2roots = G.graph.get('d2roots')
+        if d2roots is None:
+            d2roots = cdist(VertexC[:-M], VertexC[-M:])
+            G.graph['d2roots'] = d2roots
+        # non-available edges will have infinite length
+        L = np.full((N + M, N + M), np.inf)
+        len_max = d2roots[:, 0].max()
+        for u, v, length in G.edges(data='length'):
+            L[u + 1, v + 1] = L[v + 1, u + 1] = length*scale
+            len_max = max(len_max, length)
+        L[0, 1:] = d2roots[:, 0]*scale
+        len_max *= scale
     # make return to depot always free
-    weight[:, 0] = 0
-    return weight, None if complete else A
+    L[:, 0] = 0.
+    return L, len_max
