@@ -158,7 +158,6 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     VertexC = G.graph['VertexC']
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
-    N = G.number_of_nodes() - M
     if clone2prime:
         D = len(clone2prime)
         G.graph['D'] = D
@@ -208,7 +207,7 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
                 'landscape_angle', 'Root', 'creation_options',
                 'Subtree', 'funfile', 'funhash', 'funname', 'diagonals',
                 'planar', 'has_loads', 'M', 'gates_not_in_A', 'overfed',
-                'gnT', 'fun_fingerprint', 'handle', 'hull'}
+                'gnT', 'fun_fingerprint', 'handle', 'hull', 'solver_log'}
     nodesetID = nodeset_from_graph(G, db)
     methodID = method_from_graph(G, db),
     machineID = get_machine_pk(db)
