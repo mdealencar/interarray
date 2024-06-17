@@ -1209,11 +1209,25 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
 
 
 def denormalize(G_scaled, G_base):
+    '''
+    note: d2roots will be created in G_base if absent.
+    '''
     G = G_scaled.copy()
-    fnT = G_scaled.graph['fnT']
+    M = G_base.graph['M']
     VertexC = G.graph['VertexC'] = G_base.graph['VertexC']
+    fnT = G_scaled.graph.get('fnT')
+    if fnT is None:
+        N = VertexC.shape[0] - M
+        fnT = np.arange(N + M)
+        fnT[-M:] = range(-M, 0)
+    else:
+        fnT = G_scaled.graph['fnT']
     G.graph['boundary'] = G_base.graph['boundary']
-    G.graph['d2roots'] = G_base.graph['d2roots']
+    d2roots = G_base.graph.get('d2roots')
+    if d2roots is None:
+        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+        G_base.graph['d2roots'] = d2roots
+    G.graph['d2roots'] = d2roots
     G.graph['landscape_angle'] = G_base.graph['landscape_angle']
     ulength = G.graph.get('undetoured_length')
     if ulength is not None:
