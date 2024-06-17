@@ -129,8 +129,24 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     G.graph['undetoured_length'] = result.cost/scale
     G.graph['edges_created_by'] = 'PyHygese'
     G.graph['edges_fun'] = hgs_cvrp
-    G.graph['creation_options'] = asdict(ap) | dict(complete=A is None)
+    G.graph['creation_options'] = asdict(ap) | dict(complete=A is None,
+                                                    scale=scale)
     G.graph['runtime_unit'] = 's'
     G.graph['runtime'] = result.time
     G.graph['solver_log'] = out
     return G
+
+
+def get_sol_time(G: nx.Graph) -> float:
+    """Graph must have graph attribute 'solver_log'"""
+    log = G.graph['solver_log']
+    sol = G.graph['undetoured_length']*G.graph['creation_options']['scale']
+    sol_repr = f'{sol:.2f}'
+    for line in log.splitlines():
+        if line[0] == '-':
+            continue
+        fields = line.split(' | ')
+        incumbent = fields[2].split(' ')[2]
+        if incumbent == sol_repr:
+            _, time = fields[1].split(' ')
+            return float(time)
