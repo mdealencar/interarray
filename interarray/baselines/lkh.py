@@ -11,7 +11,7 @@ import networkx as nx
 import numpy as np
 
 from . import length_matrix_single_depot_from_G
-from ..interarraylib import calcload
+from ..interarraylib import calcload, fun_fingerprint
 from ..pathfinding import PathFinder
 from ..geometric import make_graph_metrics, delaunay
 
@@ -238,23 +238,26 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
         G.graph['nonAedges'] = nonAedges
     else:
         PathFinder(G).create_detours(in_place=True)
-    G.graph['penalty'] = int(penalty)
-    G.graph['undetoured_length'] = float(minimum)/scale
-    G.graph['capacity'] = capacity
-    G.graph['edges_created_by'] = 'LKH-3'
-    G.graph['edges_fun'] = lkh_acvrp
-    G.graph['creation_options'] = dict(
+    log = result.stdout.decode('utf8')
+    G.graph.update(
+        penalty=int(penalty),
+        capacity=capacity,
+        undetoured_length=float(minimum)/scale,
+        edges_created_by='LKH-3',
+        edges_fun=lkh_acvrp,
+        creation_options=dict(
+            complete=A is None,
+            scale=scale,
             type=specs['TYPE'],
             time_limit=time_limit,
             runs=runs,
-            per_run_limit=per_run_limit,
-            complete=A is None,
-            scale=scale)
-    G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = elapsed_time
-    log = result.stdout.decode('utf8')
-    G.graph['solver_log'] = log
-    G.graph['solution_time'] = _solution_time(log, minimum)
+            per_run_limit=per_run_limit),
+        runtime_unit='s',
+        runtime=elapsed_time,
+        solver_log=log,
+        solution_time=_solution_time(log, minimum),
+        fun_fingerprint=fun_fingerprint(),
+    )
     return G
 
 

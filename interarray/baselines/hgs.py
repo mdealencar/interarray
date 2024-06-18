@@ -6,7 +6,7 @@ import networkx as nx
 import hygese as hgs
 from py.io import StdCaptureFD
 
-from ..interarraylib import calcload
+from ..interarraylib import calcload, fun_fingerprint
 from ..pathfinding import PathFinder
 from ..geometric import make_graph_metrics
 from . import length_matrix_single_depot_from_G
@@ -22,9 +22,9 @@ from . import length_matrix_single_depot_from_G
 def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
              A: Optional[nx.Graph], scale: float = 1e4,
              vehicles: Optional[int] = None) -> nx.Graph:
-    '''
-    Wrapper for PyHygese module, which provides bindings to the HGS-CVRP library
-    (Hybrid Genetic Search solver for Capacitated Vehicle Routing Problems).
+    '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
+    library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
+    Problems).
 
     Normalization of input graph is recommended before calling this function.
 
@@ -125,16 +125,19 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         G.graph['nonAedges'] = nonAedges
     else:
         PathFinder(G).create_detours(in_place=True)
-    G.graph['capacity'] = capacity
-    G.graph['undetoured_length'] = result.cost/scale
-    G.graph['edges_created_by'] = 'PyHygese'
-    G.graph['edges_fun'] = hgs_cvrp
-    G.graph['creation_options'] = asdict(ap) | dict(complete=A is None,
-                                                    scale=scale)
-    G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = result.time
-    G.graph['solver_log'] = out
-    G.graph['solution_time'] = _solution_time(out, result.cost)
+    G.graph.update(
+        capacity=capacity,
+        undetoured_length=result.cost/scale,
+        edges_created_by='PyHygese',
+        edges_fun=hgs_cvrp,
+        creation_options=dict(complete=A is None,
+                              scale=scale) | asdict(ap),
+        runtime_unit='s',
+        runtime=result.time,
+        solver_log=out,
+        solution_time=_solution_time(out, result.cost),
+        fun_fingerprint=fun_fingerprint(),
+    )
     return G
 
 
