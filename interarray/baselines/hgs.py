@@ -159,7 +159,10 @@ def get_sol_time(G: nx.Graph) -> float:
         if line[0] == '-':
             continue
         fields = line.split(' | ')
-        incumbent = fields[2].split(' ')[2]
+        if fields[2] != 'NO-FEASIBLE':
+            incumbent = fields[2].split(' ')[2]
+        else:
+            incumbent = ''
         if incumbent == sol_repr:
             _, time = fields[1].split(' ')
             return float(time)
