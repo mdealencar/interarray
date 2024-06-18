@@ -1198,12 +1198,10 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     if d2roots is not None:
         G.graph['d2roots'] = d2roots*scale
     G.graph['scale'] = scale
-    print('scale', scale)
     G.graph['angle'] = landscape_angle
     G.graph['landscape_angle'] = 0
     offset = np.array((offX, offY))
     G.graph['offset'] = offset
-    print('offset', offset)
     VertexC -= offset
     BoundaryC -= offset
     VertexC *= scale
