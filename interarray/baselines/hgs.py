@@ -78,7 +78,7 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         G.graph['d2roots'] = d2roots
     vehicles_min = math.ceil(N/capacity)
     if vehicles is None or vehicles <= vehicles_min:
-        if vehicles < vehicles_min:
+        if vehicles is not None and vehicles < vehicles_min:
             print(f'Vehicle number ({vehicles}) too low for feasibilty '
                   f'with capacity ({capacity}). Setting to {vehicles_min}.')
         # set to minimum feasible vehicle number
