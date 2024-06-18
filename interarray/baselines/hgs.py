@@ -144,21 +144,6 @@ def _solution_time(log, undetoured_length) -> float:
         if line[0] == '-':
             continue
         fields = line.split(' | ')
-        incumbent = fields[2].split(' ')[2]
-        if incumbent == sol_repr:
-            _, time = fields[1].split(' ')
-            return float(time)
-
-
-def get_sol_time(G: nx.Graph) -> float:
-    """Graph must have graph attribute 'solver_log'"""
-    log = G.graph['solver_log']
-    sol = G.graph['undetoured_length']*G.graph['creation_options']['scale']
-    sol_repr = f'{sol:.2f}'
-    for line in log.splitlines():
-        if line[0] == '-':
-            continue
-        fields = line.split(' | ')
         if fields[2] != 'NO-FEASIBLE':
             incumbent = fields[2].split(' ')[2]
         else:
@@ -166,3 +151,12 @@ def get_sol_time(G: nx.Graph) -> float:
         if incumbent == sol_repr:
             _, time = fields[1].split(' ')
             return float(time)
+    # if sol_repr was not found, return total runtime
+    return float(line.split(' ')[-1])
+
+
+def get_sol_time(G: nx.Graph) -> float:
+    """Graph must have graph attribute 'solver_log'"""
+    log = G.graph['solver_log']
+    sol = G.graph['undetoured_length']*G.graph['creation_options']['scale']
+    return _solution_time(log, sol)
