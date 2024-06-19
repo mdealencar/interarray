@@ -3,7 +3,6 @@
 
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -565,7 +564,7 @@ def compare(positional=None, **title2G_dict):
                      f'({creator})')
 
 
-def scaffolded(G: nx.Graph, P: Optional[nx.PlanarEmbedding] = None) -> nx.Graph:
+def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding | None = None) -> nx.Graph:
     scaff = nx.Graph(G.graph['planar'] if P is None else P)
     scaff.graph.update(G.graph)
     for n, d in scaff.nodes(data=True):

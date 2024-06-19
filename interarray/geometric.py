@@ -7,7 +7,6 @@ import operator
 from collections import defaultdict
 from itertools import chain, product
 from math import isclose
-from typing import Tuple
 
 import shapely as shp
 import networkx as nx
@@ -1097,7 +1096,7 @@ def check_crossings(G, debug=False, MARGIN=0.1):
 
 
 def rotating_calipers(convex_hull: np.ndarray) \
-        -> Tuple[np.ndarray, float, float, np.ndarray]:
+        -> tuple[np.ndarray, float, float, np.ndarray]:
     # inspired by:
     # jhultman/rotating-calipers:
     #   CUDA and Numba implementations of computational geometry algorithms.

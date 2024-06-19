@@ -6,7 +6,6 @@ import io
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Optional
 import networkx as nx
 import numpy as np
 
@@ -42,8 +41,8 @@ def make_edge_listing(A: nx.Graph, scale: float) -> str:
 
 
 def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
-              A: Optional[nx.Graph], scale: float = 1e4,
-              vehicles: Optional[int] = None, runs: int = 50,
+              A: nx.Graph | None, scale: float = 1e4,
+              vehicles: int | None = None, runs: int = 50,
               per_run_limit: float = 15.) -> nx.Graph:
     '''
     Lin-Kernighan-Helsgaun via LKH-3 binary.

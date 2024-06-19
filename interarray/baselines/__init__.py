@@ -1,11 +1,10 @@
-from typing import Tuple
 import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
 
 
 def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
-        -> Tuple[np.ndarray, float]:
+        -> tuple[np.ndarray, float]:
     """Edge length matrix for VRP-based solvers.
     It is assumed that the problem has been pre-scaled, such that multiplying
     all lengths by `scale` will place them within a numerically stable range.

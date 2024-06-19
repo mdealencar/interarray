@@ -5,7 +5,7 @@ import heapq
 import math
 from collections import defaultdict, deque, namedtuple
 from itertools import chain
-from typing import Callable, Optional, Tuple
+from typing import Callable
 
 import matplotlib
 import networkx as nx
@@ -28,7 +28,7 @@ NULL = np.iinfo(int).min
 PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 
 
-def rotation_checkers_factory(VertexC: np.ndarray) -> Tuple[
+def rotation_checkers_factory(VertexC: np.ndarray) -> tuple[
         Callable[[int, int, int], bool],
         Callable[[int, int, int], bool]]:
 
@@ -459,7 +459,7 @@ class PathFinder():
             nx.add_path(G, path, type='virtual')
 
     def plot_best_paths(self,
-                        ax: Optional[matplotlib.axes.Axes] = None
+                        ax: matplotlib.axes.Axes | None = None
                         ) -> matplotlib.axes.Axes:
         '''
         Plot the subtrees of G (without gate edges) overlaid by the shortest
@@ -481,7 +481,7 @@ class PathFinder():
         return ax
 
     def plot_scaffolded(self,
-                        ax: Optional[matplotlib.axes.Axes] = None
+                        ax: matplotlib.axes.Axes | None = None
                         ) -> matplotlib.axes.Axes:
         '''
         Plot the PlanarEmbedding of G, overlaid by the edges of G that coincide

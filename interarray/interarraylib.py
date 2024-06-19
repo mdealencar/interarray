@@ -4,7 +4,6 @@
 import pickle
 import sys
 from hashlib import sha256
-from typing import Any, Dict, Tuple
 
 import networkx as nx
 import numpy as np
@@ -70,7 +69,8 @@ def G_from_site(*, VertexC: np.ndarray, boundary: np.ndarray, M: int,
     return G
 
 
-def G_from_T(T, G_base, capacity=None, cost_scale=1e3):
+def G_from_T(T: np.ndarray[:, :], G_base: nx.Graph,
+             capacity: int | None = None, cost_scale: float = 1e3) -> nx.Graph:
     '''Creates a networkx graph with nodes and data from G_base and edges from
     a T matrix. (suitable for converting the output of juru's `global_optimizer`)
     T matrix: [ [u, v, length, cable type, load (WT number), cost] ]'''
@@ -253,7 +253,7 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
 
 
 def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
-        -> Tuple[bytes, Dict[str, bytes]]:
+        -> tuple[bytes, dict[str, bytes]]:
     #  VertexCpkl = pickle.dumps(np.round(VertexC, 2))
     #  boundarypkl = pickle.dumps(np.round(boundary, 2))
     VertexCpkl = pickle.dumps(VertexC)
@@ -262,7 +262,7 @@ def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
             dict(VertexC=VertexCpkl, boundary=boundarypkl))
 
 
-def fun_fingerprint(fun=None) -> Dict[str, Any]:
+def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
     if fun is None:
         fcode = sys._getframe().f_back.f_code
     else:

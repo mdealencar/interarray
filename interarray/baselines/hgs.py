@@ -1,7 +1,6 @@
 import math
 from dataclasses import asdict
 import numpy as np
-from typing import Optional
 import networkx as nx
 import hygese as hgs
 from py.io import StdCaptureFD
@@ -20,8 +19,8 @@ from . import length_matrix_single_depot_from_G
 
 
 def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
-             A: Optional[nx.Graph], scale: float = 1e4,
-             vehicles: Optional[int] = None) -> nx.Graph:
+             A: nx.Graph | None, scale: float = 1e4,
+             vehicles: int | None = None) -> nx.Graph:
     '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
     library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
     Problems).

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from hashlib import sha256
 import base64
 from socket import getfqdn, gethostname
-from typing import Any, List, Mapping, Optional, Tuple, Union
+from typing import Any, Mapping
 
 import networkx as nx
 import numpy as np
@@ -88,7 +88,7 @@ def packnodes(G: nx.Graph) -> PackType:
     return pack
 
 
-def packmethod(ffprint: dict, options: Optional[Mapping] = None) -> PackType:
+def packmethod(ffprint: dict, options: Mapping | None = None) -> PackType:
     options = options or {}
     if 'capacity' in options:
         del options['capacity']
@@ -274,9 +274,9 @@ def G_by_method(G: nx.Graph, method: object, db: orm.Database) -> nx.Graph:
     return Gdb
 
 
-def Gs_from_attrs(farm: object, methods: Union[object, Sequence[object]],
-                  capacities: Union[int, Sequence[int]],
-                  db: orm.Database) -> List[Tuple[nx.Graph]]:
+def Gs_from_attrs(farm: object, methods: object | Sequence[object],
+                  capacities: int | Sequence[int],
+                  db: orm.Database) -> list[tuple[nx.Graph]]:
     '''
     Fetch from the database a list (one per capacity) of tuples (one per
     method) of layouts.
