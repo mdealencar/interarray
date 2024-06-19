@@ -43,6 +43,7 @@ def define_entities(db):
         EdgeSets = Set(lambda: EdgeSet)
 
     class EdgeSet(db.Entity):
+        id = PrimaryKey(int)
         handle = Required(str)
         capacity = Required(int)
         length = Required(float)
