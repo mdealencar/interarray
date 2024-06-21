@@ -149,7 +149,7 @@ def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
 
 
 def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
-                        repellers: nb.float64[:, :] | None = None,
+                        repellers: nb.optional(nb.float64[:, :]) = None,
                         clearance: float = 0, exclude=None, seed=None,
                         iter_max_factor: int = 50, plot: bool = False,
                         partial_fulfilment: bool = True) -> nb.float64[:, :]:
@@ -284,7 +284,7 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
 def wrapped_poisson_disc_filler(
         N: int, iter_max: int, i_len: int, j_len: int,
         cell_idc: nb.int64[:, :], boundary_scaled: nb.float64[:, :],
-        clearance_sq: float, repellers_scaled: nb.float64[:, :] | None,
+        clearance_sq: float, repellers_scaled: nb.optional(nb.float64[:, :]),
         rng: np.random.Generator) -> nb.float64[:, :]:
     '''See `poisson_disc_filler()`.'''
     # [Poisson-Disc Sampling](https://www.jasondavies.com/poisson-disc/)
