@@ -95,6 +95,7 @@ _site_handles = dict(
     horns3='Horns Rev 3',
     london='London Array',
     moray='Moray East',
+    moraywest='Moray West',
     ormonde='Ormonde',
     race='Race Bank',
     rampion='Rampion',
