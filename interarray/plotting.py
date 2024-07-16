@@ -35,7 +35,7 @@ class LayoutPlotter():
     edge_color = 'crimson'
     root_color = 'lawngreen'
     node_tag = 'label'
-    colors = plt.cm.get_cmap('tab20', 20).colors
+    colors = plt.get_cmap('tab20', 20).colors
 
     def __init__(self, G_base, ax=None, dpi=None, node_tag='label'):
         # fail early if graph does not have a log
@@ -436,7 +436,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         pos |= dict(zip(detour, VertexC[fnT[detour]]))
     RootL = {r: G.nodes[r]['label'] for r in roots[::-1]}
 
-    colors = plt.cm.get_cmap('tab20', 20).colors
+    colors = plt.get_cmap('tab20', 20).colors
     # default value for subtree (i.e. color for unconnected nodes)
     # is the last color of the tab20 colormap (i.e. 19)
     subtrees = G.nodes(data='subtree', default=19)
