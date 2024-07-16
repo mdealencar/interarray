@@ -2,18 +2,24 @@
 # https://github.com/mdealencar/interarray
 
 import os
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Iterable
 from importlib.resources import files
+from functools import reduce
+from operator import attrgetter
 
 import networkx as nx
 import numpy as np
 import utm
 import yaml
+import osmium
+import shapely as shp
+import shapely.wkb as wkblib
 
 from .geometric import make_graph_metrics
 from .utils import NodeTagger
+from .interarraylib import G_from_site
 
 F = NodeTagger()
 
@@ -75,7 +81,120 @@ def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     return G
 
 
-_site_handles = dict(
+wkbfab = osmium.geom.WKBFactory()
+
+
+class GetAllData(osmium.SimpleHandler):
+    def __init__(self):
+        super().__init__()
+        self.elements = defaultdict(lambda: defaultdict(list))
+
+    def node(self, n):
+        power = n.tags.get('power') or n.tags.get('construction:power')
+        if power in ['generator', 'substation', 'transformer']:
+            self.elements[power]['nodes'].append((
+                dict(n.tags),
+                wkblib.loads(wkbfab.create_point(n), hex=True)
+            ))
+
+    def way(self, w):
+        power = w.tags.get('power') or w.tags.get('construction:power')
+        if power in ['plant', 'substation', 'transformer']:
+            self.elements[power]['ways'].append((
+                dict(w.tags),
+                wkblib.loads(wkbfab.create_linestring(w), hex=True)
+            ))
+
+    def relation(self, r):
+        self.elements[r.tags.get('power') or r.tags.get('construction:power') or 'other']['rels'].append((
+            r.replace(tags=dict(r.tags), members=list(r.members))
+        ))
+
+
+def graph_from_pbf(filepath, handle=None) -> nx.Graph:
+    '''Import wind farm data from .osm.pbf file.'''
+    fpath = filepath.with_suffix('.osm.pbf')
+    name = filepath.stem
+    # read wind power plant site OpenStreetMap's Protobuffer file
+    getter = GetAllData()
+    getter.apply_file(fpath, locations=True, idx='flex_mem')
+    data = getter.elements
+
+    # Generators
+    wtg = []
+    gen_nodes = data['generator'].get('nodes')
+    if gen_nodes is not None:
+        wtg = [point for tags, point in gen_nodes]
+    else:
+        print(f'«{name}» Unable to identify generators.')
+
+    # Substations
+    ossn = ([point for tags, point in data['substation']['nodes']]
+            + [point for tags, point in data['transformer']['nodes']])
+    ossw = ([ring.centroid for tags, ring in data['substation']['ways']]
+            + [ring.centroid for tags, ring in data['transformer']['ways']])
+    if ossn and ossw:
+        print(f'«{name}» Warning: substations found both as nodes and ways.')
+    oss = ossn + ossw
+    M = len(oss)
+
+    # Boundary
+    plant_ways = data['plant'].get('ways')
+    if plant_ways is not None:
+        assert len(plant_ways) == 1, 'Not Implemented: power plant with multiple areas.'
+        (tags, ring), = plant_ways
+        plant_name = tags.get('name:en') or tags.get('name')
+        boundary = ring
+    else:
+        plant_name = None
+        print(f'«{name}» Error: No site boundary found.')
+
+    # Relations (nothing done now, possibly will get plant name from this)
+    plant_rels = data['plant'].get('rels')
+    if plant_rels is not None:
+        print(f'«{name}» Relations found: ', plant_rels)
+
+    # Build site data structure
+    Vlatlon = np.array(
+        [(n.y, n.x) for n in wtg]
+        + [(n.y, n.x) for n in oss],
+        dtype=float
+    )
+    # TODO: find the UTM sector that includes the most coordinates among
+    # vertices and boundary (bin them in 6° sectors and count). Then insert
+    # a dummy coordinate as the first array row, such that utm.from_latlon()
+    # will pick the right zone for all points.
+    VertexC = np.c_[utm.from_latlon(*Vlatlon.T)[:2]]
+    BoundaryC = np.c_[
+            utm.from_latlon(*boundary.coords.__array__()[:-1, ::-1].T)[:2]
+            ]
+    # create networkx graph
+    # TODO: use the wtg names as node labels if available
+    #       this means bringing the core of G_from_site here
+    G = G_from_site(
+            VertexC=VertexC,
+            boundary=BoundaryC,
+            M=M,
+            name=name,
+            )
+    if plant_name is not None:
+        G.graph['OSM_name'] = plant_name
+    poly = shp.Polygon(shell=G.graph['boundary'])
+    x, y = poly.minimum_rotated_rectangle.exterior.coords.xy
+    side0 = np.hypot(x[1] - x[0], y[1] - y[0])
+    side1 = np.hypot(x[2] - x[1], y[2] - y[1])
+    if side0 < side1:
+        angle = np.arctan2((x[1] - x[0]), (y[1] - y[0]))
+    else:
+        angle = np.arctan2((x[2] - x[1]), (y[2] - y[1]))
+    if abs(angle) > np.pi/2:
+        angle += np.pi if angle < 0 else -np.pi
+    G.graph['landscape_angle'] = 180*angle/np.pi
+    make_graph_metrics(G)
+    return G
+
+
+_site_handles_yaml = dict(
     anholt='Anholt',
     borkum='Borkum Riffgrund 1',
     borkum2='Borkum Riffgrund 2',
@@ -108,9 +227,71 @@ _site_handles = dict(
     sands='West of Duddon Sands',
 )
 
+_site_handles_pbf = dict(
+    amalia='Pricess Amalia',
+    amrumbank='Amrumbank West',
+    arkona='Arkona',
+    baltic2='Baltic 2',
+    bard='BARD Offshore 1',
+    beatrice='Beatrice',
+    belwind='Belwind',
+    binhainorthH2='SPIC Binhai North H2',
+    bodhi='Laoting Bodhi Island',
+    eagle='Baltic Eagle',
+    fecamp='Fecamp',
+    gemini1='Gemini 1',
+    gemini2='Gemini 2',
+    glotech1='Global Tech 1',
+    hohesee='Hohe See',
+    jiaxing1='Zhejiang Jiaxing 1',
+    kfA='Kriegers Flak A',
+    kfB='Kriegers Flak B',
+    lillgrund='Lillgrund',
+    lincs='Lincs',
+    meerwind='Meerwind',
+    merkur='Merkur',
+    nanpeng='CECEP Yangjiang Nanpeng Island',
+    neart='Neart na Gaoithe',
+    nordsee='Nordsee One',
+    northwind='Northwind',
+    nysted='Nysted',
+    robin='Robin Rigg',
+    rudongdemo='CGN Rudong Demonstration',
+    rudongH10='Rudong H10',
+    rudongH6='Rudong H6',
+    rudongH8='Rudong H8',
+    sandbank='Sandbank',
+    seagreen='Seagreen',
+    shengsi2='Shengsi 2',
+    sheringham='Sheringham Shoal',
+    vejamate='Veja Mate',
+    wikinger='Wikinger',
+)
 
-def load_repository(handles2name=_site_handles) -> NamedTuple:
+_site_handles = _site_handles_yaml | _site_handles_pbf
+
+_READERS = {
+        '.yaml': graph_from_yaml,
+        '.osm.pbf': graph_from_pbf,
+        }
+
+
+def load_repository(handles2names=(
+        ('.yaml', _site_handles_yaml),
+        ('.osm.pbf', _site_handles_pbf),
+        )) -> NamedTuple:
     base_dir = files('interarray.data')
-    return namedtuple('SiteRepository', handles2name)(
-        *(graph_from_yaml(base_dir / fname, handle)
-          for handle, fname in handles2name.items()))
+    if isinstance(handles2names, dict):
+        # assume all files have .yaml extension
+        return namedtuple('SiteRepository', handles2name)(
+            *(graph_from_yaml(base_dir / fname, handle)
+              for handle, fname in handles2names.items()))
+    elif isinstance(handles2names, Iterable):
+        # handle multiple file extensions
+        return namedtuple('SiteRepository',
+                          reduce(lambda a, b: a | b,
+                                 (m for _, m in handles2names)))(
+            *sum((tuple(_READERS[ext](base_dir / fname, handle)
+                        for handle, fname in handle2name.items())
+                 for ext, handle2name in handles2names),
+                 tuple()))
