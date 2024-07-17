@@ -104,15 +104,15 @@ def angle(a, pivot, b):
     return ang
 
 
-def is_bb_overlapping(uv, wy):
-    ''' checks if there is an overlap in the bounding boxes of `uv` and `wy`
+def is_bb_overlapping(uv, st):
+    ''' checks if there is an overlap in the bounding boxes of `uv` and `st`
     (per row)
-    `uv` and `wy` have shape N×2, '''
+    `uv` and `st` have shape N×2, '''
     pass
 
 
-def is_crossing_numpy(u, v, w, y):
-    '''checks if (u, v) crosses (w, y);
+def is_crossing_numpy(u, v, s, t):
+    '''checks if (u, v) crosses (s, t);
     returns ¿? in case of superposition'''
 
     # adapted from Franklin Antonio's insectc.c lines_intersect()
@@ -121,19 +121,19 @@ def is_crossing_numpy(u, v, w, y):
     # license: https://github.com/erich666/GraphicsGems/blob/master/LICENSE.md
 
     A = v - u
-    B = w - y
+    B = s - t
 
     # bounding box check
     for i in (0, 1):  # X and Y
         lo, hi = (v[i], u[i]) if A[i] < 0 else (u[i], v[i])
         if B[i] > 0:
-            if hi < y[i] or w[i] < lo:
+            if hi < t[i] or s[i] < lo:
                 return False
         else:
-            if hi < w[i] or y[i] < lo:
+            if hi < s[i] or t[i] < lo:
                 return False
 
-    C = u - w
+    C = u - s
 
     # denominator
     f = np.cross(B, A)
@@ -155,8 +155,8 @@ def is_crossing_numpy(u, v, w, y):
     return True
 
 
-def is_crossing(u, v, w, y, touch_is_cross=True):
-    '''checks if (u, v) crosses (w, y);
+def is_crossing(u, v, s, t, touch_is_cross=True):
+    '''checks if (u, v) crosses (s, t);
     returns ¿? in case of superposition
     choices for `less`:
     -> operator.lt counts touching as crossing
@@ -169,21 +169,21 @@ def is_crossing(u, v, w, y, touch_is_cross=True):
     # Graphic Gems III
 
     A = v - u
-    B = w - y
+    B = s - t
 
     # bounding box check
     for i in (0, 1):  # X and Y
         lo, hi = (v[i], u[i]) if A[i] < 0 else (u[i], v[i])
         if B[i] > 0:
-            if hi < y[i] or w[i] < lo:
+            if hi < t[i] or s[i] < lo:
                 return False
         else:
-            if hi < w[i] or y[i] < lo:
+            if hi < s[i] or t[i] < lo:
                 return False
 
     Ax, Ay = A
     Bx, By = B
-    Cx, Cy = C = u - w
+    Cx, Cy = C = u - s
 
     # denominator
     # print(Ax, Ay, Bx, By)
@@ -271,13 +271,13 @@ def is_same_side(L1, L2, A, B, touch_is_cross=True):
     return greater(discriminator, 0)
 
 
-def is_blocking(root, u, v, w, y):
-    # w and y are necessarily on opposite sides of uv
+def is_blocking(root, u, v, s, t):
+    # s and t are necessarily on opposite sides of uv
     # (because of Delaunay – see the triangles construction)
-    # hence, if (root, y) are on the same side, (w, root) are not
-    return (is_triangle_pair_a_convex_quadrilateral(u, v, w, root)
-            if is_same_side(u, v, root, y)
-            else is_triangle_pair_a_convex_quadrilateral(u, v, root, y))
+    # hence, if (root, t) are on the same side, (s, root) are not
+    return (is_triangle_pair_a_convex_quadrilateral(u, v, s, root)
+            if is_same_side(u, v, root, t)
+            else is_triangle_pair_a_convex_quadrilateral(u, v, root, t))
 
 
 def apply_edge_exemptions(G, allow_edge_deletion=True):
@@ -314,10 +314,10 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
             u, v = uv
             opposites = triangles[uv]
             if len(opposites) == 2:
-                w, y = triangles[uv]
+                s, t = triangles[uv]
                 rootC = VertexC[G.edges[u, v]['root']]
-                uvwyC = tuple((VertexC[n] for n in (*uv, w, y)))
-                if not is_blocking(rootC, *uvwyC):
+                uvstC = tuple((VertexC[n] for n in (*uv, s, t)))
+                if not is_blocking(rootC, *uvstC):
                     E_hull_exp.add(uv)
                     G.edges[uv]['exempted'] = True
 
