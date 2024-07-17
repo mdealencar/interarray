@@ -266,6 +266,21 @@ _site_handles_pbf = dict(
     sheringham='Sheringham Shoal',
     vejamate='Veja Mate',
     wikinger='Wikinger',
+    brieuc='Saint-Brieuc',
+    nazaire='Saint-Nazaire',
+    riffgat='Riffgat',
+    humber='Humber Gateway',
+    rough='Westermost Rough',
+    bucht='Deutsche Bucht',
+    nordseeost='Nordsee Ost',
+    kaskasi='Kaskasi',
+    albatros='Albatros',
+    luchterduinen='Luchterduinen',
+    norther='Norther',
+    mermaid='Mermaid',
+    rentel='Rentel',
+    triborkum='Trianel Windpark Borkum',
+    galloper='Galloper Inner',
 )
 
 _site_handles = _site_handles_yaml | _site_handles_pbf
