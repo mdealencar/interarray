@@ -522,11 +522,11 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
     # of a triangle in ccw order
     # for u, next_ in enumerate(mat, start=-M):
 
-    # diagonals store an edge ⟨s, t⟩ as key (s < t)
-    # and a reference node `v` as value; to add a
-    # diagonal to a PlanarEmbedding use these two lines:
-    #     PlanarEmbedding.add_half_edge_ccw(s, t, v)
-    #     PlanarEmbedding.add_half_edge_cw(t, s, v)
+    # diagonals store a diagonal edge ⟨s, t⟩ as key (s < t) mapped to the
+    # reference node `v` that belongs to the delaunay edge ⟨u, v⟩ that crosses
+    # ⟨s, t⟩; to add a  diagonal to a PlanarEmbedding use these two lines:
+    #     PlanarEmbedding.add_half_edge(s, t, cw=v)
+    #     PlanarEmbedding.add_half_edge(t, s, ccw=v)
     # to find u, one can use:
     #     _, u = PlanarEmbedding.next_face_half_edge(v, s)
     # or:
@@ -542,13 +542,13 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
             # degenerate case
             v = singled_nodes[u]
             print('degenerate:', F[u], F[v])
-            planar.add_half_edge_first(u, v)
+            planar.add_half_edge(u, v)
             continue
         first = first % N - M*(first//N)
         v = first
         back = mat[v, u]
         fwd = next_[v]
-        planar.add_half_edge_first(u, v)
+        planar.add_half_edge(u, v)
         if back != NULL and fwd != NULL:
             uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
             s, t = (back, fwd) if back < fwd else (fwd, back)
@@ -559,7 +559,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                                                                 fwdC)):
                 diagonals[(s, t)] = v if s == back else u
         # start by circling vertex u in ccw direction
-        add = planar.add_half_edge_ccw
+        ref = 'cw'
         ccw = True
         # when fwd == first, all triangles around vertex u have been visited
         while fwd != first:
@@ -567,7 +567,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
                 back = v
                 v = fwd
                 fwd = next_[v]
-                add(u, v, back)
+                planar.add_half_edge(u, v, **{ref: back})
                 if fwd != NULL:
                     uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
                     s, t = (back, fwd) if back < fwd else (fwd, back)
@@ -583,7 +583,7 @@ def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
             elif ccw:
                 # ccw direction reached the convex hull
                 # start from first again in cw direction
-                add = planar.add_half_edge_cw
+                ref = 'ccw'
                 ccw = False
                 # when going cw, next_ is a column
                 next_ = mat[:, u]
