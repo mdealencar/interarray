@@ -156,8 +156,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         id='DTgrp', elements=[svg.Use(href='#dt', x=VertexS[d, 0],
                                       y=VertexS[d, 1]) for d in fnT[N: N + D]])
 
-    # Regular edges
-    class_dict = {'delaunay': 'del', 'extended': 'ext', None: 'std'}
+    # Edges
+    class_dict = {'delaunay': 'del',
+                  'extended': 'ext',
+                  'scaffold': 'scf',
+                  None: 'std'}
     edges_with_type = G.edges(data='type', default=None)
     edge_lines = defaultdict(list)
     for u, v, edge_type in edges_with_type:
