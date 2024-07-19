@@ -55,7 +55,7 @@ def _tags_and_array_from_key(key, parsed_dict):
 
 def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     '''Import wind farm data from .yaml file.'''
-    fpath = filepath.with_suffix('.yaml')
+    fpath = Path(filepath)
     # read wind power plant site YAML file
     parsed_dict = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
     Boundary, BoundaryTag = _tags_and_array_from_key('EXTENTS', parsed_dict)
@@ -113,8 +113,10 @@ class GetAllData(osmium.SimpleHandler):
 
 def graph_from_pbf(filepath, handle=None) -> nx.Graph:
     '''Import wind farm data from .osm.pbf file.'''
-    fpath = filepath.with_suffix('.osm.pbf')
-    name = filepath.stem
+    fpath = Path(filepath)
+    assert ['.osm', '.pbf'] == fpath.suffixes[-2:], \
+        'Argument `filepath` does not have `.osm.pbf` extension.'
+    name = filepath.stem[:-4]
     # read wind power plant site OpenStreetMap's Protobuffer file
     getter = GetAllData()
     getter.apply_file(fpath, locations=True, idx='flex_mem')
@@ -306,7 +308,7 @@ def load_repository(handles2names=(
         return namedtuple('SiteRepository',
                           reduce(lambda a, b: a | b,
                                  (m for _, m in handles2names)))(
-            *sum((tuple(_READERS[ext](base_dir / fname, handle)
+            *sum((tuple(_READERS[ext](base_dir / (fname + ext), handle)
                         for handle, fname in handle2name.items())
                  for ext, handle2name in handles2names),
                  tuple()))
