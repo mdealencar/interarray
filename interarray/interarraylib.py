@@ -198,14 +198,17 @@ def calcload(G):
 
     subtree = 0
     total_load = 0
+    max_load = 0
     for root in roots:
         G.nodes[root]['load'] = 0
         for subroot in G[root]:
-            bfs_subtree_loads(G, root, [subroot], subtree)
+            subtree_load = bfs_subtree_loads(G, root, [subroot], subtree)
             subtree += 1
+            max_load = max(max_load, subtree_load)
         total_load += G.nodes[root]['load']
     assert total_load == N, f'counted ({total_load}) != nonrootnodes({N})'
     G.graph['has_loads'] = True
+    G.graph['max_load'] = max_load
 
 
 def pathdist(G, path):
