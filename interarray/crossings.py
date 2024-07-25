@@ -1,8 +1,13 @@
 import operator
 import math
 import numpy as np
-from .geometric import is_same_side, make_graph_metrics
 import networkx as nx
+from .interarraylib import calcload
+from .geometric import (
+    is_same_side,
+    make_graph_metrics,
+    is_bunch_split_by_corner
+)
 
 
 def get_crossings_list(Edge, VertexC, touch_is_cross=True):
@@ -313,3 +318,52 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
                 if not is_same_side(uC, vC, rootC, VertexC[n]):
                     u, v = (u, v) if u < v else (v, u)
                     yield (u, v), (root, n)
+
+
+def validate_routeset(G):
+    VertexC = G.graph['VertexC']
+    M = G.graph['M']
+    N = VertexC.shape[0] - M
+    D = G.graph.get('D', 0)
+    if D > 0:
+        fnT = G.graph['fnT']
+    else:
+        fnT = np.arange(N + M)
+        fnT[-M:] = range(-M, 0)
+
+    # TOPOLOGY check: is it a proper tree?
+    calcload(G)
+
+    # TOPOLOGY check: is load within capacity?
+    max_load = G.graph['max_load']
+    capacity = G.graph.get('capacity')
+    if capacity is not None:
+        assert max_load <= capacity, f'κ = {capacity}, max_load= {max_load}'
+    else:
+        capacity = G.graph['capacity'] = max_load
+
+    # check edge×edge crossings
+    Edge = np.array(tuple((fnT[u], fnT[v]) for u, v in G.edges))
+    Xings = get_crossings_list(Edge, VertexC, touch_is_cross=True)
+    # parallel is considered no crossing
+    # not sure about cases of touch (these should be analysed further)
+
+    # ¿do we need a special case for a detour segment going through a node?
+
+    # check detour nodes for branch-splitting
+    for d, d_ in zip(range(N, N + D), fnT[N:N + D]):
+        if G.degree(d_) == 1:
+            # trivial case: no way to break a branch apart
+            break
+        dA, dB = (fnT[nb] for nb in G[d])
+        bunch = [fnT[nb] for nb in G[d_]]
+        is_split, insideI, outsideI = is_bunch_split_by_corner(
+            VertexC[bunch], *VertexC[[dA, d_, dB]]
+        )
+        if is_split:
+            Xings.append((d_, d_, bunch[insideI[0]], bunch[outsideI[0]]))
+        # assert not is_split, \
+        #     f'Detour around node {F[d_]} splits a branch; ' \
+        #     f'inside: {[F[bunch[i]] for i in insideI]}; ' \
+        #     f'outside: {[F[bunch[i]] for i in outsideI]}'
+    return Xings
