@@ -204,7 +204,7 @@ def calcload(G):
         for subroot in G[root]:
             subtree_load = bfs_subtree_loads(G, root, [subroot], subtree)
             subtree += 1
-            max_load = max(max_load, subtree_load)
+            max_load = max(max_load, G.nodes[subroot]['load'])
         total_load += G.nodes[root]['load']
     assert total_load == N, f'counted ({total_load}) != nonrootnodes({N})'
     G.graph['has_loads'] = True
