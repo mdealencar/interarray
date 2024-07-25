@@ -1106,7 +1106,7 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                             if neighbors_q and neighbors_r:
                                 for a, b in product(neighbors_q, neighbors_r):
                                     if is_same_side(*AllnodesC[[q, r, a, b]]):
-                                        print(f'ERROR <partial ovelap>: edge '
+                                        print(f'ERROR <partial overlap>: edge '
                                               f'«{F[fnT[u]]}–{F[fnT[v]]}» '
                                               f'crosses '
                                               f'«{F[fnT[s]]}–{F[fnT[t]]}»')
