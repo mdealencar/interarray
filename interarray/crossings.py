@@ -320,7 +320,23 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
                     yield (u, v), (root, n)
 
 
-def validate_routeset(G):
+def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
+    '''
+    Check if route set represented by G's edges is topologically sound,
+    repects capacity and has no edge crossings nor branch splitting.
+
+    Returns:
+        list of crossings/splits
+
+    Example:
+        F = NodeTagger()
+        Xings = validate_routeset(G)
+            for u, v, s, t in Xings:
+                if u != v:
+                    print(f'{F[u]}–{F[v]} crosses {F[s]}–{F[t]}')
+                else:
+                    print(f'detour @ {F[u]} splits {F[s]}–{F[v]}–{F[t]}')
+    '''
     VertexC = G.graph['VertexC']
     M = G.graph['M']
     N = VertexC.shape[0] - M
