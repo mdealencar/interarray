@@ -18,11 +18,11 @@ def get_crossings_list(Edge, VertexC, touch_is_cross=True):
     less = operator.lt if touch_is_cross else operator.le
     crossings = []
     V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
-    for i, ((UVx, UVy), (u, v)) in enumerate(zip(V, Edge[:-1])):
+    for i, ((UVx, UVy), (u, v)) in enumerate(zip(V[:-1], Edge[:-1])):
         uCx, uCy = VertexC[u]
         vCx, vCy = VertexC[v]
-        for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:],
-                                                     start=i+1)):
+        for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:]),
+                                                 start=i+1):
             if s == u or t == u or s == v or t == v:
                 # <edges have a common node>
                 continue
@@ -57,24 +57,26 @@ def get_crossings_list(Edge, VertexC, touch_is_cross=True):
             # denominator
             f = STx*UVy - STy*UVx
             # print('how close: ', f)
-            # TODO: arbitrary threshold (relative tolerance of rel_tol=1e-9)
-            if math.isclose(f, 0):
+            # TODO: verify if this arbitrary tolerance is appropriate
+            if math.isclose(f, 0., abs_tol=1e-5):
                 # segments are parallel
                 continue
 
             C = uCx - sCx, uCy - sCy
             # alpha and beta numerators
+            Xing_found = True
             for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, ST),
                                                                  (UV, C))):
                 if f > 0:
                     if less(num, 0) or less(f, num):
-                        continue
+                        Xing_found = False
                 else:
                     if less(0, num) or less(num, f):
-                        continue
+                        Xing_found = False
 
             # segments do cross
-            crossings.append((u, v, s, t))
+            if Xing_found:
+                crossings.append((u, v, s, t))
     return crossings
 
 
