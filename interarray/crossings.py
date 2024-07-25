@@ -5,13 +5,17 @@ from .geometric import is_same_side, make_graph_metrics
 import networkx as nx
 
 
-def get_crossings_list(Edge, VertexC):
+def get_crossings_list(Edge, VertexC, touch_is_cross=True):
     '''
     List all crossings between edges in the `Edge` (E×2) numpy array.
     Coordinates must be provided in the `VertexC` (V×2) array.
 
     Used when edges are not limited to the expanded Delaunay set.
     '''
+    #  choices for `less`:
+    #  -> operator.lt counts touching as crossing
+    #  -> operator.le does not count touching as crossing
+    less = operator.lt if touch_is_cross else operator.le
     crossings = []
     V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
     for i, ((UVx, UVy), (u, v)) in enumerate(zip(V, Edge[:-1])):
@@ -53,8 +57,8 @@ def get_crossings_list(Edge, VertexC):
             # denominator
             f = STx*UVy - STy*UVx
             # print('how close: ', f)
-            # TODO: arbitrary threshold
-            if math.isclose(f, 0, abs_tol=1e-3):
+            # TODO: arbitrary threshold (relative tolerance of rel_tol=1e-9)
+            if math.isclose(f, 0):
                 # segments are parallel
                 continue
 
