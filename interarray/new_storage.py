@@ -205,9 +205,9 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
                 'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
                 'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
                 'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
-                'Subtree', 'funfile', 'funhash', 'funname', 'diagonals',
-                'planar', 'has_loads', 'M', 'gates_not_in_A', 'overfed',
-                'gnT', 'fun_fingerprint', 'handle', 'hull', 'solver_log'}
+                'gates_not_in_A', 'funfile', 'funhash', 'funname', 'diagonals',
+                'planar', 'has_loads', 'M', 'Subtree', 'overfed', 'gnT',
+                'max_load', 'fun_fingerprint', 'handle', 'hull', 'solver_log'}
     nodesetID = nodeset_from_graph(G, db)
     methodID = method_from_graph(G, db),
     machineID = get_machine_pk(db)
