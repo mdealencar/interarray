@@ -54,6 +54,7 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
                    funhash=edgeset.method.funhash,
                    funfile=edgeset.method.funfile,
                    funname=edgeset.method.funname,
+                   runtime=edgeset.runtime,
                    creation_options=edgeset.method.options,
                    **edgeset.misc)
 
