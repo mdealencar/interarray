@@ -865,19 +865,20 @@ def planar_over_layout(G: nx.Graph):
     VertexC = G.graph['VertexC']
     BoundaryC = G.graph.get('boundary')
     relax_boundary = G.graph.get('relax_boundary', True)
-    P_base, diagonals = make_planar_embedding(
+    P_base, diagonals_base = make_planar_embedding(
             M, VertexC, BoundaryC=None if relax_boundary else BoundaryC)
     P = P_base.copy()
+    diagonals = diagonals_base.copy()
     for r in range(-M, 0):
         #  for u, v in nx.edge_dfs(G, r):
         for u, v in nx.edge_bfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
             # used in G; the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
-            s = diagonals.get((u, v))
+            s = diagonals_base.get((u, v))
             if s is not None:
                 t = P_base[u][s]['ccw']  # same as P[v][s]['cw']
-                if (s, t) in G.edges and s > 0 and t > 0:
+                if (s, t) in G.edges and s >= 0 and t >= 0:
                     # (u, v) & (s, t) are in G (i.e. a crossing). This means
                     # the diagonal (u, v) is a gate and (s, t) should remain
                     continue
@@ -888,13 +889,13 @@ def planar_over_layout(G: nx.Graph):
                     d = P_base[c][b]['ccw']
                     diag_da = (a, d) if a < d else (d, a)
                     if (d == P_base[b][c]['cw']
-                            and diag_da in diagonals
+                            and diag_da in diagonals_base
                             and diag_da[0] >= 0):
                         crossings = crossings or diag_da in G.edges
                     e = P_base[a][c]['ccw']
                     diag_eb = (e, b) if e < b else (b, e)
                     if (e == P_base[c][a]['cw']
-                            and diag_eb in diagonals
+                            and diag_eb in diagonals_base
                             and diag_eb[0] >= 0):
                         crossings = crossings or diag_eb in G.edges
                 if crossings:
