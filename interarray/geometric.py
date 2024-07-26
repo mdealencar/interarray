@@ -377,8 +377,10 @@ def edge_crossings(s, t, G, diagonals, P):
     return [edge for edge in crossings if edge in G.edges]
 
 
-def make_planar_embedding(M: int, VertexC: np.ndarray, BoundaryC=None,
-                          max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO):
+def make_planar_embedding(
+        M: int, VertexC: np.ndarray, BoundaryC: np.ndarray | None = None,
+        max_tri_AR: float = MAX_TRIANGLE_ASPECT_RATIO) -> \
+        tuple[nx.Graph, dict[tuple[int, int], int]]:
     V = VertexC.shape[0]
     N = V - M
     SwappedVertexC = np.vstack((VertexC[-M:], VertexC[:N]))
