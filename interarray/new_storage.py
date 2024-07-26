@@ -196,12 +196,7 @@ def numpy_to_serializable(obj):
         return obj
 
 
-def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
-    '''Add a new EdgeSet entry in the database, using the data in `G`.
-    If the NodeSet or Method are not yet in the database, they will be added.
-
-    Return value: primary key of the newly created EdgeSet record
-    '''
+def packedges(G: nx.Graph) -> dict[str, Any]:
     misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
                 'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
                 'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
@@ -209,17 +204,14 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
                 'gates_not_in_A', 'funfile', 'funhash', 'funname', 'diagonals',
                 'planar', 'has_loads', 'M', 'Subtree', 'overfed', 'gnT',
                 'max_load', 'fun_fingerprint', 'handle', 'hull', 'solver_log'}
-    nodesetID = nodeset_from_graph(G, db)
-    methodID = method_from_graph(G, db),
-    machineID = get_machine_pk(db)
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
     terse_graph = terse_graph_from_G(G)
     misc = {key: G.graph[key]
             for key in G.graph.keys() - misc_not}
-    print('Storing in `misc`:', *misc.keys())
+    #  print('Storing in `misc`:', *misc.keys())
     for k, v in misc.items():
-        misc[k] = numpy_to_serializable(v)
+        misc[k] = oddtypes_to_serializable(v)
     edgepack = dict(
         handle=G.graph.get('handle',
                            G.graph['name'].strip().replace(' ', '_')),
@@ -233,6 +225,19 @@ def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
         D=G.graph.get('D', 0),
         **terse_graph,
     )
+    return edgepack
+
+
+def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
+    '''Add a new EdgeSet entry in the database, using the data in `G`.
+    If the NodeSet or Method are not yet in the database, they will be added.
+
+    Return value: primary key of the newly created EdgeSet record
+    '''
+    edgepack = packedges(G)
+    nodesetID = nodeset_from_graph(G, db)
+    methodID = method_from_graph(G, db),
+    machineID = get_machine_pk(db)
     with orm.db_session:
         edgepack.update(
             nodes=db.NodeSet[nodesetID],
