@@ -10,37 +10,40 @@ from .geometric import (
 )
 
 
-def get_crossings_list(Edge, VertexC, touch_is_cross=True):
+def get_interferences_list(Edge: np.ndarray, VertexC: np.ndarray,
+                          fnT: np.ndarray | None = None,
+                          EPSILON=1e-15) -> list:
     '''
     List all crossings between edges in the `Edge` (E×2) numpy array.
+    `Edge` must contain indices to VertexC (i.e. translate via `fnT[]` if
+    graph uses detour nodes).
     Coordinates must be provided in the `VertexC` (V×2) array.
 
     Used when edges are not limited to the expanded Delaunay set.
     '''
-    #  choices for `less`:
-    #  -> operator.lt counts touching as crossing
-    #  -> operator.le does not count touching as crossing
-    less = operator.lt if touch_is_cross else operator.le
     crossings = []
-    V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
+    if fnT is None:
+        V = VertexC[Edge[:, 1]] - VertexC[Edge[:, 0]]
+    else:
+        V = VertexC[fnT[Edge[:, 1]]] - VertexC[fnT[Edge[:, 0]]]
     for i, ((UVx, UVy), (u, v)) in enumerate(zip(V[:-1], Edge[:-1])):
-        uCx, uCy = VertexC[u]
-        vCx, vCy = VertexC[v]
+        u_, v_ = (u, v) if fnT is None else fnT[[u, v]]
+        (uCx, uCy), (vCx, vCy) = VertexC[[u_, v_]]
         for j, ((STx, STy), (s, t)) in enumerate(zip(-V[i+1:], Edge[i+1:]),
                                                  start=i+1):
-            if s == u or t == u or s == v or t == v:
+            s_, t_ = (s, t) if fnT is None else fnT[[s, t]]
+            if s_ == u_ or t_ == u_ or s_ == v_ or t_ == v_:
                 # <edges have a common node>
                 continue
             # bounding box check
-            sCx, sCy = VertexC[s]
-            tCx, tCy = VertexC[t]
+            (sCx, sCy), (tCx, tCy) = VertexC[[s_, t_]]
 
             # X
             lo, hi = (vCx, uCx) if UVx < 0 else (uCx, vCx)
-            if STx > 0:
+            if STx > 0:  # s - t > 0 -> hi: s, lo: t
                 if hi < tCx or sCx < lo:
                     continue
-            else:
+            else:  # s - t < 0 -> hi: t, lo: s
                 if hi < sCx or tCx < lo:
                     continue
 
@@ -61,27 +64,45 @@ def get_crossings_list(Edge, VertexC, touch_is_cross=True):
 
             # denominator
             f = STx*UVy - STy*UVx
-            # print('how close: ', f)
             # TODO: verify if this arbitrary tolerance is appropriate
             if math.isclose(f, 0., abs_tol=1e-5):
                 # segments are parallel
+                # TODO: there should be check for branch splitting in parallel
+                #       cases with touching points
                 continue
 
             C = uCx - sCx, uCy - sCy
-            # alpha and beta numerators
-            Xing_found = True
-            for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, ST),
-                                                                 (UV, C))):
+            touch_found = []
+            Xcount = 0
+            for k, num in enumerate((Px*Qy - Py*Qx)
+                                    for (Px, Py), (Qx, Qy) in
+                                    ((C, ST), (UV, C))):
                 if f > 0:
-                    if less(num, 0) or less(f, num):
-                        Xing_found = False
+                    if -EPSILON <= num <= f + EPSILON:  # num < 0 or f < num:
+                        Xcount += 1
+                        if math.isclose(num, 0, abs_tol=EPSILON):
+                            touch_found.append(2*k)
+                        if math.isclose(num, f, abs_tol=EPSILON):
+                            touch_found.append(2*k + 1)
                 else:
-                    if less(0, num) or less(num, f):
-                        Xing_found = False
+                    if f - EPSILON <= num <= EPSILON:  # 0 < num or num < f:
+                        Xcount += 1
+                        if math.isclose(num, 0, abs_tol=EPSILON):
+                            touch_found.append(2*k)
+                        if math.isclose(num, f, abs_tol=EPSILON):
+                            touch_found.append(2*k + 1)
 
-            # segments do cross
-            if Xing_found:
-                crossings.append((u, v, s, t))
+            if Xcount == 2:
+                # segments cross or touch
+                uvst = (u, v, s, t)
+                if touch_found:
+                    assert len(touch_found) == 1, \
+                        'ERROR: too many touching points.'
+                    #  p = uvst[touch_found[0]]
+                    p = touch_found[0]
+                else:
+                    p = None
+                crossings.append((uvst, p))
     return crossings
 
 
@@ -359,10 +380,33 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
         capacity = G.graph['capacity'] = max_load
 
     # check edge×edge crossings
-    Edge = np.array(tuple((fnT[u], fnT[v]) for u, v in G.edges))
-    Xings = get_crossings_list(Edge, VertexC, touch_is_cross=True)
+    #  Edge = np.array(tuple((fnT[u], fnT[v]) for u, v in G.edges))
+    XTings = get_interferences_list(np.array(G.edges), VertexC, fnT)
     # parallel is considered no crossing
-    # not sure about cases of touch (these should be analysed further)
+    # analyse cases of touch
+    Xings = []
+    for uvst, p in XTings:
+        if p is None:
+            Xings.append(uvst)
+            continue
+        if G.degree(p) == 1:
+            # trivial case: no way to break a branch apart
+            continue
+        # make u be the touch-point within ⟨s, t⟩
+        if p < 2:
+            u, v = uvst[:2] if p == 0 else uvst[1::-1]
+            s, t = uvst[2:]
+        else:
+            u, v = uvst[2:] if p == 2 else uvst[:1:-1]
+            s, t = uvst[:2]
+
+        u_, v_, s_, t_ = fnT[uvst,]
+        bunch = [fnT[nb] for nb in G[u]]
+        is_split, insideI, outsideI = is_bunch_split_by_corner(
+            VertexC[bunch], *VertexC[[s_, u_, t_]]
+        )
+        if is_split:
+            Xings.append((s_, t_, bunch[insideI[0]], bunch[outsideI[0]]))
 
     # ¿do we need a special case for a detour segment going through a node?
 
@@ -370,7 +414,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
     for d, d_ in zip(range(N, N + D), fnT[N:N + D]):
         if G.degree(d_) == 1:
             # trivial case: no way to break a branch apart
-            break
+            continue
         dA, dB = (fnT[nb] for nb in G[d])
         bunch = [fnT[nb] for nb in G[d_]]
         is_split, insideI, outsideI = is_bunch_split_by_corner(
