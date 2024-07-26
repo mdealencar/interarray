@@ -15,6 +15,7 @@ from scipy.sparse import coo_array
 from scipy.sparse.csgraph import minimum_spanning_tree as scipy_mst
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
+from scipy.stats import rankdata
 
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .utils import NodeStr, NodeTagger
@@ -734,9 +735,9 @@ def make_graph_metrics(G):
         G.nodes[root]['root'] = root
 
     G.graph['d2roots'] = d2roots
-    G.graph['d2rootsRank'] = np.argsort(np.argsort(d2roots, axis=0), axis=0)
+    G.graph['d2rootsRank'] = rankdata(d2roots, method='dense', axis=0)
     G.graph['angles'] = angles
-    G.graph['anglesRank'] = np.argsort(np.argsort(angles, axis=0), axis=0)
+    G.graph['anglesRank'] = rankdata(angles, method='dense', axis=0)
     G.graph['anglesYhp'] = angles >= 0.
     G.graph['anglesXhp'] = abs(angles) < np.pi/2
 
