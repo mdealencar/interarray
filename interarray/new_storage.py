@@ -185,9 +185,13 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     return G
 
 
-def numpy_to_serializable(obj):
+def oddtypes_to_serializable(obj):
+    if isinstance(obj, orm.ormtypes.TrackedList):
+        return list(oddtypes_to_serializable(item) for item in obj)
+    if isinstance(obj, orm.ormtypes.TrackedDict):
+        return {k: oddtypes_to_serializable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
-        return type(obj)(numpy_to_serializable(item) for item in obj)
+        return type(obj)(oddtypes_to_serializable(item) for item in obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, np.int64):
