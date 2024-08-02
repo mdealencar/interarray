@@ -544,7 +544,7 @@ def make_planar_embedding(
         if first == 0 and next_[0] == NULL:
             # degenerate case
             v = singled_nodes[u]
-            print('degenerate:', F[u], F[v])
+            #  print('degenerate:', F[u], F[v])
             planar.add_half_edge(u, v)
             continue
         first = first % N - M*(first//N)
