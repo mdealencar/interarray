@@ -427,3 +427,51 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
         #     f'inside: {[F[bunch[i]] for i in insideI]}; ' \
         #     f'outside: {[F[bunch[i]] for i in outsideI]}'
     return Xings
+
+
+def list_edge_crossings(G: nx.Graph, P: nx.PlanarEmbedding, diagonals: dict) \
+        -> list[tuple[tuple[int]]]:
+    '''
+    List edge×edge crossings in the routeset in G.
+    `G` must only use extended Delaunay edges. It will not detect crossings
+    of non-extDelaunay gates or detours.
+
+    Returns:
+    list of 2-tuple (crossing) of 2-tuple (edge)
+    '''
+    eeXings = []
+    checked = set()
+    for s, t in G.edges:
+        s, t = (s, t) if s < t else (t, s)
+        if (s, t) in diagonals:
+            # ⟨s, t⟩ is a diagonal
+            v = diagonals[s, t]
+            u = P[v][s]['cw']
+            triangles = ((u, v, s), (v, u, t))
+            u, v = (u, v) if u < v else (v, u)
+            if (u, v) in G.edges:
+                # eeXing found
+                # crossing with Delaunay edge ⟨u, v⟩
+                eeXings.append(((u, v), (s, t)))
+            # examine the two triangles (u, v) belongs to
+            for a, b, c in triangles:
+                # this is for diagonals crossing diagonals
+                triangle = tuple(sorted((a, b, c)))
+                if triangle in checked:
+                    continue
+                checked.add(triangle)
+                conflicting = [(s, t)]
+                d = P[c][b]['cw']
+                diag_da = (a, d) if a < d else (d, a)
+                if d == P[b][c]['ccw'] and diag_da in G.edges:
+                    conflicting.append(diag_da)
+                e = P[a][c]['cw']
+                diag_eb = (e, b) if e < b else (b, e)
+                if e == P[c][a]['ccw'] and diag_eb in G.edges:
+                    conflicting.append(diag_eb)
+                if len(conflicting) > 1:
+                    if len(conflicting) < 3:
+                        eeXings.append(conflicting)
+                    else:
+                        print('ERROR: cannot handle triple edge crossing.', conflicting)
+    return eeXings
