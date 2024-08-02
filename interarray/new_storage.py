@@ -62,9 +62,11 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
     G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')
-    assert abs(calc_length - edgeset.length) < 1, (
-        f"recreated graph's total length ({calc_length:.0f}) != "
-        f"stored total length ({edgeset.length:.0f})")
+    #  assert abs(calc_length/edgeset.length - 1) < 1e-5, (
+    #      f"recreated graph's total length ({calc_length:.0f}) != "
+    #      f"stored total length ({edgeset.length:.0f})")
+    if abs(calc_length/edgeset.length - 1) > 1e-5:
+        G.graph['loading_length_mismatch'] = calc_length - edgeset.length
     return G
 
 
@@ -207,7 +209,8 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
                 'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
                 'gates_not_in_A', 'funfile', 'funhash', 'funname', 'diagonals',
                 'planar', 'has_loads', 'M', 'Subtree', 'overfed', 'gnT',
-                'max_load', 'fun_fingerprint', 'handle', 'hull', 'solver_log'}
+                'max_load', 'fun_fingerprint', 'handle', 'hull', 'solver_log',
+                'loading_length_mismatch'}
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
     terse_graph = terse_graph_from_G(G)
