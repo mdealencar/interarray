@@ -85,7 +85,7 @@ class PathNodes(dict):
 class PathFinder():
     '''
     Router for gates that don't belong to the PlanarEmbedding of the graph.
-    Initialize it with a valid layout graph `G` and it will find paths from
+    Initialize it with a detour-free routeset `G` and it will find paths from
     all nodes to the nearest root without crossing any used edges.
     These paths can be used to replace the existing gates that cross other
     edges by gate paths with detours.
@@ -96,8 +96,8 @@ class PathFinder():
     H = PathFinder(G).create_detours()
     '''
 
-    def __init__(self, G, branching=True,
-                 only_if_crossings=True):
+    def __init__(self, G: nx.Graph, branching: bool = True,
+                 only_if_crossings: bool = True):
         M = G.graph['M']
         VertexC = G.graph['VertexC']
         self.VertexC = VertexC
@@ -130,7 +130,7 @@ class PathFinder():
             return
         self._find_paths()
 
-    def get_best_path(self, n):
+    def get_best_path(self, n: int):
         '''
         `_.get_best_path(«node»)` produces a `tuple(path, dists)`.
         `path` contains a sequence of nodes from the original
@@ -155,7 +155,7 @@ class PathFinder():
             info('Path not found for «{}»', F[n])
             return [], []
 
-    def _get_sector(self, _node, portal):
+    def _get_sector(self, _node: int, portal: tuple[int, int]):
         # TODO: there is probably a better way to avoid spinning around _node
         is_gate = any(_node in Gate for Gate in self.nonembed_Gates)
         _node_degree = len(self.G._adj[_node])
@@ -177,7 +177,8 @@ class PathFinder():
             _nbr = self.P[_node][_nbr]['ccw']
         return _nbr
 
-    def _rate_wait_add(self, portal, _new, _apex, apex):
+    def _rate_wait_add(self, portal: tuple[int, int], _new: int, _apex: int,
+                       apex: int):
         I_path = self.I_path
         paths = self.paths
         d_hop = np.hypot(*(self.VertexC[_apex] - self.VertexC[_new]).T)
@@ -197,7 +198,7 @@ class PathFinder():
             debug('{} added with d_path = {:.2f}',
                   self.n2s(_new, _apex), d_new)
 
-    def _advance_portal(self, left, right):
+    def _advance_portal(self, left: int, right: int):
         G = self.G
         P = self.P
         while True:
@@ -239,8 +240,8 @@ class PathFinder():
                 return
             left, right = first
 
-    def _traverse_channel(self, _apex: int, apex: int, _funnel: list,
-                          wedge_end: list, portal_iter: iter):
+    def _traverse_channel(self, _apex: int, apex: int, _funnel: list[int],
+                          wedge_end: list[int], portal_iter: iter):
         # variable naming notation:
         # for variables that represent a node, they may occur in two versions:
         #     - _node: the index it contains maps to a coordinate in VertexC
