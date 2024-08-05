@@ -83,14 +83,14 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         # set to minimum feasible vehicle number
         vehicles = vehicles_min
     if A is not None:
-        # HGS-CVRP crashes if distance_matrix has inf values
-        distance_matrix = weights.clip(max=2*w_max)
+        # HGS-CVRP crashes if distance_matrix has inf values, but there must
+        # be a strong incentive to choose A edges only. (5× is arbitrary)
+        distance_matrix = weights.clip(max=5*w_max)
     else:
         distance_matrix = weights
     data = dict(
         x_coordinates=VertexCmod[0],
         y_coordinates=VertexCmod[1],
-        # HGS-CVRP crashes if distance_matrix has inf values
         distance_matrix=distance_matrix,
         service_times=np.zeros(N + M),
         demands=demands,
