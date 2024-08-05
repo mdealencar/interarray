@@ -11,15 +11,17 @@ from .geometric import (
 
 
 def get_interferences_list(Edge: np.ndarray, VertexC: np.ndarray,
-                          fnT: np.ndarray | None = None,
-                          EPSILON=1e-15) -> list:
+                           fnT: np.ndarray | None = None,
+                           EPSILON=1e-15) -> list:
     '''
     List all crossings between edges in the `Edge` (E×2) numpy array.
-    `Edge` must contain indices to VertexC (i.e. translate via `fnT[]` if
-    graph uses detour nodes).
     Coordinates must be provided in the `VertexC` (V×2) array.
 
-    Used when edges are not limited to the expanded Delaunay set.
+    `Edge` contains indices to VertexC. If `Edge` includes detour nodes
+    (i.e. indices go beyond `VertexC`'s length), `fnT` translation table
+    must be provided.
+
+    Should be used when edges are not limited to the expanded Delaunay set.
     '''
     crossings = []
     if fnT is None:
