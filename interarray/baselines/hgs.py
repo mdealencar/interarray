@@ -36,7 +36,9 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         `vehicles`: number of vehicles (if None, use the minimum feasible)
     '''
     G = nx.create_empty_copy(G_base)
-    M = G.graph['M']
+    M, N, B, VertexC, border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in ('M', 'N', 'B', 'VertexC', 'border',
+                                 'exclusions', 'landscape_angle'))
     assert M == 1, 'ERROR: only single depot supported'
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
@@ -61,8 +63,6 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         # nbIter=2000,  # max iterations without improvement (20,000)
     )
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    VertexC = G.graph['VertexC']
-    N = VertexC.shape[0] - M
     VertexCmod = np.c_[VertexC[-M:].T, VertexC[:N].T]*scale
     # data preparation
     # Distance_matrix may be provided instead of coordinates, or in addition to
@@ -71,7 +71,10 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     demands = np.ones(N + M, dtype=float)
     demands[0] = 0.  # depot demand = 0
     weights, w_max = length_matrix_single_depot_from_G(A or G, scale)
-    d2roots = G.graph.get('d2roots')
+    if A is not None:
+        d2roots = A.graph.get('d2roots')
+    else:
+        d2roots = G.graph.get('d2roots')
     if d2roots is None:
         d2roots = weights[0, 1:, None].copy()/scale
         G.graph['d2roots'] = d2roots
@@ -123,7 +126,8 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     if nonAedges:
         G.graph['nonAedges'] = nonAedges
     else:
-        PathFinder(G).create_detours(in_place=True)
+        pass
+        #  PathFinder(G).create_detours(in_place=True)
     G.graph.update(
         capacity=capacity,
         undetoured_length=result.cost/scale,

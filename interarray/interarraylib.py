@@ -186,11 +186,7 @@ def calcload(G):
     attribute (keys 'subtree' and 'load', respectively). Also the edges'
     'load' attributes are updated accordingly.
     '''
-    M = G.graph['M']
-    N = G.number_of_nodes() - M
-    D = G.graph.get('D')
-    if D is not None:
-        N -= D
+    M, N = (G.graph.get(k) for k in ('M', 'N'))
     roots = range(-M, 0)
     for node, data in G.nodes(data=True):
         if 'load' in data:

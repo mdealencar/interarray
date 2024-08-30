@@ -12,7 +12,7 @@ from matplotlib.patches import Polygon
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from .geometric import make_graph_metrics, rotate
-from .interarraylib import calcload
+from .interarraylib import calcload, NodeTagger
 
 
 FONTSIZE_LABEL = 6
@@ -25,6 +25,8 @@ NODESIZE_LABELED = 70
 NODESIZE_LABELED_ROOT = 28
 NODESIZE_DETOUR = 80
 NODESIZE_LABELED_DETOUR = 150
+
+F = NodeTagger()
 
 
 class LayoutPlotter():
@@ -318,15 +320,16 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
         blit=blit)
     if use_apng2gif:
         print('apng2gif is disabled in the source code.')
-        # fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
-                # f'{G.graph["capacity"]}.apng'
+        #  fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
+        #          f'{G.graph["capacity"]}.apng'
         # from numpngw import AnimatedPNGWriter
         # writer = AnimatedPNGWriter(fps=1000/interval)
-        # anim.save(workpath + fname, writer=writer,
-                  # savefig_kwargs=savefig_kwargs)
-        # subprocess.run(['apng2gif', workpath + fname, savepath + fname[:-4] + 'gif'])
-        # if remove_apng:
-            # os.remove(workpath + fname)
+        #  anim.save(workpath + fname, writer=writer,
+        #            savefig_kwargs=savefig_kwargs)
+        #  subprocess.run(['apng2gif', workpath + fname, savepath + fname[:-4]
+        #                    + 'gif'])
+        #  if remove_apng:
+        #      os.remove(workpath + fname)
     else:
         fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
                 f'{G.graph["capacity"]}.gif'
@@ -357,6 +360,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
+        corner_delaunay='solid',
+        corner_extended='dashed',
         unspecified='solid',
     )
     if dark:
@@ -365,6 +370,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            corner_delaunay='green',
+            corner_extended='green',
             extended='darkcyan',
             unspecified='crimson',
         )
@@ -379,6 +386,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
+            corner_delaunay='darkgreen',
+            corner_extended='darkgreen',
             extended='black',
             unspecified='firebrick',
         )
@@ -388,21 +397,16 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         polygon_edge = '#444444'
         polygon_face = 'whitesmoke'
 
-    landscape_angle = G.graph.get('landscape_angle')
+    M, N, B, D, VertexC, border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+                                 'exclusions', 'landscape_angle'))
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
-        VertexC = rotate(G.graph['VertexC'], landscape_angle)
-    else:
-        VertexC = G.graph['VertexC']
-    M = G.graph['M']
-    N = VertexC.shape[0] - M
-    D = G.graph.get('D')
+        VertexC = rotate(VertexC, landscape_angle)
 
     # draw farm boundary
-    if 'boundary' in G.graph:
-        BoundaryC = (rotate(G.graph['boundary'], landscape_angle)
-                     if landscape and landscape_angle else
-                     G.graph['boundary'])
+    if border is not None:
+        BoundaryC = VertexC[border]
         if ax is None and not dark:
             limX, limY = figlims
             r = limX/limY
@@ -432,9 +436,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     pos = dict(zip(range(N), VertexC[:N])) | dict(zip(roots, VertexC[-M:]))
     if D is not None:
         fnT = G.graph.get('fnT')
-        detour = range(N, N + D)
+        detour = range(N + B, N + B + D)
         pos |= dict(zip(detour, VertexC[fnT[detour]]))
-    RootL = {r: G.nodes[r]['label'] for r in roots[::-1]}
+    RootL = {r: G.nodes[r].get('label', F[r]) for r in roots[::-1]}
 
     colors = plt.get_cmap('tab20', 20).colors
     # default value for subtree (i.e. color for unconnected nodes)
@@ -484,6 +488,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             for det in detour:
                 if det in labels:
                     labels.pop(det)
+        for n in range(N):
+            if n not in labels:
+                labels[n] = F[n]
         nx.draw_networkx_labels(G, pos, ax=ax, font_size=font_size[node_tag],
                                 labels=labels)
     # root nodes' labels

@@ -13,12 +13,12 @@ import networkx as nx
 import numpy as np
 from scipy.sparse import coo_array
 from scipy.sparse.csgraph import minimum_spanning_tree as scipy_mst
-from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
 
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .utils import NodeStr, NodeTagger
+from .mesh import delaunay
 
 F = NodeTagger()
 
@@ -377,239 +377,6 @@ def edge_crossings(s, t, G, diagonals, P):
     return [edge for edge in crossings if edge in G.edges]
 
 
-def make_planar_embedding(
-        M: int, VertexC: np.ndarray, BoundaryC: np.ndarray | None = None,
-        max_tri_AR: float = MAX_TRIANGLE_ASPECT_RATIO) -> \
-        tuple[nx.Graph, dict[tuple[int, int], int]]:
-    V = VertexC.shape[0]
-    N = V - M
-    SwappedVertexC = np.vstack((VertexC[-M:], VertexC[:N]))
-    tri = Delaunay(SwappedVertexC)
-
-    NULL = np.iinfo(tri.simplices.dtype).min
-    mat = np.full((V, V), NULL, dtype=tri.simplices.dtype)
-
-    S = tri.simplices - M
-    # simplices (i.e. triangles) are oriented ccw
-    # mat[u, v] returns the next ccw vertice following v
-    mat[S[:, 0], S[:, 1]] = S[:, 2]
-    mat[S[:, 1], S[:, 2]] = S[:, 0]
-    mat[S[:, 2], S[:, 0]] = S[:, 1]
-    del S
-
-    # Delaunay() produces a convex hull, but it is edge-based and unordered.
-    # Use that to make an array of nodes defining the convex hull in ccw order.
-    # this will make all hull_edges point ccw
-    hull_edges = np.array(
-        [(u, v) if mat[v, u] == NULL else (v, u)
-         for u, v in (tri.convex_hull - M)],
-        dtype=[('src', int), ('dst', int)])
-    hull_edges.sort(order='src')
-    cur = start = hull_edges['src'][0]
-    next = hull_edges['dst'][0]
-    hull_vertices = [cur]
-    while next != start:
-        cur = next
-        next = hull_edges['dst'][hull_edges['src'].searchsorted(cur)]
-        hull_vertices.append(cur)
-
-    # getting rid of nearly flat Delaunay triangles
-    # qhull (used by scipy) seems not able to do it
-    # reference: http://www.qhull.org/html/qh-faq.htm#flat
-    hull_stack = hull_vertices[0:1] + hull_vertices[::-1]
-    u, v = hull_vertices[-1], hull_stack.pop()
-    hull_prunned = []
-    while hull_stack:
-        t = mat[u, v]
-        AR = triangle_AR(*VertexC[(u, v, t),])
-        # TODO: document this relaxation of max_tri_AR for root nodes
-        #       (i.e. when considering root nodes, be less strict with AR)
-        if AR <= max_tri_AR or (min(u, v, t) < 0 and AR < 50*max_tri_AR):
-            hull_prunned.append(v)
-            u = v
-            v = hull_stack.pop()
-        else:
-            mat[u, v] = mat[v, t] = mat[t, u] = NULL
-            hull_stack.append(v)
-            v = t
-
-    # prevent edges that cross the boudaries from going into PlanarEmbedding
-    # an exception is made for edges that include a root node
-    hull_concave = []
-    if BoundaryC is not None:
-        singled_nodes = {}
-        hull_prunned_poly = shp.Polygon(VertexC[hull_prunned])
-        shp.prepare(hull_prunned_poly)
-        bound_poly = shp.Polygon(BoundaryC)
-        shp.prepare(bound_poly)
-        if not bound_poly.covers(hull_prunned_poly):
-            hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
-            u, v = hull_prunned[-1], hull_stack.pop()
-            while hull_stack:
-                edge_line = shp.LineString(VertexC[[u, v]])
-                if (u >= 0 and v >= 0
-                        and not bound_poly.covers(edge_line)):
-                    t = mat[u, v]
-                    if t == NULL:
-                        # degenerate case 1
-                        singled_nodes[v] = u
-                        hull_concave.append(v)
-                        t = v
-                        v = u
-                        u = t
-                        continue
-                    mat[u, v] = mat[v, t] = mat[t, u] = NULL
-                    if t in hull_prunned:
-                        # degenerate case 2
-                        if t == hull_concave[-2]:
-                            singled_nodes[u] = t
-                        else:
-                            singled_nodes[v] = t
-                        hull_concave.append(t)
-                        u = t
-                        continue
-                    hull_stack.append(v)
-                    v = t
-                else:
-                    hull_concave.append(v)
-                    u = v
-                    v = hull_stack.pop()
-    if not hull_concave:
-        hull_concave = hull_prunned
-
-    # find the hull for non-root nodes only
-    hull_stack = hull_concave[2:0:-1] + hull_concave[::-1]
-    u, v = hull_concave[-1], hull_stack.pop()
-    hull_nonroot = []
-    while len(hull_stack) > 1:
-        if v < 0:
-            # v is a root
-            s = hull_stack[-1]
-            if ((np.cross(VertexC[s] - VertexC[v],
-                          VertexC[v] - VertexC[u]) < 0)
-                or (BoundaryC is not None
-                    and not bound_poly.covers(shp.Point(VertexC[v])))):
-                # This root should not be inside hull_nonroot. Either the
-                # angle at v is > π or the root is outside the boundary.
-                # This segment of hull_nonroot follows v's neighbors.
-                while True:
-                    u = mat[u, v]
-                    if u < 0:
-                        # TODO: handle this case
-                        raise NotImplementedError(
-                            "2 roots are Delaunay neighbors and hull+nonhull."
-                        )
-                    if u == s:
-                        u = hull_nonroot[-1]
-                        break
-                    hull_nonroot.append(u)
-            else:
-                # 〈u, v, s〉 is not convex
-                u = v
-                hull_nonroot.append(v)
-        else:
-            # v is not a root
-            u = v
-            hull_nonroot.append(v)
-        v = hull_stack.pop()
-
-    planar = nx.PlanarEmbedding(hull=hull_vertices,
-                                hull_prunned=hull_prunned,
-                                hull_concave=hull_concave,
-                                hull_nonroot=hull_nonroot)
-    planar.add_nodes_from(range(-M, N))
-    # add planar embedding half-edges, using
-    # Delaunay triangles (vertices in ccw order)
-    # triangles are stored in `mat`
-    # i.e. mat[u, v] == t if u, v, t are vertices
-    # of a triangle in ccw order
-    # for u, next_ in enumerate(mat, start=-M):
-
-    # diagonals store a diagonal edge ⟨s, t⟩ as key (s < t) mapped to the
-    # reference node `v` that belongs to the delaunay edge ⟨u, v⟩ that crosses
-    # ⟨s, t⟩; to add a  diagonal to a PlanarEmbedding use these two lines:
-    #     PlanarEmbedding.add_half_edge(s, t, cw=v)
-    #     PlanarEmbedding.add_half_edge(t, s, ccw=v)
-    # to find u, one can use:
-    #     _, u = PlanarEmbedding.next_face_half_edge(v, s)
-    # or:
-    #     u = PlanarEmbedding[v][s]['cw']
-    diagonals = {}
-    for u, next_ in zip(chain(range(N), range(-M, 0)), mat):
-        # first rotate ccw, so next_ is a row
-        # get any of node's edge
-        # argmax() of boolean may use shortcircuiting logic
-        # which means it would stop searching on the first True
-        first = (next_ >= -M).argmax()
-        if first == 0 and next_[0] == NULL:
-            # degenerate case
-            v = singled_nodes[u]
-            #  print('degenerate:', F[u], F[v])
-            planar.add_half_edge(u, v)
-            continue
-        first = first % N - M*(first//N)
-        v = first
-        back = mat[v, u]
-        fwd = next_[v]
-        planar.add_half_edge(u, v)
-        if back != NULL and fwd != NULL:
-            uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
-            s, t = (back, fwd) if back < fwd else (fwd, back)
-            if ((s, t) not in diagonals
-                    and triangle_AR(fwdC, uC, backC) < max_tri_AR
-                    and triangle_AR(fwdC, vC, backC) < max_tri_AR
-                    and is_triangle_pair_a_convex_quadrilateral(uC, vC, backC,
-                                                                fwdC)):
-                diagonals[(s, t)] = v if s == back else u
-        # start by circling vertex u in ccw direction
-        ref = 'cw'
-        ccw = True
-        # when fwd == first, all triangles around vertex u have been visited
-        while fwd != first:
-            if fwd != NULL:
-                back = v
-                v = fwd
-                fwd = next_[v]
-                planar.add_half_edge(u, v, **{ref: back})
-                if fwd != NULL:
-                    uC, vC, fwdC, backC = VertexC[(u, v, fwd, back),]
-                    s, t = (back, fwd) if back < fwd else (fwd, back)
-                    if ((s, t) not in diagonals
-                            and triangle_AR(fwdC, uC, backC) < max_tri_AR
-                            and triangle_AR(fwdC, vC, backC) < max_tri_AR
-                            and is_triangle_pair_a_convex_quadrilateral(
-                                uC, vC, backC, fwdC)):
-                        if ccw:
-                            diagonals[(s, t)] = v if s == back else u
-                        else:
-                            diagonals[(s, t)] = u if s == back else v
-            elif ccw:
-                # ccw direction reached the convex hull
-                # start from first again in cw direction
-                ref = 'ccw'
-                ccw = False
-                # when going cw, next_ is a column
-                next_ = mat[:, u]
-                back = mat[u, first]
-                v = first
-                fwd = next_[v]
-            else:
-                # cw direction ended at the convex hull
-                break
-    if BoundaryC is not None:
-        # add the other half-edge for degenerate cases
-        for u, v in singled_nodes.items():
-            if (u, v) in planar.edges:
-                uI = hull_concave.index(u)
-                planar.add_half_edge(v, u, cw=hull_concave[uI - 2])
-            else:
-                planar.add_half_edge(u, v)
-    del mat
-    # raise an exception if `planar` is not proper:
-    planar.check_structure()
-    return planar, diagonals
-
-
 def perimeter(VertexC, vertices_ordered):
     '''
     `vertices_ordered` represent indices of `VertexC` in clockwise or counter-
@@ -619,90 +386,6 @@ def perimeter(VertexC, vertices_ordered):
     return (np.hypot(*vec.T).sum()
             + np.hypot(*(VertexC[vertices_ordered[-1]]
                          - VertexC[vertices_ordered[0]])))
-
-
-def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
-             max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
-    """Create a new networkx.Graph from the Delaunay triangulation of the
-    coordinate positions of the vertices in `G_base`. Each edge gets an
-    attribute `length` that is the euclidean distance between its vertices.
-
-    If `G` does not have a `relax_boundary` attribute, it is assumed False.
-    """
-    M = G_base.graph['M']
-    VertexC = G_base.graph['VertexC']
-    N = VertexC.shape[0] - M
-    relax_boundary = G_base.graph.get('relax_boundary', False)
-    BoundaryC = None if relax_boundary else G_base.graph.get('boundary', None)
-
-    planar, diagonals = make_planar_embedding(
-        M, VertexC, BoundaryC=BoundaryC, max_tri_AR=max_tri_AR)
-
-    # undirected Delaunay edge view
-    undirected = planar.to_undirected(as_view=True)
-
-    # build the undirected graph
-    A = nx.Graph()
-    A.add_nodes_from(((n, {'label': label})
-                      for n, label in G_base.nodes(data='label')
-                      if 0 <= n < N), type='wtg')
-    for r in range(-M, 0):
-        A.add_node(r, label=G_base.nodes[r]['label'], type='oss')
-    A.add_edges_from(undirected.edges, type='delaunay')
-    E_planar = np.array(undirected.edges, dtype=int)
-    Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
-    for (u, v), length in zip(E_planar, Length):
-        A[u][v]['length'] = length
-    if add_diagonals:
-        diagnodes = np.empty((len(diagonals), 2), dtype=int)
-        for row, uv in zip(diagnodes, diagonals):
-            row[:] = uv
-        A.add_edges_from(diagonals, type='extended')
-        # the reference vertex `v` that `diagonals` carries
-        # could be stored as edge ⟨s, t⟩'s property (that
-        # property would also mark the edge as a diagonal)
-        Length = np.hypot(*(VertexC[diagnodes[:, 0]]
-                            - VertexC[diagnodes[:, 1]]).T)
-        for (u, v), length in zip(diagnodes, Length):
-            A[u][v]['length'] = length
-
-    d2roots = G_base.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
-    if bind2root:
-        for n, n_root in G_base.nodes(data='root'):
-            A.nodes[n]['root'] = n_root
-        # alternatively, if G_base nodes do not have 'root' attr:
-        #  for n, nodeD in A.nodes(data=True):
-        #      nodeD['root'] = -M + np.argmin(d2roots[n])
-        # assign each edge to the root closest to the edge's middle point
-        for u, v, edgeD in A.edges(data=True):
-            edgeD['root'] = -M + np.argmin(
-                    cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
-                          VertexC[-M:]))
-    A.graph.update(M=M,
-                   VertexC=VertexC,
-                   planar=planar,
-                   d2roots=d2roots,
-                   diagonals=diagonals,
-                   hull=planar.graph['hull'],
-                   landscape_angle=G_base.graph.get('landscape_angle', 0),
-                   boundary=G_base.graph['boundary'],
-                   name=G_base.graph['name'],
-                   handle=G_base.graph['handle'])
-
-    # TODO: update other code that uses the data below
-    # old version of delaunay() also stored these:
-    # save the convex hull node set
-    # G.graph['N_hull'] = N_hull  # only in geometric.py
-    # save the convex hull edge set
-    # G.graph['E_hull'] = E_hull  # only in geometric.py
-
-    # these two are more important, as they are used in EW
-    # variants that do crossing checks (calls to `edge_crossings()`)
-    # G.graph['triangles'] = triangles
-    # G.graph['triangles_exp'] = triangles_exp
-    return A
 
 
 def make_graph_metrics(G):
@@ -851,67 +534,6 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
     return A
 
 
-def planar_over_layout(G: nx.Graph):
-    '''
-    Return a PlanarEmbedding of a triangulation of the nodes in G, provided
-    G has been created using the extended Delaunay edges.
-
-    If `G` does not have a `relax_boundary` attribute, it is assumed True.
-
-    The returned PlanarEmbedding differs from the output of
-    `make_planar_embedding()` in that it takes into account the actual edges
-    used in G (i.e. used diagonals will be included in the planar graph to the
-    exclusion of Delaunay edges that cross them).
-    '''
-    M = G.graph['M']
-    VertexC = G.graph['VertexC']
-    BoundaryC = G.graph.get('boundary')
-    relax_boundary = G.graph.get('relax_boundary', True)
-    P_base, diagonals_base = make_planar_embedding(
-            M, VertexC, BoundaryC=None if relax_boundary else BoundaryC)
-    P = P_base.copy()
-    diagonals = diagonals_base.copy()
-    for r in range(-M, 0):
-        #  for u, v in nx.edge_dfs(G, r):
-        for u, v in nx.edge_bfs(G, r):
-            # update the planar embedding to include any Delaunay diagonals
-            # used in G; the corresponding crossing Delaunay edge is removed
-            u, v = (u, v) if u < v else (v, u)
-            s = diagonals_base.get((u, v))
-            if s is not None:
-                t = P_base[u][s]['ccw']  # same as P[v][s]['cw']
-                if (s, t) in G.edges and s >= 0 and t >= 0:
-                    # (u, v) & (s, t) are in G (i.e. a crossing). This means
-                    # the diagonal (u, v) is a gate and (s, t) should remain
-                    continue
-                # examine the two triangles (s, t) belongs to
-                crossings = False
-                for a, b, c in ((s, t, u), (t, s, v)):
-                    # this is for diagonals crossing diagonals
-                    d = P_base[c][b]['ccw']
-                    diag_da = (a, d) if a < d else (d, a)
-                    if (d == P_base[b][c]['cw']
-                            and diag_da in diagonals_base
-                            and diag_da[0] >= 0):
-                        crossings = crossings or diag_da in G.edges
-                    e = P_base[a][c]['ccw']
-                    diag_eb = (e, b) if e < b else (b, e)
-                    if (e == P_base[c][a]['cw']
-                            and diag_eb in diagonals_base
-                            and diag_eb[0] >= 0):
-                        crossings = crossings or diag_eb in G.edges
-                if crossings:
-                    continue
-                P.add_half_edge(u, v, ccw=t)
-                P.add_half_edge(v, u, ccw=s)
-                P.remove_edge(s, t)
-                del diagonals[u, v]
-                s, t, v = (s, t, v) if s < t else (t, s, u)
-                diagonals[s, t] = v
-    P.graph['diagonals'] = diagonals
-    return P
-
-
 def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     '''Return a graph of the minimum spanning tree connecting the node in G.'''
     M = G.graph['M']
@@ -1000,6 +622,7 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                 crossings.append(((w,  x), (ref, n2test)))
                 return True
 
+    # TODO: check crossings among edges connected to different roots
     for root in roots:
         # edges = list(nx.edge_dfs(G, source=root))
         edges = list(nx.edge_bfs(G, source=root))
@@ -1007,8 +630,11 @@ def check_crossings(G, debug=False, MARGIN=0.1):
         # print(outstr)
         potential = []
         for i, (u, v) in enumerate(edges):
+            u_, v_ = fnT[u], fnT[v]
             for s, t in edges[(i + 1):]:
-                if s == u or s == v:
+                s_, t_ = fnT[s], fnT[t]
+                if s_ == u_ or s_ == v_ or t_ == u_ or t_ == v_:
+                    # no crossing if the two edges share a vertex
                     continue
                 uvst = np.array((u, v, s, t), dtype=int)
                 if is_crossing(*AllnodesC[uvst], touch_is_cross=True):
@@ -1045,6 +671,10 @@ def check_crossings(G, debug=False, MARGIN=0.1):
                                 check_neighbors(neighbors, w, x, (pivot,))):
                             pivot_plus_edge.append(entry)
                     elif close_count == 2:
+                        # TODO: This case probably never happens, remove it.
+                        #       This would only happen for coincident vertices,
+                        #       which might have been possible in the past.
+                        print('&&&&& close_count = 2 &&&&&')
                         # (u, v) and (s, t) touch node-to-node
                         touch_uv, touch_st = uvst[np.flatnonzero(nearmask)]
                         free_uv, free_st = uvst[np.flatnonzero(~nearmask)]

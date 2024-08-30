@@ -28,10 +28,8 @@ def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
     L, len_max:
         Matrix of lengths and maximum length value (below +inf).
     """
-    M = G.graph['M']
+    M, N, VertexC = (G.graph.get(k) for k in ('M', 'N', 'VertexC'))
     assert M == 1, 'ERROR: only single depot supported'
-    VertexC = G.graph['VertexC']
-    N = VertexC.shape[0] - M
     if G.number_of_edges() == 0:
         # bring depot to before the clients
         VertexCmod = np.r_[VertexC[-M:], VertexC[:N]]
@@ -48,7 +46,7 @@ def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
         for u, v, length in G.edges(data='length'):
             L[u + 1, v + 1] = L[v + 1, u + 1] = length*scale
             len_max = max(len_max, length)
-        L[0, 1:] = d2roots[:, 0]*scale
+        L[0, 1:] = d2roots[:N, 0]*scale
         len_max *= scale
     # make return to depot always free
     L[:, 0] = 0.

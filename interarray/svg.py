@@ -34,9 +34,14 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     margin = 30
     root_side = round(1.77*node_size)
     # TODO: ¿use SVG's attr overflow="visible" instead of margin?
-    VertexC = G.graph['VertexC']
-    BoundaryC = G.graph.get('boundary')
-    if BoundaryC is None:
+    M, N, B, D, VertexC, border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+                                 'exclusions', 'landscape_angle'))
+    if landscape and landscape_angle:
+        # landscape_angle is not None and not 0
+        VertexC = rotate(VertexC, landscape_angle)
+    B = B or 0
+    if border is None:
         hull = G.graph.get('hull')
         if hull is not None:
             BoundaryC = VertexC[hull]
@@ -44,17 +49,15 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             import shapely as shp
             BoundaryC = np.array(tuple(zip(*shp.MultiPoint(
                 G.graph['VertexC']).convex_hull.exterior.coords.xy))[:-1])
-    landscape_angle = G.graph.get('landscape_angle')
-    if landscape and landscape_angle:
-        # landscape_angle is not None and not 0
-        VertexC = rotate(VertexC, landscape_angle)
-        BoundaryC = rotate(BoundaryC, landscape_angle)
+    else:
+        BoundaryC = VertexC[border]
 
     # viewport scaling
-    Woff = min(VertexC[:, 0].min(), BoundaryC[:, 0].min())
-    W = max(VertexC[:, 0].max(), BoundaryC[:, 0].max()) - Woff
-    Hoff = min(VertexC[:, 1].min(), BoundaryC[:, 1].min())
-    H = max(VertexC[:, 1].max(), BoundaryC[:, 1].max()) - Hoff
+    idx_B = N + B
+    Woff = min(VertexC[:idx_B, 0].min(), VertexC[-M:, 0].min())
+    W = max(VertexC[:idx_B, 0].max(), VertexC[-M:, 0].max()) - Woff
+    Hoff = min(VertexC[:idx_B, 1].min(), VertexC[-M:, 1].min())
+    H = max(VertexC[:idx_B, 1].max(), VertexC[-M:, 1].max()) - Hoff
     wr = (w - 2*margin)/W
     hr = (h - 2*margin)/H
     if wr/hr < w/h:
@@ -79,6 +82,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
+        corner_delaunay='solid',
+        corner_extended='dashed',
         unspecified='solid',
     )
     if dark:
@@ -86,6 +91,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            corner_delaunay='green',
+            corner_extended='green',
             extended='darkcyan',
             unspecified='crimson',
         )
@@ -93,12 +100,14 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         node_edge = 'none'
         detour_ring = 'orange'
         polygon_edge = '#333'
-        polygon_face = '#080808'
+        polygon_face = '#111111'
     else:
         type2color.update(
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
+            corner_delaunay='darkgreen',
+            corner_extended='darkgreen',
             extended='black',
             unspecified='firebrick',
         )
@@ -113,8 +122,6 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
               '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f',
               '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5')
 
-    M = G.graph['M']
-    N = VertexC.shape[0] - M
     D = G.graph.get('D', 0)
     if D:
         fnT = G.graph['fnT']
@@ -158,6 +165,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
 
     # Edges
     class_dict = {'delaunay': 'del',
+                  'corner_delaunay': 'cord',
+                  'corner_extended': 'core',
                   'extended': 'ext',
                   'scaffold': 'scf',
                   None: 'std'}
@@ -176,7 +185,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
     for r in range(-M, 0):
-        detoured = [n for n in G.neighbors(r) if n >= N]
+        detoured = [n for n in G.neighbors(r) if n >= N + B]
         for t in detoured:
             s = r
             detour_hops = [s, fnT[t]]
@@ -216,6 +225,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         f'line {{stroke-width: 4}} '
         f'.std {{stroke: {type2color["unspecified"]}}} '
         f'.del {{stroke: {type2color["delaunay"]}}} '
+        f'.cord {{stroke: {type2color["corner_delaunay"]}}} '
+        f'.core {{stroke: {type2color["corner_extended"]}; stroke-dasharray: 18 15}} '
         f'.ext {{stroke: {type2color["extended"]}; stroke-dasharray: 18 15}} '
         f'.scf {{stroke: {type2color["scaffold"]}; stroke-dasharray: 10 10}} '
         f'.dt {{stroke-dasharray: 18 15; fill: none; '

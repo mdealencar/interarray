@@ -13,7 +13,8 @@ import numpy as np
 from loguru import logger
 
 from .crossings import gateXing_iter
-from .geometric import planar_over_layout, rotate
+from .mesh import planar_flipped_by_routeset
+from .geometric import rotate
 from .interarraylib import bfs_subtree_loads
 from .utils import NodeStr, NodeTagger
 from .plotting import gplot, scaffolded
@@ -96,21 +97,22 @@ class PathFinder():
     H = PathFinder(G).create_detours()
     '''
 
-    def __init__(self, G: nx.Graph, branching: bool = True,
-                 only_if_crossings: bool = True):
-        M = G.graph['M']
-        VertexC = G.graph['VertexC']
+    def __init__(self, G: nx.Graph, *,
+                 planar: nx.PlanarEmbedding,
+                 branching: bool = True,
+                 only_if_crossings: bool = True) -> None:
+        M, N, B, VertexC = (G.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
         self.VertexC = VertexC
-        N = VertexC.shape[0] - M
 
         # this is just for facilitating printing debug messages
         allnodes = np.arange(N + M)
         allnodes[-M:] = range(-M, 0)
         self.n2s = NodeStr(allnodes, N)
 
-        info('BEGIN pathfinding on "{}" (#wtg = {})', G.graph['name'], N)
-        P = G.graph.get('planar') or planar_over_layout(G)
-        self.G, self.P, self.M, self.N = G, P, M, N
+        info('BEGIN pathfinding on "{}" (#wtg = {})',
+             G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
+        P = planar_flipped_by_routeset(G, planar=planar)
+        self.G, self.P, self.M, self.N, self.B = G, P, M, N, B
         # sets of gates (one per root) that are not in the planar embedding
         nonembed_Gates = tuple(
             np.fromiter(set(G.neighbors(r)) - set(P.neighbors(r)), dtype=int)
@@ -121,6 +123,11 @@ class PathFinder():
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
+
+        # TODO: DELETE THIS
+        self.Xings = []
+        return
+
         Xings = list(gateXing_iter(G, gates=nonembed_Gates))
         self.Xings = Xings
         if not Xings and only_if_crossings:
@@ -253,7 +260,6 @@ class PathFinder():
         # for next_left, next_right, new_portal_iter in portal_iter:
         for portal, side, new_portal_iter in portal_iter:
             #  print('[tra]')
-            _new = portal[side]
             if new_portal_iter is not None:
                 # spawn a branched traverser
                 #  print(f'new channel {self.n2s(_apex, *_funnel)} -> '
@@ -263,6 +269,7 @@ class PathFinder():
                         new_portal_iter)
                 self.bifurcation = branched_traverser
 
+            _new = portal[side]
             _nearside = _funnel[side]
             _farside = _funnel[not side]
             test = ccw if side else cw
@@ -331,7 +338,7 @@ class PathFinder():
 
     def _find_paths(self):
         #  print('[exp] starting _explore()')
-        G, P, M = self.G, self.P, self.M
+        G, P, M, N = self.G, self.P, self.M, self.N
         d2roots = G.graph['d2roots']
         d2rootsRank = G.graph['d2rootsRank']
         prioqueue = []
@@ -348,6 +355,9 @@ class PathFinder():
         portal_set = set()
         for i, (u, v) in enumerate(P.to_undirected(as_view=True).edges
                                    - G.edges):
+            if u >= N and v >= N:
+                # constraint edge -> not a portal
+                continue
             portal_set.add((u, v) if u < v else (v, u))
         self.portal_set = portal_set
 
@@ -516,6 +526,7 @@ class PathFinder():
 
         clone2prime = []
         D = 0
+        O = N + number_of_auxiliary_nodes
         subtree_map = G.nodes(data='subtree')
         paths = self.paths
         I_path = self.I_path
@@ -567,7 +578,7 @@ class PathFinder():
                 error('no path found for {}-{}', F[r], F[n])
                 continue
             Dinc = len(path) - 2
-            Clone = list(range(N + D, N + D + Dinc))
+            Clone = list(range(O + D, O + D + Dinc))
             clone2prime.extend(path[1:-1])
             D += Dinc
             G.add_nodes_from(((c, {'label': F[c],
@@ -614,8 +625,8 @@ class PathFinder():
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
 
-        fnT = np.arange(N + D + M)
-        fnT[N: N + D] = clone2prime
+        fnT = np.arange(O + D + M)
+        fnT[O: O + D] = clone2prime
         fnT[-M:] = range(-M, 0)
         G.graph.update(D=D, fnT=fnT)
         return None if in_place else G
@@ -645,7 +656,7 @@ class PathSeeker():
         self.n2s = NodeStr(allnodes, N)
 
         info('BEGIN pathfinding on "{}" (#wtg = {})', G.graph['name'], N)
-        P = G.graph.get('planar') or planar_over_layout(G)
+        P = planar_flipped_by_routeset(G, planar=planar)
         self.G, self.P, self.M, self.N = G, P, M, N
         # sets of gates (one per root) that are not in the planar embedding
         nonembed_Gates = tuple(
