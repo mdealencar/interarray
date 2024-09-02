@@ -40,10 +40,9 @@ def make_edge_listing(A: nx.Graph, scale: float) -> str:
         ))
 
 
-def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
-              A: nx.Graph | None, scale: float = 1e4,
-              vehicles: int | None = None, runs: int = 50,
-              per_run_limit: float = 15.) -> nx.Graph:
+def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
+              scale: float = 1e4, vehicles: int | None = None,
+              runs: int = 50, per_run_limit: float = 15.) -> nx.Graph:
     '''
     Lin-Kernighan-Helsgaun via LKH-3 binary.
     Asymmetric Capacitated Vehicle Routing Problem.
@@ -58,22 +57,21 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
         `runs`: consult LKH manual
         `per_run_limit`: consult LKH manual
     '''
-    G = nx.create_empty_copy(G_base)
-    M = G.graph['M']
+    M, N, B, VertexC = (
+        A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
     assert M == 1, 'LKH allows only 1 depot'
+    G = nx.create_empty_copy(A)
     problem_fname = 'problem.txt'
     params_fname = 'params.txt'
     edge_fname = 'edge_file.txt'
-    VertexC = G.graph['VertexC']
-    N = VertexC.shape[0] - M
     w_saturation = np.iinfo(np.int32).max/1000
-    weights, w_max = length_matrix_single_depot_from_G(A or G, scale)
+    d2roots = A.graph.get('d2roots')
+    if d2roots is None:
+        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+        A.graph['d2roots'] = d2roots
+    weights, w_max = length_matrix_single_depot_from_G(A, scale=scale)
     assert w_max <= w_saturation, 'ERROR: weight values outside int32 range.'
     weights = weights.clip(max=w_saturation).round().astype(np.int32)
-    d2roots = G.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = weights[0, 1:, None].copy()/scale
-        G.graph['d2roots'] = d2roots
     if w_max > w_saturation:
         print('WARNING: at least one edge weight has been clipped.')
     #  weights = np.ones((N + M, N + M), dtype=int)
@@ -84,7 +82,7 @@ def lkh_acvrp(G_base: nx.Graph, *, capacity: int, time_limit: int,
     #  print(edge_weights)
     output_fname = 'solution.out'
     specs = dict(
-        NAME=G.graph.get('name', 'unnamed'),
+        NAME=A.graph.get('name', 'unnamed'),
         TYPE='ACVRP',  # maybe try asymmetric TSP: 'ATSP',
         # TYPE='ATSP',  # maybe try asymmetric capacitaded VRP: 'ACVRP',
         DIMENSION=N + M,  # CVRP number of nodes and depots

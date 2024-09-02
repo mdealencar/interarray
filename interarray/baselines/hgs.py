@@ -18,9 +18,8 @@ from . import length_matrix_single_depot_from_G
 #  F = NodeTagger()
 
 
-def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
-             A: nx.Graph | None, scale: float = 1e4,
-             vehicles: int | None = None) -> nx.Graph:
+def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: int,
+             scale: float = 1e4, vehicles: int | None = None) -> nx.Graph:
     '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
     library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
     Problems).
@@ -35,11 +34,10 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
         `scale`: factor to scale lengths
         `vehicles`: number of vehicles (if None, use the minimum feasible)
     '''
-    G = nx.create_empty_copy(G_base)
-    M, N, B, VertexC, border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'VertexC', 'border',
-                                 'exclusions', 'landscape_angle'))
+    M, N, B, VertexC = (
+        A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
     assert M == 1, 'ERROR: only single depot supported'
+    G = nx.create_empty_copy(A)
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
     # class AlgorithmParameters:
@@ -70,14 +68,11 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     # The additional coordinates will be helpful in speeding up the algorithm.
     demands = np.ones(N + M, dtype=float)
     demands[0] = 0.  # depot demand = 0
-    weights, w_max = length_matrix_single_depot_from_G(A or G, scale)
-    if A is not None:
-        d2roots = A.graph.get('d2roots')
-    else:
-        d2roots = G.graph.get('d2roots')
+    d2roots = A.graph.get('d2roots')
     if d2roots is None:
-        d2roots = weights[0, 1:, None].copy()/scale
-        G.graph['d2roots'] = d2roots
+        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+        A.graph['d2roots'] = d2roots
+    weights, w_max = length_matrix_single_depot_from_G(A, scale=scale)
     vehicles_min = math.ceil(N/capacity)
     if vehicles is None or vehicles <= vehicles_min:
         if vehicles is not None and vehicles < vehicles_min:
@@ -85,12 +80,9 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
                   f'with capacity ({capacity}). Setting to {vehicles_min}.')
         # set to minimum feasible vehicle number
         vehicles = vehicles_min
-    if A is not None:
-        # HGS-CVRP crashes if distance_matrix has inf values, but there must
-        # be a strong incentive to choose A edges only. (5× is arbitrary)
-        distance_matrix = weights.clip(max=5*w_max)
-    else:
-        distance_matrix = weights
+    # HGS-CVRP crashes if distance_matrix has inf values, but there must
+    # be a strong incentive to choose A edges only. (5× is arbitrary)
+    distance_matrix = weights.clip(max=5*w_max)
     data = dict(
         x_coordinates=VertexCmod[0],
         y_coordinates=VertexCmod[1],
@@ -108,7 +100,7 @@ def hgs_cvrp(G_base: nx.Graph, *, capacity: float, time_limit: int,
     for branch in result.routes:
         s = -1
         t = branch[0] - 1
-        G.add_edge(s, t, length=G.graph['d2roots'][t, s])
+        G.add_edge(s, t, length=d2roots[t, s])
         #  print(f'{F[s]}–{F[t]}', end='')
         s = t
         for t in branch[1:]:

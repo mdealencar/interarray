@@ -3,8 +3,9 @@ import networkx as nx
 from scipy.spatial.distance import cdist
 
 
-def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
-        -> tuple[np.ndarray, float]:
+def length_matrix_single_depot_from_G(
+        G: nx.Graph, *, scale: float
+        ) -> tuple[np.ndarray, float]:
     """Edge length matrix for VRP-based solvers.
     It is assumed that the problem has been pre-scaled, such that multiplying
     all lengths by `scale` will place them within a numerically stable range.
@@ -28,7 +29,8 @@ def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
     L, len_max:
         Matrix of lengths and maximum length value (below +inf).
     """
-    M, N, VertexC = (G.graph.get(k) for k in ('M', 'N', 'VertexC'))
+    M, N, VertexC, d2roots = (G.graph.get(k)
+                              for k in ('M', 'N', 'VertexC', 'd2roots'))
     assert M == 1, 'ERROR: only single depot supported'
     if G.number_of_edges() == 0:
         # bring depot to before the clients
@@ -36,10 +38,6 @@ def length_matrix_single_depot_from_G(G: nx.Graph, scale: float)\
         L = cdist(VertexCmod, VertexCmod)*scale
         len_max = L.max()
     else:
-        d2roots = G.graph.get('d2roots')
-        if d2roots is None:
-            d2roots = cdist(VertexC[:-M], VertexC[-M:])
-            G.graph['d2roots'] = d2roots
         # non-available edges will have infinite length
         L = np.full((N + M, N + M), np.inf)
         len_max = d2roots[:, 0].max()
