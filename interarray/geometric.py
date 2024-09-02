@@ -7,6 +7,7 @@ import operator
 from collections import defaultdict
 from itertools import chain, product
 from math import isclose
+from typing import Callable
 
 import shapely as shp
 import networkx as nx
@@ -18,7 +19,6 @@ from scipy.stats import rankdata
 
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .utils import NodeStr, NodeTagger
-from .mesh import delaunay
 
 F = NodeTagger()
 
@@ -506,34 +506,6 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     return G
 
 
-def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
-    '''
-    Return the "available edges" graph that is the base for edge search in
-    Esau-Williams. If `delaunay_based` is True, the edges are the expanded
-    Delaunay triangulation, otherwise a complete graph is returned.
-
-    This function is being kept for backward-compatibility. For the Delaunay
-    triangulation, call `delaunay()` directly.
-    '''
-    if delaunay_based:
-        A = delaunay(G_base)
-        if weightfun is not None:
-            apply_edge_exemptions(A)
-    else:
-        A = complete_graph(G_base, include_roots=True)
-        # intersections
-        # I = get_crossings_list(np.array(A.edges()), VertexC)
-
-    if weightfun is not None:
-        for u, v, data in A.edges(data=True):
-            data[weight_attr] = weightfun(data)
-
-    # remove all gates from A
-    # TODO: decide about this line
-    # A.remove_edges_from(list(A.edges(range(-M, 0))))
-    return A
-
-
 def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     '''Return a graph of the minimum spanning tree connecting the node in G.'''
     M = G.graph['M']
@@ -752,6 +724,31 @@ def check_crossings(G, debug=False, MARGIN=0.1):
     return crossings
 
 
+def rotation_checkers_factory(VertexC: np.ndarray) -> tuple[
+        Callable[[int, int, int], bool],
+        Callable[[int, int, int], bool]]:
+
+    def cw(A: int, B: int, C: int) -> bool:
+        """return
+            True: if A->B->C traverses the triangle ABC clockwise
+            False: otherwise"""
+        Ax, Ay = VertexC[A]
+        Bx, By = VertexC[B]
+        Cx, Cy = VertexC[C]
+        return (Bx - Ax) * (Cy - Ay) < (By - Ay) * (Cx - Ax)
+
+    def ccw(A: int, B: int, C: int) -> bool:
+        """return
+            True: if A->B->C traverses the triangle ABC counter-clockwise
+            False: otherwise"""
+        Ax, Ay = VertexC[B]
+        Bx, By = VertexC[A]
+        Cx, Cy = VertexC[C]
+        return (Bx - Ax) * (Cy - Ay) < (By - Ay) * (Cx - Ax)
+
+    return cw, ccw
+
+
 def rotating_calipers(convex_hull: np.ndarray) \
         -> tuple[np.ndarray, float, float, np.ndarray]:
     # inspired by:
@@ -816,7 +813,7 @@ def rotating_calipers(convex_hull: np.ndarray) \
     return best_calipers, best_caliper_angle, area_min, bbox
 
 
-def normalize_area(G_base: nx.Graph) -> nx.Graph:
+def normalize_area(G_base: nx.Graph, *, hull_nonroot: np.ndarray) -> nx.Graph:
     """
     Rescale graph's coordinates and distances such as to make the rootless
     concave hull of nodes enclose an area of 1.
@@ -826,7 +823,7 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     Graph attributes added/changed:
         'angle': original landscape_angle value
         'offset': values subtracted from coordinates (x, y) before scaling
-        'scale': multiplicative factor applied
+        'scale': multiplicative factor applied to coordinates
         'landscape_angle': set to 0
     """
     G = nx.create_empty_copy(G_base)
@@ -838,16 +835,6 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     G.graph['VertexC'] = VertexC
     offX = VertexC[:, 0].min()
     offY = VertexC[:, 1].min()
-    if G_base.graph.get('boundary') is not None:
-        BoundaryC = (rotate(G_base.graph['boundary'], landscape_angle)
-                     if landscape_angle else
-                     G_base.graph['boundary'].copy())
-        G.graph['boundary'] = BoundaryC
-        offX = min(offX, BoundaryC[:, 0].min())
-        offY = min(offY, BoundaryC[:, 1].min())
-    A = delaunay(G)
-    P = A.graph['planar']
-    hull_nonroot = P.graph['hull_nonroot']
     nodes_poly = shp.Polygon(VertexC[hull_nonroot])
     scale = 1/np.sqrt(nodes_poly.area)
     d2roots = G.graph.get('d2roots')
@@ -859,9 +846,7 @@ def normalize_area(G_base: nx.Graph) -> nx.Graph:
     offset = np.array((offX, offY))
     G.graph['offset'] = offset
     VertexC -= offset
-    BoundaryC -= offset
     VertexC *= scale
-    BoundaryC *= scale
     return G
 
 

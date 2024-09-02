@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
+import math
 import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
@@ -16,10 +17,10 @@ from interarray.geometric import (
     triangle_AR,
     is_triangle_pair_a_convex_quadrilateral,
     is_same_side,
+    rotation_checkers_factory,
 )
 from interarray import MAX_TRIANGLE_ASPECT_RATIO
 from interarray.interarraylib import NodeTagger
-from interarray.pathfinding import rotation_checkers_factory
 
 F = NodeTagger()
 
@@ -306,6 +307,11 @@ def make_planar_embedding(
         tuple[nx.PlanarEmbedding,
               nx.Graph,
               dict[tuple[int, int], int]]:
+    '''
+    `offset_scale`:
+        Fraction of the diagonal of the site's bbox to use as spacing between
+        border and nodes in concavities (only where nodes are the border).
+    '''
 
     # ######
     # Steps:
@@ -554,21 +560,22 @@ def make_planar_embedding(
         for u, v in zip(source, chain(target, (next(target),))):
             if u != begin and u != end and v != end:
                 convex_hull_A.append(u)
-    print('convex_hull_A:', convex_hull_A)
+    print('convex_hull_A:', '–'.join(F[n] for n in convex_hull_A))
 
-    # prune flat triangles from A
-    hull_prunned = convex_hull_A.copy()
-    a, b = tee(convex_hull_A)
-    for i, (u, v) in enumerate(zip(a, chain(b, (next(b),))), start=1):
-        queue = [(u, v, P_A[u][v]['ccw'])]
-        while queue:
-            u, v, n = queue.pop()
-            if triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR:
-                P_A.remove_edge(u, v)
-                queue.extend(((u, n, P_A[u][n]['ccw']),
-                              (n, v, P_A[n][v]['ccw'])))
-                hull_prunned.insert(i, n)
-    print('hull_prunned:', hull_prunned)
+    # Prune flat triangles from A (criterion is aspect_ratio <= `max_tri_AR`).
+    # Also create a new hull without the triangles: `hull_prunned`.
+    queue = list(zip(convex_hull_A[::-1],
+                     chain(convex_hull_A[0:1], convex_hull_A[:0:-1])))
+    hull_prunned = []
+    while queue:
+        u, v = queue.pop()
+        n = P_A[u][v]['ccw']
+        if triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR:
+            P_A.remove_edge(u, v)
+            queue.extend(((n, v), (u, n)))
+            continue
+        hull_prunned.append(u)
+    print('hull_prunned:', '–'.join(F[n] for n in hull_prunned))
 
     P_A_undir = P_A.to_undirected(as_view=True)
 
@@ -584,6 +591,7 @@ def make_planar_embedding(
 
     A = nx.Graph(VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
                  diagonals=diagonals,
+                 name=G.graph['name'],
                  handle=G.graph['handle'],
                  landscape_angle=G.graph['landscape_angle'],
                  # TODO: make these attribute names consistent across the code
@@ -592,6 +600,7 @@ def make_planar_embedding(
     A.add_edges_from(((u, v) for u, v in P_A_undir.edges if u < N and v < N),
                      type='delaunay')
 
+    # add the diagonals to A
     diagnodes = np.empty((len(diagonals), 2), dtype=int)
     for row, uv in zip(diagnodes, diagonals):
         row[:] = uv
@@ -651,6 +660,26 @@ def make_planar_embedding(
 
     not_in_P = A.edges - P_paths.edges
     cw, ccw = rotation_checkers_factory(VertexC)
+
+    # Use `not_in_P` for obtaining the hull_concave from hull_prunned
+    queue = list(zip(hull_prunned[::-1], chain((hull_prunned[0],),
+                                               hull_prunned[:0:-1]),))
+    hull_concave = []
+    print('hull_concave = ', end='')
+    while queue:
+        u, v = queue.pop()
+        if (u, v) in not_in_P or (v, u) in not_in_P:
+            #  n = (A[u] & A[v]).pop()
+            n = P_A[u][v]['ccw']
+            #  candidates = set(A[u]) & set(A[v])
+            print(f'({F[n]})', end=' ')
+            #  n = ().pop()
+            queue.extend(((n, v), (u, n)))
+            continue
+        hull_concave.append(u)
+        print(F[u], end=', ')
+    print('')
+    A.graph['hull_concave'] = hull_concave
 
     # #######################################################################
     # H) Revisit A to replace edges outside of the border by P_path contours.
@@ -766,6 +795,21 @@ def make_planar_embedding(
                         node_d2roots.update({r: d2roots[n, r]})
                     d2roots[n, r] = lengths[n]
 
+    # ##########################################
+    # J) Calculate the area of the concave hull.
+    # ##########################################
+    bX, bY = VertexC[hull_prunned].T
+    lower_bound = np.array((bX.min(), bY.min()), dtype=np.float64)
+    upper_bound = np.array((bX.max(), bY.max()), dtype=np.float64)
+    # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
+    # Then take the sqrt() to get the linear scaling factor such that area=1.
+    norm_factor = math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
+                            + np.dot(bX[:-1], bY[1:])
+                            - np.dot(bY[:-1], bX[1:])))
+    A.graph.update(dict(lower_bound=lower_bound,
+                        upper_bound=upper_bound,
+                        norm_factor=norm_factor))
+
     # products:
     # P: PlanarEmbedding
     # A: Graph (carries the updated VertexC)
@@ -774,91 +818,63 @@ def make_planar_embedding(
     # diagonals: dict
     # TODO: remove concavityPolys from returned tuple
     # concavityPolys: list
+
+    # TODO: This block came from deprecated `delaunay()`. Analyse whether to
+    #       include part of that here.
+    #  if bind2root:
+    #      for n, n_root in G_base.nodes(data='root'):
+    #          A.nodes[n]['root'] = n_root
+    #      # alternatively, if G_base nodes do not have 'root' attr:
+    #      #  for n, nodeD in A.nodes(data=True):
+    #      #      nodeD['root'] = -M + np.argmin(d2roots[n])
+    #      # assign each edge to the root closest to the edge's middle point
+    #      for u, v, edgeD in A.edges(data=True):
+    #          edgeD['root'] = -M + np.argmin(
+    #                  cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
+    #                        VertexC[-M:]))
+    #  A.graph.update(
+    #                 planar=planar,
+    #                 d2roots=d2roots,
+    #                 landscape_angle=G_base.graph.get('landscape_angle', 0),
+    #                 name=G_base.graph['name'],
+    #                 handle=G_base.graph['handle']
+    #                )
+
+    # TODO: are `concavityPolys` returned only for debugging?
+    #  return P, A, diagonals
     return P, A, diagonals, concavityPolys
 
 
-def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
-             max_tri_AR=MAX_TRIANGLE_ASPECT_RATIO, **qhull_options):
-    # TODO: needs major update to be compatible with interarray.mesh's make_planar_embedding()
-    """Create a new networkx.Graph from the Delaunay triangulation of the
-    coordinate positions of the vertices in `G_base`. Each edge gets an
-    attribute `length` that is the euclidean distance between its vertices.
+# TODO: deprecate the use of delaunay()
+delaunay = make_planar_embedding
 
-    If `G` does not have a `relax_boundary` attribute, it is assumed False.
-    """
-    M = G_base.graph['M']
-    VertexC = G_base.graph['VertexC']
-    N = VertexC.shape[0] - M
-    relax_boundary = G_base.graph.get('relax_boundary', False)
-    BoundaryC = None if relax_boundary else G_base.graph.get('boundary', None)
 
-    planar, diagonals = make_planar_embedding(
-        M, VertexC, BoundaryC=BoundaryC, max_tri_AR=max_tri_AR)
+def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
+    # TODO: refator to be compatible with interarray.mesh's delaunay()
+    '''
+    Return the "available edges" graph that is the base for edge search in
+    Esau-Williams. If `delaunay_based` is True, the edges are the expanded
+    Delaunay triangulation, otherwise a complete graph is returned.
 
-    # undirected Delaunay edge view
-    undirected = planar.to_undirected(as_view=True)
+    This function is being kept for backward-compatibility. For the Delaunay
+    triangulation, call `delaunay()` directly.
+    '''
+    if delaunay_based:
+        A = delaunay(G_base)
+        if weightfun is not None:
+            apply_edge_exemptions(A)
+    else:
+        A = complete_graph(G_base, include_roots=True)
+        # intersections
+        # I = get_crossings_list(np.array(A.edges()), VertexC)
 
-    # build the undirected graph
-    A = nx.Graph()
-    A.add_nodes_from(((n, {'label': label})
-                      for n, label in G_base.nodes(data='label')
-                      if 0 <= n < N), type='wtg')
-    for r in range(-M, 0):
-        A.add_node(r, label=G_base.nodes[r]['label'], type='oss')
-    A.add_edges_from(undirected.edges, type='delaunay')
-    E_planar = np.array(undirected.edges, dtype=int)
-    Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
-    for (u, v), length in zip(E_planar, Length):
-        A[u][v]['length'] = length
-    if add_diagonals:
-        diagnodes = np.empty((len(diagonals), 2), dtype=int)
-        for row, uv in zip(diagnodes, diagonals):
-            row[:] = uv
-        A.add_edges_from(diagonals, type='extended')
-        # the reference vertex `v` that `diagonals` carries
-        # could be stored as edge ⟨s, t⟩'s property (that
-        # property would also mark the edge as a diagonal)
-        Length = np.hypot(*(VertexC[diagnodes[:, 0]]
-                            - VertexC[diagnodes[:, 1]]).T)
-        for (u, v), length in zip(diagnodes, Length):
-            A[u][v]['length'] = length
+    if weightfun is not None:
+        for u, v, data in A.edges(data=True):
+            data[weight_attr] = weightfun(data)
 
-    d2roots = G_base.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
-    if bind2root:
-        for n, n_root in G_base.nodes(data='root'):
-            A.nodes[n]['root'] = n_root
-        # alternatively, if G_base nodes do not have 'root' attr:
-        #  for n, nodeD in A.nodes(data=True):
-        #      nodeD['root'] = -M + np.argmin(d2roots[n])
-        # assign each edge to the root closest to the edge's middle point
-        for u, v, edgeD in A.edges(data=True):
-            edgeD['root'] = -M + np.argmin(
-                    cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
-                          VertexC[-M:]))
-    A.graph.update(M=M,
-                   VertexC=VertexC,
-                   planar=planar,
-                   d2roots=d2roots,
-                   diagonals=diagonals,
-                   hull=planar.graph['hull'],
-                   landscape_angle=G_base.graph.get('landscape_angle', 0),
-                   boundary=G_base.graph['boundary'],
-                   name=G_base.graph['name'],
-                   handle=G_base.graph['handle'])
-
-    # TODO: update other code that uses the data below
-    # old version of delaunay() also stored these:
-    # save the convex hull node set
-    # G.graph['N_hull'] = N_hull  # only in geometric.py
-    # save the convex hull edge set
-    # G.graph['E_hull'] = E_hull  # only in geometric.py
-
-    # these two are more important, as they are used in EW
-    # variants that do crossing checks (calls to `edge_crossings()`)
-    # G.graph['triangles'] = triangles
-    # G.graph['triangles_exp'] = triangles_exp
+    # remove all gates from A
+    # TODO: decide about this line
+    # A.remove_edges_from(list(A.edges(range(-M, 0))))
     return A
 
 

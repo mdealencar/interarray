@@ -5,7 +5,6 @@ import heapq
 import math
 from collections import defaultdict, deque, namedtuple
 from itertools import chain
-from typing import Callable
 
 import matplotlib
 import networkx as nx
@@ -14,7 +13,7 @@ from loguru import logger
 
 from .crossings import gateXing_iter
 from .mesh import planar_flipped_by_routeset
-from .geometric import rotate
+from .geometric import rotate, rotation_checkers_factory
 from .interarraylib import bfs_subtree_loads
 from .utils import NodeStr, NodeTagger
 from .plotting import gplot, scaffolded
@@ -28,30 +27,6 @@ F = NodeTagger()
 NULL = np.iinfo(int).min
 PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 
-
-def rotation_checkers_factory(VertexC: np.ndarray) -> tuple[
-        Callable[[int, int, int], bool],
-        Callable[[int, int, int], bool]]:
-
-    def cw(A: int, B: int, C: int) -> bool:
-        """return
-            True: if A->B->C traverses the triangle ABC clockwise
-            False: otherwise"""
-        Ax, Ay = VertexC[A]
-        Bx, By = VertexC[B]
-        Cx, Cy = VertexC[C]
-        return (Bx - Ax) * (Cy - Ay) < (By - Ay) * (Cx - Ax)
-
-    def ccw(A: int, B: int, C: int) -> bool:
-        """return
-            True: if A->B->C traverses the triangle ABC counter-clockwise
-            False: otherwise"""
-        Ax, Ay = VertexC[B]
-        Bx, By = VertexC[A]
-        Cx, Cy = VertexC[C]
-        return (Bx - Ax) * (Cy - Ay) < (By - Ay) * (Cx - Ax)
-
-    return cw, ccw
 
 class PathNodes(dict):
     '''Helper class to build a tree that uses clones of base nodes
@@ -104,7 +79,7 @@ class PathFinder():
         M, N, B, VertexC = (G.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
         self.VertexC = VertexC
 
-        # this is just for facilitating printing debug messages
+        # Block for facilitating the printing of debug messages.
         allnodes = np.arange(N + M)
         allnodes[-M:] = range(-M, 0)
         self.n2s = NodeStr(allnodes, N)
@@ -123,10 +98,6 @@ class PathFinder():
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
-
-        # TODO: DELETE THIS
-        self.Xings = []
-        return
 
         Xings = list(gateXing_iter(G, gates=nonembed_Gates))
         self.Xings = Xings
@@ -163,10 +134,23 @@ class PathFinder():
             return [], []
 
     def _get_sector(self, _node: int, portal: tuple[int, int]):
+        '''
+        Given a `_node` and a `portal` to which `_node` belongs, the sector is
+        the first neighbor of `_node` rotating in the counterclockwise
+        direction from the opposite node in `portal` that forms one of G's
+        edges with `_node`.
+        The sector is a way of identifying from which side of a boundary the
+        path is reaching `_node`.
+        '''
         # TODO: there is probably a better way to avoid spinning around _node
+        if _node >= self.N:
+            # _node is in a border (which means it must only be reachable from
+            # one side, so that sector becomes irrelevant)
+            return NULL
         is_gate = any(_node in Gate for Gate in self.nonembed_Gates)
         _node_degree = len(self.G._adj[_node])
         if is_gate and _node_degree == 1:
+            # special case where a branch with 1 node uses a non_embed gate
             root = self.G.nodes[_node]['root']
             return (NULL
                     if _node == portal[0] else
@@ -213,7 +197,6 @@ class PathFinder():
             n = P[left][right]['ccw']
             if n not in P[right] or P[left][n]['ccw'] == right or n < 0:
                 # (u, v, n) not a new triangle
-                # is this is the moment to launch a hull crawler?
                 return
             # examine the other two sides of the triangle
             next_portals = []
@@ -515,7 +498,7 @@ class PathFinder():
         if 'crossings' in G.graph:
             # start by assumming that crossings will be fixed by detours
             del G.graph['crossings']
-        M, N = self.M, self.N
+        M, N, B = self.M, self.N, self.B
         Xings = self.Xings
 
         if not Xings:
@@ -526,7 +509,6 @@ class PathFinder():
 
         clone2prime = []
         D = 0
-        O = N + number_of_auxiliary_nodes
         subtree_map = G.nodes(data='subtree')
         paths = self.paths
         I_path = self.I_path
@@ -578,7 +560,7 @@ class PathFinder():
                 error('no path found for {}-{}', F[r], F[n])
                 continue
             Dinc = len(path) - 2
-            Clone = list(range(O + D, O + D + Dinc))
+            Clone = list(range(N + B + D, N + B + D + Dinc))
             clone2prime.extend(path[1:-1])
             D += Dinc
             G.add_nodes_from(((c, {'label': F[c],
@@ -625,8 +607,8 @@ class PathFinder():
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
 
-        fnT = np.arange(O + D + M)
-        fnT[O: O + D] = clone2prime
+        fnT = np.arange(N + B + D + M)
+        fnT[N + B: N + B + D] = clone2prime
         fnT[-M:] = range(-M, 0)
         G.graph.update(D=D, fnT=fnT)
         return None if in_place else G
