@@ -208,61 +208,6 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
     return convex_hull, to_remove, conc_outer_edges
 
 
-def hull_processor_deprecated(P: nx.PlanarEmbedding, N: int,
-                              supertriangle: tuple[int, int, int]) \
-        -> tuple[list[int], list[tuple[int, int]]]:
-    '''
-    Iterates over the edges that form a triangle with one of supertriangle's
-    vertices.
-
-    The supertriangle vertices must have indices in `range(N + B - 3, N + B)`
-
-    If the border has concavities, `to_remove` will be non-empty.
-
-    Multiple goals:
-        - Get the node sequence that form the convex hull
-        - Get the edges that enable a path to go around the outside of a
-          concavity exclusion zone.
-
-    Returns:
-    convex_hull
-    to_remove
-    '''
-    a, b, c = supertriangle
-    supertriangle = set((a, b, c))
-    convex_hull = []
-    to_remove = []
-    for pivot, begin, end in ((a, c, b),
-                              (b, a, c),
-                              (c, b, a)):
-        rev_in_B = cur_in_B = True
-        rev = None
-        cur = begin
-        fwd = P._succ[pivot][cur]['cw']
-        print('==== pivot', pivot, '====')
-        while fwd != begin:
-            print(rev_in_B, cur, fwd)
-            fwd_in_B = fwd >= N
-            if fwd_in_B and cur_in_B and rev_in_B:
-                print('del_sup', pivot, cur)
-                to_remove.append((pivot, cur))
-            if (cur_in_B and rev_in_B
-                    and cur not in supertriangle
-                    and rev not in supertriangle):
-                # also remove the 3rd triangle edge
-                print('del_int', rev, cur)
-                to_remove.append((rev, cur))
-            rev_in_B = cur_in_B
-            rev = cur
-            cur_in_B = fwd_in_B
-            if (cur not in supertriangle) and fwd != end:
-                # if cur is not in supertriangle, it is convex_hull
-                convex_hull.append(cur)
-            cur = fwd
-            fwd = P._succ[pivot][cur]['cw']
-    return convex_hull, to_remove
-
-
 def flip_triangles_near_exclusions(P: nx.PlanarEmbedding, N: int, B: int,
                                    VertexC: np.ndarray) \
         -> list[tuple[tuple[int, int]]]:
@@ -918,22 +863,23 @@ def delaunay(G_base, add_diagonals=True, debug=False, bind2root=False,
 
 
 def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
-                               diagonals: dict[tuple[int, int], int],
                                relax_boundary: bool = False) \
         -> nx.PlanarEmbedding:
     '''
     Returns a modified PlanarEmbedding based on `planar`, where all edges used
-    in `G` are edges of the output graph. For this to work, all non-gate edges
-    of `G` must be either edges of `planar` or one of `planar`'s diagonals in
-    `diagonals`. In addition, `G` must be free of crossings.
+    in `G` are edges of the output embedding. For this to work, all non-gate
+    edges of `G` must be either edges of `planar` or one of `planar`'s
+    graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
+    crossings.
     '''
     M, N, B, D, VertexC, border, exclusions = (
         G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
                                  'exclusions'))
 
     P = planar.copy()
-    diagonals_base = diagonals
+    diagonals_base = planar.graph['diagonals']
     diagonals = diagonals_base.copy()
+    P.graph['diagonals'] = diagonals
     for r in range(-M, 0):
         #  for u, v in nx.edge_dfs(G, r):
         for u, v in nx.edge_bfs(G, r):
@@ -971,4 +917,4 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
                 del diagonals[u, v]
                 s, t, v = (s, t, v) if s < t else (t, s, u)
                 diagonals[s, t] = v
-    return P, diagonals
+    return P
