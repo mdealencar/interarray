@@ -66,6 +66,9 @@ class PathFinder():
     These paths can be used to replace the existing gates that cross other
     edges by gate paths with detours.
 
+    All of `G`'s edges must be in `planar` (may need to call
+    `planar_flipped_by_routeset()` beforehand).
+
     Example:
     ========
 
@@ -86,11 +89,11 @@ class PathFinder():
 
         info('BEGIN pathfinding on "{}" (#wtg = {})',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
-        P = planar_flipped_by_routeset(G, planar=planar)
-        self.G, self.P, self.M, self.N, self.B = G, P, M, N, B
+        self.G, self.P, self.M, self.N, self.B = G, planar, M, N, B
         # sets of gates (one per root) that are not in the planar embedding
         nonembed_Gates = tuple(
-            np.fromiter(set(G.neighbors(r)) - set(P.neighbors(r)), dtype=int)
+            np.fromiter(set(G.neighbors(r)) - set(planar.neighbors(r)),
+                        dtype=int)
             for r in range(-M, 0))
         self.nonembed_Gates = nonembed_Gates
         edges_created_by = G.graph.get('edges_created_by')
@@ -413,8 +416,8 @@ class PathFinder():
                                                       hop, counter,
                                                       self.bifurcation)))
                 #  else:
-                #      print(f'[exp]^traverser {self.n2s(*hop)} '
-                #            'was dropped (no better than previous traverser).')
+                #      print(f'[exp]^traverser {self.n2s(*hop)} was '
+                #            'dropped (no better than previous traverser).')
                 self.bifurcation = None
             #  print(f'[exp]_popped dist = {_d_contender:.0f}, '
             #        f'{self.n2s(*_hop)} ')
@@ -550,7 +553,6 @@ class PathFinder():
                 path.append(paths.base_from_id[id])
                 pseudonode = paths[id]
             if not math.isclose(sum(dists), dist):
-            #  assert math.isclose(sum(dists), dist), \
                 error(f'distance sum ({sum(dists):.1f}) != '
                       f'best distance ({dist:.1f}), hook = {F[hook]}, '
                       f'path: {self.n2s(*path)}')
@@ -602,7 +604,8 @@ class PathFinder():
                     parent = path[-1]
                     ref_load = G.nodes[parent]['load']
                     G.nodes[parent]['load'] = ref_load - subtree_load
-                total_parent_load = bfs_subtree_loads(G, parent, [path[0]], subtree_id)
+                total_parent_load = bfs_subtree_loads(G, parent, [path[0]],
+                                                      subtree_id)
                 assert total_parent_load == ref_load, \
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
