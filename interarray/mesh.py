@@ -304,9 +304,7 @@ def make_planar_embedding(
         #  boundaries: list[np.ndarray] | None = None,
         offset_scale: float = 1e-4,
         max_tri_AR: float = 30) -> \
-        tuple[nx.PlanarEmbedding,
-              nx.Graph,
-              dict[tuple[int, int], int]]:
+        tuple[nx.PlanarEmbedding, nx.Graph]:
     '''
     `offset_scale`:
         Fraction of the diagonal of the site's bbox to use as spacing between
@@ -326,6 +324,7 @@ def make_planar_embedding(
     # G) Build P_paths.
     # H) Revisit A to replace edges outside of the border by P_path contours.
     # I) Revisit A to update d2roots according to lengths along P_paths.
+    # J) Calculate the area of the concave hull.
 
     VertexC, border, exclusions, M, N, B = (
         G.graph.get(k) for k in ('VertexC', 'border', 'exclusions',
@@ -590,6 +589,7 @@ def make_planar_embedding(
             diagonals[(u, v)] = n
 
     A = nx.Graph(VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
+                 planar=P_A,
                  diagonals=diagonals,
                  name=G.graph['name'],
                  handle=G.graph['handle'],
@@ -718,9 +718,16 @@ def make_planar_embedding(
                 else:
                     # TODO: The entire new path should go for a 2nd pass if it
                     #       changed here. Unlikely to change in the 2nd pass.
+                    #       Reason: a shortcut may change the geometry in such
+                    #       way as to make additional shortcuts possible.
                     del path[i + 1]
                     length -= P_paths[s][b]['length'] + P_paths[b][t]['length']
                     length += np.hypot(*(VertexC[s] - VertexC[t]).T)
+                    shortcut = eData.get('shortcut')
+                    if shortcut is None:
+                        eData['shortcut'] = [b]
+                    else:
+                        shortcut.append(b)
                     print(s, b, t, 'shortcut')
             if len(path) > 2:
                 eData.update(length=length,
@@ -841,12 +848,14 @@ def make_planar_embedding(
     #                )
 
     # TODO: are `concavityPolys` returned only for debugging?
-    #  return P, A, diagonals
-    return P, A, diagonals, concavityPolys
+    return P, A
+    #  return P, A, diagonals, concavityPolys
 
 
-# TODO: deprecate the use of delaunay()
-delaunay = make_planar_embedding
+def delaunay(G: nx.Graph):
+    # TODO: deprecate the use of delaunay()
+    P, A = make_planar_embedding(G)
+    return A
 
 
 def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
@@ -879,12 +888,16 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
 
 
 def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
+                               diagonals: dict[tuple[int, int], int],
                                relax_boundary: bool = False) \
         -> nx.PlanarEmbedding:
+    # TODO: this is not going to work now that G has all the segments
+    #       we need to find the end node of a contour and check if that
+    #       is in diagonals
     '''
     Returns a modified PlanarEmbedding based on `planar`, where all edges used
     in `G` are edges of the output embedding. For this to work, all non-gate
-    edges of `G` must be either edges of `planar` or one of `planar`'s
+    edges of `G` must be either edges of `planar` or one of `G`'s
     graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
     crossings.
     '''
@@ -893,9 +906,9 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
                                  'exclusions'))
 
     P = planar.copy()
-    diagonals_base = planar.graph['diagonals']
-    diagonals = diagonals_base.copy()
-    P.graph['diagonals'] = diagonals
+    diagonals_base = diagonals
+    #  diagonalsʹ = diagonals.copy()
+    #  P.graph['diagonals'] = diagonalsʹ
     for r in range(-M, 0):
         #  for u, v in nx.edge_dfs(G, r):
         for u, v in nx.edge_bfs(G, r):
@@ -930,7 +943,7 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
                 P.add_half_edge(u, v, ccw=t)
                 P.add_half_edge(v, u, ccw=s)
                 P.remove_edge(s, t)
-                del diagonals[u, v]
+                #  del diagonalsʹ[u, v]
                 s, t, v = (s, t, v) if s < t else (t, s, u)
-                diagonals[s, t] = v
+                #  diagonalsʹ[s, t] = v
     return P
