@@ -18,8 +18,9 @@ from . import length_matrix_single_depot_from_G
 #  F = NodeTagger()
 
 
-def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: int,
-             scale: float = 1e4, vehicles: int | None = None) -> nx.Graph:
+def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
+             scale: float = 1e4, vehicles: int | None = None, seed: int = 0) \
+                     -> nx.Graph:
     '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
     library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
     Problems).
@@ -59,9 +60,10 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: int,
     ap = hgs.AlgorithmParameters(
         timeLimit=time_limit,  # seconds
         # nbIter=2000,  # max iterations without improvement (20,000)
+        seed=seed,
     )
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    VertexCmod = np.c_[VertexC[-M:].T, VertexC[:N].T]*scale
+    x_coordinates, y_coordinates = np.c_[VertexC[-M:].T, VertexC[:N].T]*scale
     # data preparation
     # Distance_matrix may be provided instead of coordinates, or in addition to
     # coordinates. Distance_matrix is used for cost calculation if provided.
@@ -84,8 +86,8 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: int,
     # be a strong incentive to choose A edges only. (5× is arbitrary)
     distance_matrix = weights.clip(max=5*w_max)
     data = dict(
-        x_coordinates=VertexCmod[0],
-        y_coordinates=VertexCmod[1],
+        x_coordinates=x_coordinates,
+        y_coordinates=y_coordinates,
         distance_matrix=distance_matrix,
         service_times=np.zeros(N + M),
         demands=demands,
@@ -106,8 +108,17 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: int,
         for t in branch[1:]:
             t -= 1
             #  print(f'–{F[t]}', end='')
-            if A is not None and (s, t) in A.edges:
-                G.add_edge(s, t, length=A[s][t]['length'])
+            if t in A[s]:
+                if 'path' in A[s][t]:
+                    path = A[s][t]['path']
+                    s, t = (s, t) if s < t else (t, s)
+                    path_type = 'contour_' + A[s][t]['type']
+                    for u, v in zip([s] + path, path + [t]):
+                        G.add_edge(u, v, length=0., type=path_type)
+                    # NOTE: the first segment holds the entire ⟨s–t⟩ length
+                    G[s][path[0]]['length'] = A[s][t]['length']
+                else:
+                    G.add_edge(s, t, length=A[s][t]['length'])
             else:
                 #  print(f'WARNING: edge {F[s]}-{F[t]} is not in A')
                 G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
