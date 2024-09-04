@@ -243,7 +243,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         edges_created_by='LKH-3',
         edges_fun=lkh_acvrp,
         creation_options=dict(
-            complete=A is None,
+            complete=A.number_of_edges() == 0,
             scale=scale,
             type=specs['TYPE'],
             time_limit=time_limit,
