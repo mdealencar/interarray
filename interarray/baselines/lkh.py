@@ -48,10 +48,9 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
     Asymmetric Capacitated Vehicle Routing Problem.
 
     Arguments:
-        `G_base`: graph with the site's coordinates and boundary
+        `A`: graph with allowed edges (if it has 0 edges, use complete graph)
         `capacity`: maximum vehicle capacity
         `time_limit`: [s] solver run time limit
-        `A`: graph with allowed edges (if None, use complete graph)
         `scale`: factor to scale lengths (should be < 1e6)
         `vehicles`: number of vehicles (if None, use the minimum feasible)
         `runs`: consult LKH manual

@@ -28,10 +28,9 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     Normalization of input graph is recommended before calling this function.
 
     Arguments:
-        `G_base`: graph with the site's coordinates and boundary
+        `A`: graph with allowed edges (if it has 0 edges, use complete graph)
         `capacity`: maximum vehicle capacity
         `time_limit`: [s] solver run time limit
-        `A`: graph with allowed edges (if None, use complete graph)
         `scale`: factor to scale lengths
         `vehicles`: number of vehicles (if None, use the minimum feasible)
     '''
@@ -136,7 +135,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         undetoured_length=result.cost/scale,
         edges_created_by='PyHygese',
         edges_fun=hgs_cvrp,
-        creation_options=dict(complete=A is None,
+        creation_options=dict(complete=A.number_of_edges() == 0,
                               scale=scale) | asdict(ap),
         runtime_unit='s',
         runtime=result.time,
