@@ -322,7 +322,7 @@ def make_planar_embedding(
     # E) Build the planar embedding of the constrained triangulation.
     # F) Build the available-edges graph A and its planar embedding.
     # G) Build P_paths.
-    # H) Revisit A to replace edges outside of the border by P_path contours.
+    # H) Revisit A to replace edges crossing borders by P_path contours.
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # J) Calculate the area of the concave hull.
 
@@ -534,8 +534,6 @@ def make_planar_embedding(
             P[u][v]['kind'] = 'concavity'
             P[v][u]['kind'] = 'concavity'
 
-    P.check_structure()
-
     # adjust flat triangles around concavities
     changes_super = flip_triangles_exclusions_super(
             P, N, B, VertexC, max_tri_AR=max_tri_AR)
@@ -545,27 +543,32 @@ def make_planar_embedding(
             P, N, supertriangle, concavityVertex2concavity)
     P.remove_edges_from(to_remove)
 
+    changes_exclusions = flip_triangles_near_exclusions(P, N, B, VertexC)
+    P.check_structure()
+
     # ##############################################################
     # F) Build the available-edges graph A and its planar embedding.
     # ##############################################################
     print('\nPART F')
-    #  hull_A, _ = hull_processor(P_A, N, supertriangle, concavityVertex2concavity)
     convex_hull_A = []
     a, b, c = supertriangle
     for pivot, begin, end in ((a, c, b),
                               (b, a, c),
                               (c, b, a)):
+        # Circles pivot in cw order -> hull becomes ccw order.
         source, target = tee(P_A.neighbors_cw_order(pivot))
         for u, v in zip(source, chain(target, (next(target),))):
             if u != begin and u != end and v != end:
                 convex_hull_A.append(u)
     print('convex_hull_A:', '–'.join(F[n] for n in convex_hull_A))
+    P_A.remove_nodes_from(supertriangle)
 
-    # Prune flat triangles from A (criterion is aspect_ratio <= `max_tri_AR`).
-    # Also create a new hull without the triangles: `hull_prunned`.
+    # Prune flat triangles from P_A (criterion is aspect_ratio > `max_tri_AR`).
+    # Also create a `hull_prunned`, a hull without the triangles (ccw order).
     queue = list(zip(convex_hull_A[::-1],
                      chain(convex_hull_A[0:1], convex_hull_A[:0:-1])))
     hull_prunned = []
+    hull_prunned_edges = set()
     while queue:
         u, v = queue.pop()
         n = P_A[u][v]['ccw']
@@ -574,55 +577,48 @@ def make_planar_embedding(
             queue.extend(((n, v), (u, n)))
             continue
         hull_prunned.append(u)
+        hull_prunned_edges.add((u, v) if u < v else (v, u))
+    u, v = hull_prunned[0], hull_prunned[-1]
+    hull_prunned_edges.add((u, v) if u < v else (v, u))
     print('hull_prunned:', '–'.join(F[n] for n in hull_prunned))
+    print('hull_prunned_edges:',
+          ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
 
-    P_A_undir = P_A.to_undirected(as_view=True)
+    A = P_A.to_undirected()
+    nx.set_edge_attributes(A, 'delaunay', name='kind')
+    #  nx.set_edge_attributes(A, {uv: True for uv in hull_prunned_edges},
+    #                         name='is_hull')
+    #  for u, v in ((u, v) for u, v, is_hull in A.edges(data='is_hull')
+    #               if not is_hull):
 
     diagonals = {}
-    for u, v in ((u, v) for u, v in P_A_undir.edges
-                 if (not (u in hull_prunned and v in hull_prunned)
-                     and u < N and v < N)):
+    for u, v in tuple(A.edges):
+        if ((u, v) if u < v else (v, u)) in hull_prunned_edges:
+            continue
         s = P_A[u][v]['cw']
         t = P_A[u][v]['ccw']
         if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
             u, v, n = (s, t, v) if s < t else (t, s, u)
+            # mapping: diagonal ⟨u, v⟩ | u < v  ->  node A[u][v]['cw']
             diagonals[(u, v)] = n
-
-    A = nx.Graph(VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
-                 planar=P_A,
-                 diagonals=diagonals,
-                 name=G.graph['name'],
-                 handle=G.graph['handle'],
-                 landscape_angle=G.graph['landscape_angle'],
-                 # TODO: make these attribute names consistent across the code
-                 hull=convex_hull_A,
-                 hull_prunned=hull_prunned)
-    A.add_edges_from(((u, v) for u, v in P_A_undir.edges if u < N and v < N),
-                     kind='delaunay')
-
-    # add the diagonals to A
-    diagnodes = np.empty((len(diagonals), 2), dtype=int)
-    for row, uv in zip(diagnodes, diagonals):
-        row[:] = uv
-    A.add_edges_from(diagonals, kind='extended')
-    Length = np.hypot(*(VertexC[diagnodes[:, 0]]
-                        - VertexC[diagnodes[:, 1]]).T)
-    for (u, v), length in zip(diagnodes, Length):
+            A.add_edge(u, v, kind='extended')
+    # Add length attribute to A's edges.
+    source, target = zip(*A.edges)
+    A_lengths = np.hypot(*(VertexC[source,] - VertexC[target,]).T)
+    for u, v, length in zip(source, target, A_lengths):
         A[u][v]['length'] = length
 
-    # ### Add length attribute to A's and P's edges
-    A_edges = np.array(A.edges)
-
-    A_lengths = np.hypot(*(VertexC[A_edges[:, 1]] - VertexC[A_edges[:, 0]]).T)
-
-    nx.set_edge_attributes(A, {tuple(edge): length
-                               for edge, length in
-                               zip(A_edges, A_lengths)},
-                           name='length')
-
-    # TODO: move this flip and check to a more adequate context
-    changes_exclusions = flip_triangles_near_exclusions(P, N, B, VertexC)
-    P.check_structure()
+    A.graph.update(
+        VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
+        name=G.name,
+        handle=G.graph['handle'],
+        landscape_angle=G.graph['landscape_angle'],
+        planar=P_A,
+        diagonals=diagonals,
+        # TODO: make these attribute names consistent across the code
+        hull=convex_hull_A,
+        hull_prunned=hull_prunned,
+    )
 
     # #################
     # G) Build P_paths.
@@ -633,15 +629,13 @@ def make_planar_embedding(
 
     # this adds diagonals to P_paths
     # we don't want diagonals where P_paths[u][v]['kind'] is set ('concavity')
-    for u, v in [(u, v) for u, v in P_paths.edges
-                 #  if (not (u in hull_A and v in hull_A)
-                 if (not (u in hull_prunned and v in hull_prunned)
-                     and P_paths[u][v].get('kind') is None)]:
+    for u, v in [(u, v) for u, v, kind in P_paths.edges(data='kind')
+                 if (((u, v) if u < v else (v, u)) not in hull_prunned_edges
+                     and kind != 'concavity')]:
         s = P[u][v]['cw']
         t = P[u][v]['ccw']
-        if (s >= N + B - 3 or t >= N + B - 3):
-            #  or any((((u in conc) and (v in conc))
-            #            for conc in concavityVertices))):
+        if s >= N + B - 3 or t >= N + B - 3:
+            # do not add diagonals incident to supertriangle's vertices
             continue
         if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
             print(u, v, end=' ')
@@ -650,25 +644,25 @@ def make_planar_embedding(
             P_paths.add_edge(u, v, length=np.hypot(*(VertexC[u]
                                                      - VertexC[v]).T))
 
-    nx.set_edge_attributes(P_paths, {tuple(edge): length
-                                     for edge, length in
-                                     zip(A_edges, A_lengths)},
+    nx.set_edge_attributes(P_paths, {(s, t): length
+                                     for s, t, length in
+                                     zip(source, target, A_lengths)},
                            name='length')
     for u, v, eData in P_paths.edges(data=True):
         if 'length' not in eData:
             eData['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
 
-    not_in_P = A.edges - P_paths.edges
+    in_A_not_in_P = A.edges - P_paths.edges
     cw, ccw = rotation_checkers_factory(VertexC)
 
-    # Use `not_in_P` for obtaining the hull_concave from hull_prunned
+    # Use `in_A_not_in_P` for obtaining the hull_concave from hull_prunned
     queue = list(zip(hull_prunned[::-1], chain((hull_prunned[0],),
                                                hull_prunned[:0:-1]),))
     hull_concave = []
     print('hull_concave = ', end='')
     while queue:
         u, v = queue.pop()
-        if (u, v) in not_in_P or (v, u) in not_in_P:
+        if (u, v) in in_A_not_in_P or (v, u) in in_A_not_in_P:
             #  n = (A[u] & A[v]).pop()
             n = P_A[u][v]['ccw']
             #  candidates = set(A[u]) & set(A[v])
@@ -681,19 +675,19 @@ def make_planar_embedding(
     print('')
     A.graph['hull_concave'] = hull_concave
 
-    # #######################################################################
-    # H) Revisit A to replace edges outside of the border by P_path contours.
-    # #######################################################################
+    # ##################################################################
+    # H) Revisit A to replace edges crossing borders by P_path contours.
+    # ##################################################################
     print('\nPART H')
     corner_to_A_edges = defaultdict(list)
     A_edges_to_revisit = []
-    for u, v in not_in_P:
+    for u, v in in_A_not_in_P:
         # For the edges in A that are not in P, we find their corresponding
         # shortest path in P_path and update the length attribute in A.
-        print(u, v, end=': ')
+        print('\n', u, v, end=': ')
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        print(length, path)
+        print(length, path, end=' ')
         if all(n >= N for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             eData = A[path[0]][path[-1]]
@@ -702,6 +696,7 @@ def make_planar_embedding(
                              path[-2:0:-1].copy())
             i = 0
             while i <= len(path) - 3:
+                print(f'({i})', end='')
                 # Check if each vertice at the border is necessary.
                 # The vertice is kept if the border angle and the path angle
                 # point to the same side. Otherwise, remove the vertice.
@@ -714,21 +709,24 @@ def make_planar_embedding(
                 test = ccw if cw(a, b, s) else cw
                 if test(s, b, t):
                     i += 1
-                    print(s, b, t, 'passed')
+                    print(s, b, t, 'passed', end='|')
                 else:
+                    # TODO: Bomb-proof this shortcut test. (not robust as-is)
                     # TODO: The entire new path should go for a 2nd pass if it
                     #       changed here. Unlikely to change in the 2nd pass.
                     #       Reason: a shortcut may change the geometry in such
                     #       way as to make additional shortcuts possible.
                     del path[i + 1]
                     length -= P_paths[s][b]['length'] + P_paths[b][t]['length']
-                    length += np.hypot(*(VertexC[s] - VertexC[t]).T)
+                    shortcut_length = np.hypot(*(VertexC[s] - VertexC[t]).T)
+                    length += shortcut_length
+                    P_paths.add_edge(s, t, length=shortcut_length)
                     shortcut = eData.get('shortcut')
                     if shortcut is None:
                         eData['shortcut'] = [b]
                     else:
                         shortcut.append(b)
-                    print(s, b, t, 'shortcut')
+                    print(s, b, t, 'shortcut', end='|')
             if len(path) > 2:
                 eData.update(length=length,
                              # path-> P edges used to calculate A edge's length
@@ -760,9 +758,8 @@ def make_planar_embedding(
         A.nodes[r]['kind'] = 'oss'
 
     # Diagonals in A which have a missing origin Delaunay edge become edges.
-    for u, v in ((u, v) for u, v in A_edges_to_revisit
-                 if (not (u in hull_prunned and v in hull_prunned))):
-                 #  if (not (u in hull_A and v in hull_A))):
+    for u, v in (uv for uv in A_edges_to_revisit
+                 if uv not in hull_prunned_edges):
         s = P_A[u][v]['cw']
         t = P_A[u][v]['ccw']
         s, t = (s, t) if s < t else (t, s)
@@ -891,9 +888,6 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
                                diagonals: dict[tuple[int, int], int],
                                relax_boundary: bool = False) \
         -> nx.PlanarEmbedding:
-    # TODO: this is not going to work now that G has all the segments
-    #       we need to find the end node of a contour and check if that
-    #       is in diagonals
     '''
     Returns a modified PlanarEmbedding based on `planar`, where all edges used
     in `G` are edges of the output embedding. For this to work, all non-gate
