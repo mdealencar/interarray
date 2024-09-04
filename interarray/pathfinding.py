@@ -453,7 +453,7 @@ class PathFinder():
                     # n is a root's neighbor
                     continue
             path, dists = get_best_path(n)
-            nx.add_path(G, path, type='virtual')
+            nx.add_path(G, path, kind='virtual')
 
     def plot_best_paths(self,
                         ax: matplotlib.axes.Axes | None = None
@@ -580,7 +580,7 @@ class PathFinder():
                     zip(path[:1] + Clone, Clone + path[-1:], dists),
                     weight='length')
                 for _, _, edgeD in G.edges(Clone, data=True):
-                    edgeD.update(type='detour', reverse=True)
+                    edgeD.update(kind='detour', reverse=True)
                 if Dinc > 0:
                     # an edge reaching root always has target < source
                     del G[Clone[-1]][path[-1]]['reverse']

@@ -29,9 +29,9 @@ def G_base_from_G(G: nx.Graph) -> nx.Graph:
     G_base = nx.Graph(**{k: G.graph[k] for k in transfer_fields})
     G_base.add_nodes_from(((n, {'label': label})
                            for n, label in G.nodes(data='label')
-                           if 0 <= n < N), type='wtg')
+                           if 0 <= n < N), kind='wtg')
     for r in range(-M, 0):
-        G_base.add_node(r, label=G.nodes[r]['label'], type='oss')
+        G_base.add_node(r, label=G.nodes[r]['label'], kind='oss')
     make_graph_metrics(G_base)
     return G_base
 

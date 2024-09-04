@@ -815,13 +815,13 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         # update detourLoNotHi
         detourLoNotHi[corner] = loNotHi
         # add Detour node
-        G.add_node(corner, type='detour', root=G.nodes[hook]['root'])
+        G.add_node(corner, kind='detour', root=G.nodes[hook]['root'])
         log.append((i, 'addDN', (corner_, corner)))
         # add detour edges
         length = np.hypot(*(VertexC[fnT[hook]] -
                             VertexC[corner_]).T)
         G.add_edge(hook, corner, length=length,
-                   type='detour', color='yellow', style='dashed')
+                   kind='detour', color='yellow', style='dashed')
         log.append((i, 'addDE', (hook, corner, fnT[hook], corner_)))
         return corner
 
@@ -860,7 +860,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
             # make a new direct gate
             length = d2roots[fnT[hook], root]
             G.add_edge(hook, root, length=length,
-                       type='detour', color='yellow', style='dashed')
+                       kind='detour', color='yellow', style='dashed')
             log.append((i, 'addDE', (hook, root, fnT[hook], root)))
             Final_G[root].add(hook)
         else:
@@ -883,7 +883,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                 # add the gate edge from the last corner node created
                 length = d2roots[corner_, root]
                 G.add_edge(corner, root, length=length,
-                           type='detour', color='yellow', style='dashed')
+                           kind='detour', color='yellow', style='dashed')
                 log.append((i, 'addDE', (corner, root, corner_, root)))
                 Final_G[root].add(corner)
             else:
@@ -938,7 +938,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                         if j == newN:
                             # add new2stale_cut edge
                             # print(f'[{i}] adding {n2s(hook, stale)}')
-                            G.add_edge(hook, stale, type='detour',
+                            G.add_edge(hook, stale, kind='detour',
                                        color='yellow', style='dashed')
                             log.append((i, 'addDE', (hook, stale,
                                                      fnT[hook], corner_)))

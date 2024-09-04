@@ -598,13 +598,13 @@ def make_planar_embedding(
                  hull=convex_hull_A,
                  hull_prunned=hull_prunned)
     A.add_edges_from(((u, v) for u, v in P_A_undir.edges if u < N and v < N),
-                     type='delaunay')
+                     kind='delaunay')
 
     # add the diagonals to A
     diagnodes = np.empty((len(diagonals), 2), dtype=int)
     for row, uv in zip(diagnodes, diagonals):
         row[:] = uv
-    A.add_edges_from(diagonals, type='extended')
+    A.add_edges_from(diagonals, kind='extended')
     Length = np.hypot(*(VertexC[diagnodes[:, 0]]
                         - VertexC[diagnodes[:, 1]]).T)
     for (u, v), length in zip(diagnodes, Length):
@@ -736,7 +736,7 @@ def make_planar_embedding(
                              # original_path-> which P edges the A edge maps to
                              # (so that PathFinder works)
                              path=original_path,
-                             type='corner_'+eData['kind'])
+                             kind='corner_'+eData['kind'])
                 u, v = (u, v) if u < v else (v, u)
                 for p in path[1:-1]:
                     corner_to_A_edges[p].append((u, v))
