@@ -37,9 +37,9 @@ def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
                  boundary=pickle.loads(nodeset.boundary),
                  landscape_angle=nodeset.landscape_angle,
                  )
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
     return G
 
@@ -165,7 +165,7 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
         D = len(clone2prime)
         G.graph['D'] = D
         detournodes = range(N, N + D)
-        G.add_nodes_from(((s, {'type': 'detour'})
+        G.add_nodes_from(((s, {'kind': 'detour'})
                           for s in detournodes))
         fnT = np.arange(N + D + M)
         fnT[N: N + D] = clone2prime
@@ -182,7 +182,7 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
                               weight='length')
     if D > 0:
         for _, _, edgeD in G.edges(detournodes, data=True):
-            edgeD['type'] = 'detour'
+            edgeD['kind'] = 'detour'
     calcload(G)
     return G
 

@@ -270,8 +270,8 @@ def MILP_solution_to_G(model, *, solver, A=None):
     Root = np.empty((N,), dtype=int)
     for r in range(-M, 0):
         for u, v in nx.edge_dfs(G, r):
-            if 'type' in G[u][v]:
-                del G[u][v]['type']
+            if 'kind' in G[u][v]:
+                del G[u][v]['kind']
             G.nodes[v]['load'] = G.edges[u, v]['load']
             if u == r:
                 subtree += 1

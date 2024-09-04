@@ -73,9 +73,9 @@ def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
     if lsangle is not None:
         G.graph['landscape_angle'] = lsangle
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg', 'tag': NodeTag[n]})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg', 'tag': NodeTag[n]})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss', 'tag': RootTag[r]})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss', 'tag': RootTag[r]})
                       for r in range(-M, 0)))
     make_graph_metrics(G)
     return G

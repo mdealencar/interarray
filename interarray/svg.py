@@ -170,7 +170,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                   'extended': 'ext',
                   'scaffold': 'scf',
                   None: 'std'}
-    edges_with_type = G.edges(data='type', default=None)
+    edges_with_type = G.edges(data='kind', default=None)
     edge_lines = defaultdict(list)
     for u, v, edge_type in edges_with_type:
         if edge_type == 'detour':

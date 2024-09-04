@@ -46,16 +46,16 @@ def graph_from_edgeset(edgeset):
                  edges_created_by=creator,
                  iterations=iterations)
 
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
 
     D = edgeset.D or 0
     if D > 0:
         G.graph['D'] = D
         detournodes = range(N, N + D)
-        G.add_nodes_from(((s, {'type': 'detour'})
+        G.add_nodes_from(((s, {'kind': 'detour'})
                           for s in detournodes))
         clone2prime = edgeset.clone2prime
         assert len(clone2prime) == D, \
@@ -76,7 +76,7 @@ def graph_from_edgeset(edgeset):
     G.add_weighted_edges_from(zip(U, V, Length), weight='length')
     if D > 0:
         for _, _, edgeD in G.edges(detournodes, data=True):
-            edgeD['type'] = 'detour'
+            edgeD['kind'] = 'detour'
     G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')

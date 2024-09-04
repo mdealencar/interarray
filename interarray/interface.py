@@ -103,9 +103,9 @@ def G_from_XYM(X, Y, M=1, name='unnamed', boundary=None):
             (min(X), max(Y)),
             (max(X), max(Y)),
             (max(X), min(Y))))
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
     make_graph_metrics(G)
     return G
@@ -169,9 +169,9 @@ class HeuristicFactory():
                                VertexC=self.VertexC,
                                boundary=boundaryC,
                                name=name)
-        self.G_base.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+        self.G_base.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                                     for n in range(N)))
-        self.G_base.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+        self.G_base.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                                     for r in range(-M, 0)))
         self.heuristic = heuristics[heuristic]
 

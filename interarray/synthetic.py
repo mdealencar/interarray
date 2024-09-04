@@ -47,9 +47,9 @@ def toyfarm():
                  boundary=BoundaryC,
                  name='toy',
                  handle='toy')
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
 
     make_graph_metrics(G)
@@ -75,9 +75,9 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
                  boundary=BoundaryC,
                  name=name,
                  handle=handle)
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
 
     make_graph_metrics(G)

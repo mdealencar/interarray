@@ -449,14 +449,15 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     # draw edges
     nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color['unspecified'],
                            style=type2style['unspecified'], label='direct',
-                           edgelist=[(u, v) for u, v, t in G.edges.data('type')
-                                     if t is None])
+                           edgelist=[(u, v)
+                                     for u, v, kind in G.edges.data('kind')
+                                     if kind is None])
     for edge_type in type2style:
         nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_type],
                                style=type2style[edge_type], label=edge_type,
-                               edgelist=[(u, v) for u, v, t
-                                         in G.edges.data('type')
-                                         if t == edge_type])
+                               edgelist=[(u, v)
+                                         for u, v, kind in G.edges.data('kind')
+                                         if kind == edge_type])
 
     # draw nodes
     if D is not None:
@@ -577,5 +578,5 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding | None = None) -> nx.Graph:
     for n, d in scaff.nodes(data=True):
         d.update(G.nodes[n])
     for i, (u, v) in enumerate(scaff.edges - G.edges):
-        scaff[u][v]['type'] = 'scaffold'
+        scaff[u][v]['kind'] = 'scaffold'
     return scaff

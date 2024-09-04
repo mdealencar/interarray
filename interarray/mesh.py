@@ -531,8 +531,8 @@ def make_planar_embedding(
         for u, v in zip(a, chain(b, (next(b),))):
             concavityVertex2concavity[u] = concavity_idx
             print(u, v)
-            P[u][v]['type'] = 'concavity'
-            P[v][u]['type'] = 'concavity'
+            P[u][v]['kind'] = 'concavity'
+            P[v][u]['kind'] = 'concavity'
 
     P.check_structure()
 
@@ -632,11 +632,11 @@ def make_planar_embedding(
     P_paths.remove_nodes_from(supertriangle)
 
     # this adds diagonals to P_paths
-    # we don't want diagonals where P_paths[u][v]['type'] is set ('concavity')
+    # we don't want diagonals where P_paths[u][v]['kind'] is set ('concavity')
     for u, v in [(u, v) for u, v in P_paths.edges
                  #  if (not (u in hull_A and v in hull_A)
-                 if (not (u in convex_hull_A and v in convex_hull_A)
-                     and P_paths[u][v].get('type') is None)]:
+                 if (not (u in hull_prunned and v in hull_prunned)
+                     and P_paths[u][v].get('kind') is None)]:
         s = P[u][v]['cw']
         t = P[u][v]['ccw']
         if (s >= N + B - 3 or t >= N + B - 3):
@@ -708,7 +708,7 @@ def make_planar_embedding(
                 s, b, t = path[i:i + 3]
                 # print(i, b)
                 a, c = (n for n in P[b]
-                        if (P[b][n].get('type') == 'concavity'
+                        if (P[b][n].get('kind') == 'concavity'
                             or n in supertriangle))
                 a, c = (a, c) if P[a][b]['ccw'] == c else (c, a)
                 test = ccw if cw(a, b, s) else cw
@@ -736,7 +736,7 @@ def make_planar_embedding(
                              # original_path-> which P edges the A edge maps to
                              # (so that PathFinder works)
                              path=original_path,
-                             type='corner_'+eData['type'])
+                             type='corner_'+eData['kind'])
                 u, v = (u, v) if u < v else (v, u)
                 for p in path[1:-1]:
                     corner_to_A_edges[p].append((u, v))
@@ -755,9 +755,9 @@ def make_planar_embedding(
     A.graph['corner_to_A_edges'] = corner_to_A_edges
 
     for n in range(N):
-        A.nodes[n]['type'] = 'wtg'
+        A.nodes[n]['kind'] = 'wtg'
     for r in range(-M, 0):
-        A.nodes[r]['type'] = 'oss'
+        A.nodes[r]['kind'] = 'oss'
 
     # Diagonals in A which have a missing origin Delaunay edge become edges.
     for u, v in ((u, v) for u, v in A_edges_to_revisit
@@ -768,7 +768,7 @@ def make_planar_embedding(
         s, t = (s, t) if s < t else (t, s)
         if (s, t) in diagonals:
             eData = A[s][t]
-            eData['type'] = ('corner_delaunay'
+            eData['kind'] = ('corner_delaunay'
                              if 'path' in eData else
                              'delaunay')
             del diagonals[(s, t)]

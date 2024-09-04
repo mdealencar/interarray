@@ -62,9 +62,9 @@ def G_from_site(*, VertexC: np.ndarray, boundary: np.ndarray, M: int,
                  boundary=boundary,
                  **kwargs)
 
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
     return G
 
@@ -160,7 +160,7 @@ def bfs_subtree_loads(G, parent, children, subtree):
     Nodes must not have a 'load' attribute.
     '''
     nodeD = G.nodes[parent]
-    default = 1 if nodeD['type'] == 'wtg' else 0
+    default = 1 if nodeD['kind'] == 'wtg' else 0
     if not children:
         nodeD['load'] = default
         return default

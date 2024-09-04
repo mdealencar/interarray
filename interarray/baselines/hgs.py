@@ -112,7 +112,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                 if 'path' in A[s][t]:
                     path = A[s][t]['path']
                     s, t = (s, t) if s < t else (t, s)
-                    path_type = 'contour_' + A[s][t]['type']
+                    path_type = 'contour_' + A[s][t]['kind']
                     for u, v in zip([s] + path, path + [t]):
                         G.add_edge(u, v, length=0., type=path_type)
                     # NOTE: the first segment holds the entire ⟨s–t⟩ length

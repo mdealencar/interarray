@@ -80,9 +80,9 @@ def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
         boundary=boundary,
         landscape_angle=landscape_angle,
         VertexC=VertexC)
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
     return G
 

@@ -544,7 +544,7 @@ def check_crossings(G, debug=False, MARGIN=0.1):
     if D is not None:
         N -= D
         # detournodes = range(N, N + D)
-        # G.add_nodes_from(((s, {'type': 'detour'})
+        # G.add_nodes_from(((s, {'kind': 'detour'})
         #                   for s in detournodes))
         # clone2prime = G.graph['clone2prime']
         # assert len(clone2prime) == D, \

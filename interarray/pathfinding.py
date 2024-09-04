@@ -566,7 +566,7 @@ class PathFinder():
             clone2prime.extend(path[1:-1])
             D += Dinc
             G.add_nodes_from(((c, {'label': F[c],
-                                   'type': 'detour',
+                                   'kind': 'detour',
                                    'subtree': subtree_id,
                                    'load': subtree_load})
                               for c in Clone))

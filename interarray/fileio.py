@@ -115,9 +115,9 @@ def file2graph(filename, rotation=None, handle='file'):
                  boundary=boundary,
                  name=fpath.stem,
                  handle=handle)
-    G.add_nodes_from(((n, {'label': F[n], 'type': 'wtg'})
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'type': 'oss'})
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
     make_graph_metrics(G)
     return G
