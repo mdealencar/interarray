@@ -604,6 +604,7 @@ def make_planar_embedding(
             A.add_edge(u, v, kind='extended')
     # Add length attribute to A's edges.
     source, target = zip(*A.edges)
+    # TODO: ¿use d2roots for root-incident edges? probably not worth it
     A_lengths = np.hypot(*(VertexC[source,] - VertexC[target,]).T)
     for u, v, length in zip(source, target, A_lengths):
         A[u][v]['length'] = length
@@ -734,7 +735,7 @@ def make_planar_embedding(
                              # original_path-> which P edges the A edge maps to
                              # (so that PathFinder works)
                              path=original_path,
-                             kind='corner_'+eData['kind'])
+                             kind='contour_'+eData['kind'])
                 u, v = (u, v) if u < v else (v, u)
                 for p in path[1:-1]:
                     corner_to_A_edges[p].append((u, v))
@@ -774,14 +775,12 @@ def make_planar_embedding(
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # ##################################################################
     print('\nPART I')
-    # use P_paths to obtain estimates of d2roots taking into consideration the
-    # concavities and exclusion zones
+    d2roots = cdist(VertexC[:N + B], VertexC[-M:])
+    A.graph['d2roots'] = d2roots
+    # d2roots may not be the plain Euclidean distance if there are obstacles.
     if len(concavityVertexSets) > 0 or (exclusions and len(exclusions) > 0):
-        # d2roots may not be the plain Euclidean distance
-        # d2roots = np.empty((M, N), dtype=float)
-        d2roots = cdist(VertexC[:-(M + B)], VertexC[-M:])
-        A.graph['d2roots'] = d2roots
-        G.graph['d2roots'] = d2roots
+        # Use P_paths to obtain estimates of d2roots taking into consideration
+        # the concavities and exclusion zones.
         for r in range(-M, 0):
             lengths, paths = nx.single_source_dijkstra(P_paths, r,
                                                        weight='length')
