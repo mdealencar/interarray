@@ -351,7 +351,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     dark = plt.rcParams['figure.facecolor'] != 'white'
 
     root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
-    detour_size = NODESIZE_LABELED_DETOUR if node_tag is not None else NODESIZE_DETOUR
+    detour_size = (NODESIZE_LABELED_DETOUR
+                   if node_tag is not None else
+                   NODESIZE_DETOUR)
     node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
     type2color = {}
@@ -360,8 +362,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
-        corner_delaunay='solid',
-        corner_extended='dashed',
+        contour_delaunay='solid',
+        contour_extended='dashed',
+        contour='solid',
         unspecified='solid',
     )
     if dark:
@@ -370,8 +373,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
-            corner_delaunay='green',
-            corner_extended='green',
+            contour_delaunay='green',
+            contour_extended='green',
+            contour='red',
             extended='darkcyan',
             unspecified='crimson',
         )
@@ -386,8 +390,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
-            corner_delaunay='darkgreen',
-            corner_extended='darkgreen',
+            contour_delaunay='darkgreen',
+            contour_extended='darkgreen',
+            contour='magenta',
             extended='black',
             unspecified='firebrick',
         )
@@ -397,8 +402,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         polygon_edge = '#444444'
         polygon_face = 'whitesmoke'
 
-    M, N, B, D, VertexC, border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+    M, N, B, C, D, VertexC, border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in ('M', 'N', 'B', 'C', 'D', 'VertexC', 'border',
                                  'exclusions', 'landscape_angle'))
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
@@ -433,11 +438,20 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     ax.set_aspect('equal')
     # setup
     roots = range(-M, 0)
-    pos = dict(zip(range(N), VertexC[:N])) | dict(zip(roots, VertexC[-M:]))
-    if D is not None:
+    pos = (dict(enumerate(VertexC[:-M]))
+           | dict(enumerate(VertexC[-M:], start=-M)))
+    if C is not None or D is not None:
+        C = C or 0
+        D = D or 0
         fnT = G.graph.get('fnT')
-        detour = range(N + B, N + B + D)
+        contour = range(N + B, N + B + C)
+        detour = range(N + B + C, N + B + C + D)
         pos |= dict(zip(detour, VertexC[fnT[detour]]))
+        pos |= dict(zip(contour, VertexC[fnT[contour]]))
+    #  if D is not None:
+    #      fnT = G.graph.get('fnT')
+    #      detour = range(N + B, N + B + D)
+    #      pos |= dict(zip(detour, VertexC[fnT[detour]]))
     RootL = {r: G.nodes[r].get('label', F[r]) for r in roots[::-1]}
 
     colors = plt.get_cmap('tab20', 20).colors
@@ -460,7 +474,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                                          if kind == edge_kind])
 
     # draw nodes
-    if D is not None:
+    if D:
         # draw circunferences around nodes that have Detour clones
         nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=detour, alpha=0.4,
                                edgecolors=detour_ring, node_color='none',
@@ -485,7 +499,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         for root in roots:
             if root in labels:
                 labels.pop(root)
-        if D is not None:
+        if D:
             for det in detour:
                 if det in labels:
                     labels.pop(det)

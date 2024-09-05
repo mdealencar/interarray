@@ -69,10 +69,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     # The additional coordinates will be helpful in speeding up the algorithm.
     demands = np.ones(N + M, dtype=float)
     demands[0] = 0.  # depot demand = 0
-    d2roots = A.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
-        A.graph['d2roots'] = d2roots
+    d2roots = A.graph['d2roots']
     weights, w_max = length_matrix_single_depot_from_G(A, scale=scale)
     vehicles_min = math.ceil(N/capacity)
     if vehicles is None or vehicles <= vehicles_min:
@@ -98,32 +95,51 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data)
 
     nonAedges = []
+    iC = N + B
+    clone2prime = []
     for branch in result.routes:
         s = -1
-        t = branch[0] - 1
-        G.add_edge(s, t, length=d2roots[t, s])
-        #  print(f'{F[s]}–{F[t]}', end='')
-        s = t
-        for t in branch[1:]:
+        for t in branch:
             t -= 1
-            #  print(f'–{F[t]}', end='')
-            if t in A[s]:
-                if 'path' in A[s][t]:
-                    path = A[s][t]['path']
-                    s, t = (s, t) if s < t else (t, s)
-                    path_type = 'contour_' + A[s][t]['kind']
-                    for u, v in zip([s] + path, path + [t]):
-                        G.add_edge(u, v, length=0., kind=path_type)
-                    # NOTE: the first segment holds the entire ⟨s–t⟩ length
-                    G[s][path[0]]['length'] = A[s][t]['length']
+            if t not in A[s]:
+                if s >= 0:
+                    G.add_edge(s, t, length=np.hypot(*(VertexC[s]
+                                                       - VertexC[t]).T))
+                    nonAedges.append((s, t))
+                    s = t
+                    continue
                 else:
-                    G.add_edge(s, t, length=A[s][t]['length'])
+                    # NOTE: (unintuitive) The length might be from a contour
+                    #       path, but the graph connection will be a straight
+                    #       line. It is left to PathFinder to properly route
+                    #       that gate.
+                    edge_attr = {'length': d2roots[t, s], 'reroute': True}
+                    path = None
             else:
-                #  print(f'WARNING: edge {F[s]}-{F[t]} is not in A')
-                G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
-                nonAedges.append((s, t))
+                edge_attr = {'length': A[s][t]['length']}
+                path = A[s][t].get('path')
+            if path is not None:
+                path = path if s < t else reversed(path)
+                path_kind = A[s][t]['kind']
+                for n in path:
+                    clone2prime.append(n)
+                    n = iC
+                    G.add_node(n, kind='contour')
+                    iC += 1
+                    # The full path length is assigned only to the final edge.
+                    G.add_edge(s, n, length=0., kind='contour')
+                    s = n
+                edge_attr.update(kind='contour')
+            G.add_edge(s, t, **edge_attr)
             s = t
 
+    if clone2prime:
+        fnT = np.arange(iC + M)
+        fnT[N + B:-M] = clone2prime
+        fnT[-M:] = range(-M, 0)
+        G.graph.update(fnT=fnT,
+                       clone2prime=clone2prime,
+                       C=len(clone2prime))
     calcload(G)
     if nonAedges:
         G.graph['nonAedges'] = nonAedges

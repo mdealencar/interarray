@@ -34,13 +34,13 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     margin = 30
     root_side = round(1.77*node_size)
     # TODO: ¿use SVG's attr overflow="visible" instead of margin?
-    M, N, B, D, VertexC, border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+    M, N, VertexC, border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in ('M', 'N', 'VertexC', 'border',
                                  'exclusions', 'landscape_angle'))
+    B, C, D = (G.graph.get(k, 0) for k in ('B', 'C', 'D'))
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)
-    B = B or 0
     if border is None:
         hull = G.graph.get('hull')
         if hull is not None:
@@ -82,8 +82,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
-        corner_delaunay='solid',
-        corner_extended='dashed',
+        contour='solid',
+        contour_delaunay='solid',
+        contour_extended='dashed',
         unspecified='solid',
     )
     if dark:
@@ -91,8 +92,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
-            corner_delaunay='green',
-            corner_extended='green',
+            contour='red',
+            contour_delaunay='green',
+            contour_extended='green',
             extended='darkcyan',
             unspecified='crimson',
         )
@@ -106,8 +108,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
-            corner_delaunay='darkgreen',
-            corner_extended='darkgreen',
+            contour='magenta',
+            contour_delaunay='darkgreen',
+            contour_extended='darkgreen',
             extended='black',
             unspecified='firebrick',
         )
@@ -122,21 +125,22 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
               '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f',
               '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5')
 
-    D = G.graph.get('D', 0)
-    if D:
+    if D or C:
         fnT = G.graph['fnT']
     else:
-        fnT = []
+        fnT = np.arange(N + B + M)
+        fnT[-M:] = range(-M, 0)
 
-    # farm boundary shape
-    boundary = svg.Polygon(
-        id='boundary',
+    # farm border shape
+    border = svg.Polygon(
+        id='border',
         stroke=polygon_edge,
         fill=polygon_face,
         points=' '.join(str(c) for c in BoundaryS.flat)
     )
 
-    if not G.graph.get('has_loads', False) and G.number_of_edges() == N + D:
+    if (not G.graph.get('has_loads', False)
+            and G.number_of_edges() == N + C + D):
         calcload(G)
 
     # wtg nodes
@@ -161,12 +165,14 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     # Detour nodes
     svgdetours = svg.G(
         id='DTgrp', elements=[svg.Use(href='#dt', x=VertexS[d, 0],
-                                      y=VertexS[d, 1]) for d in fnT[N: N + D]])
+                                      y=VertexS[d, 1])
+                              for d in fnT[N + B + C: N + B + C + D]])
 
     # Edges
     class_dict = {'delaunay': 'del',
-                  'corner_delaunay': 'cord',
-                  'corner_extended': 'core',
+                  'contour': 'con',
+                  'contour_delaunay': 'cod',
+                  'contour_extended': 'coe',
                   'extended': 'ext',
                   'scaffold': 'scf',
                   None: 'std'}
@@ -175,9 +181,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     for u, v, edge_kind in edges_with_kind:
         if edge_kind == 'detour':
             continue
+        #  edge_lines[class_dict[edge_kind]].append(
+        #          svg.Line(*VertexS[fnT[u]], *VertexS[fnT[v]]))
         edge_lines[class_dict[edge_kind]].append(
-                svg.Line(x1=VertexS[u, 0], y1=VertexS[u, 1],
-                         x2=VertexS[v, 0], y2=VertexS[v, 1]))
+                svg.Line(x1=VertexS[fnT[u], 0], y1=VertexS[fnT[u], 1],
+                         x2=VertexS[fnT[v], 0], y2=VertexS[fnT[v], 1]))
     edges = [svg.G(id='edges', class_=class_, elements=lines)
              for class_, lines in edge_lines.items()]
     #  for class_, lines in edge_lines.items():
@@ -185,7 +193,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
     for r in range(-M, 0):
-        detoured = [n for n in G.neighbors(r) if n >= N + B]
+        detoured = [n for n in G.neighbors(r) if n >= N + B + C]
         for t in detoured:
             s = r
             detour_hops = [s, fnT[t]]
@@ -225,8 +233,10 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         f'line {{stroke-width: 4}} '
         f'.std {{stroke: {type2color["unspecified"]}}} '
         f'.del {{stroke: {type2color["delaunay"]}}} '
-        f'.cord {{stroke: {type2color["corner_delaunay"]}}} '
-        f'.core {{stroke: {type2color["corner_extended"]}; stroke-dasharray: 18 15}} '
+        f'.con {{stroke: {type2color["contour"]}}} '
+        f'.cod {{stroke: {type2color["contour_delaunay"]}}} '
+        f'.coe {{stroke: {type2color["contour_extended"]}; '
+        f'stroke-dasharray: 18 15}} '
         f'.ext {{stroke: {type2color["extended"]}; stroke-dasharray: 18 15}} '
         f'.scf {{stroke: {type2color["scaffold"]}; stroke-dasharray: 10 10}} '
         f'.dt {{stroke-dasharray: 18 15; fill: none; '
@@ -237,6 +247,6 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
         elements=[style, defs,
                   svg.G(id=G.graph['handle'],
-                        elements=[boundary, *edges, edgesdt, svgnodes,
+                        elements=[border, *edges, edgesdt, svgnodes,
                                   svgroots, svgdetours])])
     return SvgRepr(out.as_str())

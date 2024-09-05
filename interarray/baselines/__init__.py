@@ -40,7 +40,7 @@ def length_matrix_single_depot_from_G(
     else:
         # non-available edges will have infinite length
         L = np.full((N + M, N + M), np.inf)
-        len_max = d2roots[:, 0].max()
+        len_max = d2roots[:N, 0].max()
         for u, v, length in A.edges(data='length'):
             L[u + 1, v + 1] = L[v + 1, u + 1] = length*scale
             len_max = max(len_max, length)
