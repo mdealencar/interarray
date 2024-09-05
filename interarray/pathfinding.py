@@ -92,7 +92,8 @@ class PathFinder():
         self.G, self.P, self.M, self.N, self.B = G, planar, M, N, B
         # sets of gates (one per root) that are not in the planar embedding
         nonembed_Gates = tuple(
-            np.fromiter(set(G.neighbors(r)) - set(planar.neighbors(r)),
+            np.fromiter(set(n for n in G.neighbors(r) if n < N)
+                        - set(n for n in planar.neighbors(r) if n < N),
                         dtype=int)
             for r in range(-M, 0))
         self.nonembed_Gates = nonembed_Gates
@@ -101,6 +102,25 @@ class PathFinder():
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
+
+        fnT = G.graph.get('fnT')
+        if fnT is not None:
+            # Assuming that if an edge has attr 'kind' it is 'contour'
+            #  contoured_gate_corners = [[n for n, edgeD in G[r].items()
+            #                             if 'kind' in edgeD]
+            #                            for r in range(-M, 0)]
+            contoured_gate_corners = [[n for n in G.neighbors(r) if n >= N]
+                                      for r in range(-M, 0)]
+            contoured_gates_per_root = []
+            for r, gate_corners in enumerate(contoured_gate_corners, start=-M):
+                contoured_gates = []
+                for cur in gate_corners:
+                    rev = r
+                    while cur >= N:
+                        fwd = planar[fnT[rev]][fnT[cur]]['cw']
+                        rev, cur = cur, fwd
+                    contoured_gates.append(cur)
+            print(contoured_gates_per_root)
 
         Xings = list(gateXing_iter(G, gates=nonembed_Gates))
         self.Xings = Xings
@@ -193,8 +213,9 @@ class PathFinder():
                   self.n2s(_new, _apex), d_new)
 
     def _advance_portal(self, left: int, right: int):
-        G = self.G
-        P = self.P
+        G, P, N, B = self.G, self.P, self.N, self.B
+        #  ST = N + B - 3
+        ST = N + B
         while True:
             # look for children portals
             n = P[left][right]['ccw']
@@ -206,7 +227,10 @@ class PathFinder():
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
                 if (st_sorted not in self.portal_set
-                        or G.nodes[s]['subtree'] == G.nodes[t]['subtree']):
+                        or (s < ST
+                            and t < ST
+                            and G.nodes[s]['subtree'] ==
+                            G.nodes[t]['subtree'])):
                     # (s, t) is in G or is bounded by a subtree
                     continue
                 next_portals.append(((s, t), side))
@@ -324,7 +348,7 @@ class PathFinder():
 
     def _find_paths(self):
         #  print('[exp] starting _explore()')
-        G, P, M, N = self.G, self.P, self.M, self.N
+        G, P, M, N, B = self.G, self.P, self.M, self.N, self.B
         d2roots = G.graph['d2roots']
         d2rootsRank = G.graph['d2rootsRank']
         prioqueue = []
@@ -348,6 +372,8 @@ class PathFinder():
         self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
+        #  ST = N + B - 3
+        ST = N + B
         for r in range(-M, 0):
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.base_from_id[r] = r
@@ -364,9 +390,9 @@ class PathFinder():
                 self.uncharted[right, left] = 0
 
                 sec_left = P[left][right]['ccw']
-                while (left, sec_left) not in G.edges:
+                while left < ST and (left, sec_left) not in G.edges:
                     sec_left = P[left][sec_left]['ccw']
-                if sec_left == r:
+                if sec_left == r or left >= ST:
                     sec_left = NULL
 
                 d_left, d_right = d2roots[left, r], d2roots[right, r]
