@@ -397,21 +397,23 @@ def make_graph_metrics(G):
 
     Any detour nodes in G are ignored.
     '''
-    VertexC = G.graph['VertexC']
-    M = G.graph['M']
-    # N = G.number_of_nodes() - M
+    N, M, VertexC = (G.graph[k] for k in ('N', 'M', 'VertexC'))
+    B = G.graph.get('B', 0)
     roots = range(-M, 0)
-    NodeC = VertexC[:-M]
+    NodeC = VertexC[:N + B]
     RootC = VertexC[-M:]
 
     # calculate distance from all nodes to each of the roots
-    d2roots = cdist(VertexC[:-M], VertexC[-M:])
+    d2roots = G.graph.get('d2roots')
+    if d2roots is None:
+        d2roots = cdist(VertexC[:N + B], VertexC[-M:])
 
-    angles = np.empty_like(d2roots)
+    angles = np.empty((N + B, M), dtype=float)
     for n, nodeC in enumerate(NodeC):
-        nodeD = G.nodes[n]
-        # assign the node to the closest root
-        nodeD['root'] = -M + np.argmin(d2roots[n])
+        if n < N:
+            nodeD = G.nodes[n]
+            # assign the node to the closest root
+            nodeD['root'] = -M + np.argmin(d2roots[n])
         x, y = (nodeC - RootC).T
         angles[n] = np.arctan2(y, x)
     # TODO: ¿is this below actually used anywhere?
