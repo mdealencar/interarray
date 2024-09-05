@@ -227,8 +227,8 @@ class PathFinder():
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
                 if (st_sorted not in self.portal_set
-                        or (s < ST
-                            and t < ST
+                        or (s < ST and t < ST
+                            and s in G.nodes and t in G.nodes
                             and G.nodes[s]['subtree'] ==
                             G.nodes[t]['subtree'])):
                     # (s, t) is in G or is bounded by a subtree
