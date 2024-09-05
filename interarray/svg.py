@@ -170,12 +170,12 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                   'extended': 'ext',
                   'scaffold': 'scf',
                   None: 'std'}
-    edges_with_type = G.edges(data='kind', default=None)
+    edges_with_kind = G.edges(data='kind', default=None)
     edge_lines = defaultdict(list)
-    for u, v, edge_type in edges_with_type:
-        if edge_type == 'detour':
+    for u, v, edge_kind in edges_with_kind:
+        if edge_kind == 'detour':
             continue
-        edge_lines[class_dict[edge_type]].append(
+        edge_lines[class_dict[edge_kind]].append(
                 svg.Line(x1=VertexS[u, 0], y1=VertexS[u, 1],
                          x2=VertexS[v, 0], y2=VertexS[v, 1]))
     edges = [svg.G(id='edges', class_=class_, elements=lines)

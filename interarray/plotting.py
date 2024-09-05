@@ -452,12 +452,12 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                            edgelist=[(u, v)
                                      for u, v, kind in G.edges.data('kind')
                                      if kind is None])
-    for edge_type in type2style:
-        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_type],
-                               style=type2style[edge_type], label=edge_type,
+    for edge_kind in type2style:
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_kind],
+                               style=type2style[edge_kind], label=edge_kind,
                                edgelist=[(u, v)
                                          for u, v, kind in G.edges.data('kind')
-                                         if kind == edge_type])
+                                         if kind == edge_kind])
 
     # draw nodes
     if D is not None:
