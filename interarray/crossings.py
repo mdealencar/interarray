@@ -475,5 +475,6 @@ def list_edge_crossings(G: nx.Graph, P: nx.PlanarEmbedding, diagonals: dict) \
                     if len(conflicting) < 3:
                         eeXings.append(conflicting)
                     else:
-                        print('ERROR: cannot handle triple edge crossing.', conflicting)
+                        print('ERROR: cannot handle triple edge crossing.',
+                              conflicting)
     return eeXings
