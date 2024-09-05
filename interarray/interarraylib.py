@@ -36,30 +36,30 @@ def G_base_from_G(G: nx.Graph) -> nx.Graph:
     return G_base
 
 
-def G_from_site(*, VertexC: np.ndarray, boundary: np.ndarray, M: int,
-                **kwargs) -> nx.Graph:
+def G_from_site(*, VertexC: np.ndarray, border: np.ndarray, N: int, M: int,
+                B: int, **kwargs) -> nx.Graph:
     '''
     Arguments:
     - 'VertexC': numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
-    - 'boundary': numpy.ndarray (P, 2) with x, y pos. of P polygon vertices
+    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
+    - 'N': int number of wtg
     - 'M': int number of oss
+    - 'B': int number of border vertices
 
     Addtional relevant arguments:
     - 'name': str site name
     - 'handle': str site identifier
-    - 'relax_boundary: boolean if True allows edges to cross boundary
 
     Returns: `networkx.Graph` containing V nodes and no edges. All keyword
     arguments are made available in `Graph().graph` dict.
     '''
-    N = len(VertexC) - M
     if 'handle' not in kwargs:
         kwargs['handle'] = 'G_from_site'
     if 'name' not in kwargs:
         kwargs['name'] = kwargs['handle']
-    G = nx.Graph(M=M,
+    G = nx.Graph(N=N, M=M, B=B,
                  VertexC=VertexC,
-                 boundary=boundary,
+                 border=border,
                  **kwargs)
 
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})

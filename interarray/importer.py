@@ -2,6 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import os
+from itertools import chain
 from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import NamedTuple, Iterable
@@ -58,16 +59,17 @@ def graph_from_yaml(filepath, handle=None) -> nx.Graph:
     fpath = Path(filepath)
     # read wind power plant site YAML file
     parsed_dict = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
-    Boundary, BoundaryTag = _tags_and_array_from_key('EXTENTS', parsed_dict)
+    Border, BorderTag = _tags_and_array_from_key('EXTENTS', parsed_dict)
     Root, RootTag = _tags_and_array_from_key('SUBSTATIONS', parsed_dict)
     Node, NodeTag = _tags_and_array_from_key('TURBINES', parsed_dict)
 
     # create networkx graph
     N = Node.shape[0]
     M = Root.shape[0]
-    G = nx.Graph(M=M,
-                 VertexC=np.vstack([Node, Root]),
-                 boundary=Boundary,
+    B = Border.shape[0]
+    G = nx.Graph(N=N, M=M, B=B,
+                 VertexC=np.vstack((Node, Border, Root)),
+                 border=np.arange(N, N + B),
                  name=fpath.stem,
                  handle=handle)
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
@@ -106,9 +108,11 @@ class GetAllData(osmium.SimpleHandler):
             ))
 
     def relation(self, r):
-        self.elements[r.tags.get('power') or r.tags.get('construction:power') or 'other']['rels'].append((
-            r.replace(tags=dict(r.tags), members=list(r.members))
-        ))
+        self.elements[r.tags.get('power')
+                      or r.tags.get('construction:power')
+                      or 'other']['rels'].append(
+                          (r.replace(tags=dict(r.tags),
+                                     members=list(r.members))))
 
 
 def graph_from_pbf(filepath, handle=None) -> nx.Graph:
@@ -129,6 +133,7 @@ def graph_from_pbf(filepath, handle=None) -> nx.Graph:
         wtg = [point for tags, point in gen_nodes]
     else:
         print(f'«{name}» Unable to identify generators.')
+    N = len(wtg)
 
     # Substations
     ossn = ([point for tags, point in data['substation']['nodes']]
@@ -143,13 +148,15 @@ def graph_from_pbf(filepath, handle=None) -> nx.Graph:
     # Boundary
     plant_ways = data['plant'].get('ways')
     if plant_ways is not None:
-        assert len(plant_ways) == 1, 'Not Implemented: power plant with multiple areas.'
+        assert len(plant_ways) == 1, \
+                'Not Implemented: power plant with multiple areas.'
         (tags, ring), = plant_ways
         plant_name = tags.get('name:en') or tags.get('name')
         boundary = ring
     else:
         plant_name = None
         print(f'«{name}» Error: No site boundary found.')
+    B = len(boundary.coords) - 1
 
     # Relations (nothing done now, possibly will get plant name from this)
     plant_rels = data['plant'].get('rels')
@@ -157,32 +164,29 @@ def graph_from_pbf(filepath, handle=None) -> nx.Graph:
         print(f'«{name}» Relations found: ', plant_rels)
 
     # Build site data structure
-    Vlatlon = np.array(
-        [(n.y, n.x) for n in wtg]
-        + [(n.y, n.x) for n in oss],
-        dtype=float
+    latlon = np.array(tuple(chain(
+        ((n.y, n.x) for n in wtg),
+        boundary.coords.__array__()[:-1, ::-1],
+        ((n.y, n.x) for n in oss),
+        )), dtype=float
     )
     # TODO: find the UTM sector that includes the most coordinates among
     # vertices and boundary (bin them in 6° sectors and count). Then insert
     # a dummy coordinate as the first array row, such that utm.from_latlon()
     # will pick the right zone for all points.
-    VertexC = np.c_[utm.from_latlon(*Vlatlon.T)[:2]]
-    BoundaryC = np.c_[
-            utm.from_latlon(*boundary.coords.__array__()[:-1, ::-1].T)[:2]
-            ]
+    VertexC = np.c_[utm.from_latlon(*latlon.T)[:2]]
     # create networkx graph
     # TODO: use the wtg names as node labels if available
     #       this means bringing the core of G_from_site here
     G = G_from_site(
+            N=N, M=M, B=B,
             VertexC=VertexC,
-            boundary=BoundaryC,
-            M=M,
+            border=np.arange(N, N + B),
             name=name,
             )
     if plant_name is not None:
         G.graph['OSM_name'] = plant_name
-    poly = shp.Polygon(shell=G.graph['boundary'])
-    x, y = poly.minimum_rotated_rectangle.exterior.coords.xy
+    x, y = boundary.minimum_rotated_rectangle.exterior.coords.xy
     side0 = np.hypot(x[1] - x[0], y[1] - y[0])
     side1 = np.hypot(x[2] - x[1], y[2] - y[1])
     if side0 < side1:
