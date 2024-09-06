@@ -9,6 +9,7 @@ from scipy.spatial.distance import cdist
 from collections import defaultdict
 from itertools import chain, tee
 
+from bidict import bidict
 from gon import base as gonb
 
 import PythonCDT as cdt
@@ -591,17 +592,17 @@ def make_planar_embedding(
     #  for u, v in ((u, v) for u, v, is_hull in A.edges(data='is_hull')
     #               if not is_hull):
 
-    diagonals = {}
+    diagonals = bidict()
     for u, v in tuple(A.edges):
-        if ((u, v) if u < v else (v, u)) in hull_prunned_edges:
+        u, v = (u, v) if u < v else (v, u)
+        if (u, v) in hull_prunned_edges:
             continue
-        s = P_A[u][v]['cw']
-        t = P_A[u][v]['ccw']
+        uvD = P_A[u][v]
+        s, t = uvD['cw'], uvD['ccw']
         if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
-            u, v, n = (s, t, v) if s < t else (t, s, u)
-            # mapping: diagonal ⟨u, v⟩ | u < v  ->  node A[u][v]['cw']
-            diagonals[(u, v)] = n
-            A.add_edge(u, v, kind='extended')
+            s, t = (s, t) if s < t else (t, s)
+            diagonals[(s, t)] = (u, v)
+            A.add_edge(s, t, kind='extended')
     # Add length attribute to A's edges.
     source, target = zip(*A.edges)
     # TODO: ¿use d2roots for root-incident edges? probably not worth it
@@ -809,9 +810,9 @@ def make_planar_embedding(
     norm_factor = math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
                             + np.dot(bX[:-1], bY[1:])
                             - np.dot(bY[:-1], bX[1:])))
-    A.graph.update(dict(lower_bound=lower_bound,
-                        upper_bound=upper_bound,
-                        norm_factor=norm_factor))
+    A.graph.update(lower_bound=lower_bound,
+                   upper_bound=upper_bound,
+                   norm_factor=norm_factor)
 
     # products:
     # P: PlanarEmbedding
@@ -883,9 +884,12 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
     return A
 
 
-def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
-                               diagonals: dict[tuple[int, int], int],
-                               relax_boundary: bool = False) \
+def G_from_A_subset(subset):
+    return G
+
+
+def planar_flipped_by_routeset(
+        G: nx.Graph, *, A: nx.Graph, planar: nx.PlanarEmbedding) \
         -> nx.PlanarEmbedding:
     '''
     Returns a modified PlanarEmbedding based on `planar`, where all edges used
@@ -899,7 +903,7 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
                                  'exclusions'))
 
     P = planar.copy()
-    diagonals_base = diagonals
+    diagonals = A.graph['diagonals']
     #  diagonalsʹ = diagonals.copy()
     #  P.graph['diagonals'] = diagonalsʹ
     for r in range(-M, 0):
@@ -907,10 +911,20 @@ def planar_flipped_by_routeset(G: nx.Graph, *, planar: nx.PlanarEmbedding,
         for u, v in nx.edge_bfs(G, r):
             # update the planar embedding to include any Delaunay diagonals
             # used in G; the corresponding crossing Delaunay edge is removed
+            if u >= N:
+                # we are in a redundant segment of a multi-segment path
+                continue
+            if v >= N:
+                # we are in the relevant segment of a multi-segment path
+                rev, cur, fwd = u, v, P[v][u]['ccw']
+                while fwd >= N:
+                    rev, cur, fwd = cur, fwd, P[cur][rev]['ccw']
+                v = fwd
+                # now <u, v> represents the corresponding edge in A
             u, v = (u, v) if u < v else (v, u)
-            s = diagonals_base.get((u, v))
-            if s is not None:
-                t = planar[u][s]['ccw']  # same as P[v][s]['cw']
+            st = diagonals.get((u, v))
+            if st is not None:
+                s, t = st
                 if (s, t) in G.edges and s >= 0 and t >= 0:
                     # (u, v) & (s, t) are in G (i.e. a crossing). This means
                     # the diagonal (u, v) is a gate and (s, t) should remain
