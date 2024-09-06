@@ -255,11 +255,11 @@ def MILP_solution_to_G(model, *, solver, A=None):
                                for u, v, data in A.edges(data=True)})
 
     # take care of gates that were not in A
-    gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
+    non_A_gates = G.graph['non_A_gates'] = defaultdict(list)
     d2roots = A.graph['d2roots']
     for r, n, _ in gates_and_loads:
         if n not in A[r]:
-            gates_not_in_A[r].append(n)
+            non_A_gates[r].append(n)
             edgeD = G[n][r]
             edgeD['length'] = d2roots[n, r]
 

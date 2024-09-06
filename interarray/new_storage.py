@@ -207,10 +207,10 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
                 'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
                 'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
                 'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
-                'gates_not_in_A', 'funfile', 'funhash', 'funname', 'diagonals',
-                'planar', 'has_loads', 'M', 'Subtree', 'overfed', 'gnT',
-                'max_load', 'fun_fingerprint', 'handle', 'hull', 'solver_log',
-                'loading_length_mismatch'}
+                'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
+                'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
+                'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
+                'loading_length_mismatch', 'gnT'}
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
     terse_graph = terse_graph_from_G(G)

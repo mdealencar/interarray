@@ -315,7 +315,7 @@ def MILP_solution_to_G(model, *, solver=None, A=None):
         G, {(u, v): data
             for u, v, data in A.edges(data=True)})
 
-    gates_not_in_A = G.graph['gates_not_in_A'] = defaultdict(list)
+    non_A_gates = G.graph['non_A_gates'] = defaultdict(list)
 
     # propagate loads from edges to nodes
     subtree = -1
@@ -334,7 +334,7 @@ def MILP_solution_to_G(model, *, solver=None, A=None):
                 if v not in A[r]:
                     # A may not have some gate edges
                     G[u][v]['length'] = model.g[(u, v)]
-                    gates_not_in_A[r].append(v)
+                    non_A_gates[r].append(v)
             Subtree[gate].append(v)
             G.nodes[v]['subtree'] = subtree
             gnT[v] = gate
