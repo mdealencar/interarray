@@ -36,19 +36,19 @@ def G_base_from_G(G: nx.Graph) -> nx.Graph:
     return G_base
 
 
-def G_from_site(*, VertexC: np.ndarray, border: np.ndarray, N: int, M: int,
-                B: int, **kwargs) -> nx.Graph:
+def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
     '''
     Arguments:
     - 'VertexC': numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
-    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
     - 'N': int number of wtg
     - 'M': int number of oss
-    - 'B': int number of border vertices
 
     Addtional relevant arguments:
     - 'name': str site name
     - 'handle': str site identifier
+    - 'B': int number of border and exclusion zones' vertices
+    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
+    - 'exclusions': sequence of numpy.ndarray of VertexC indices
 
     Returns: `networkx.Graph` containing V nodes and no edges. All keyword
     arguments are made available in `Graph().graph` dict.
@@ -57,9 +57,10 @@ def G_from_site(*, VertexC: np.ndarray, border: np.ndarray, N: int, M: int,
         kwargs['handle'] = 'G_from_site'
     if 'name' not in kwargs:
         kwargs['name'] = kwargs['handle']
-    G = nx.Graph(N=N, M=M, B=B,
+    if 'B' not in kwargs:
+        kwargs['B'] = 0
+    G = nx.Graph(N=N, M=M,
                  VertexC=VertexC,
-                 border=border,
                  **kwargs)
 
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})

@@ -240,7 +240,9 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                               gates_limit=gates_limit,
                               branching=branching)
     m.site = {key: A.graph[key]
-              for key in ('M', 'VertexC', 'boundary', 'name')}
+              for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
+                          'name', 'handle')
+              if key in A.graph}
     m.fun_fingerprint = fun_fingerprint()
     return m
 

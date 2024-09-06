@@ -176,7 +176,9 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.Be, m.Bg, m.De, m.Dg = Be, Bg, De, Dg
     m.k = k
     m.site = {key: A.graph[key]
-              for key in ('M', 'VertexC', 'boundary', 'name')}
+              for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
+                          'name', 'handle')
+              if key in A.graph}
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
