@@ -211,7 +211,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             next(entries)).groups())
     d2roots = G.graph['d2roots']
     VertexC = G.graph['VertexC']
-    nonAedges = []
+    non_A_edges = []
     for branch in branches:
         if not branch:
             continue
@@ -226,12 +226,12 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
                 G.add_edge(s, t, length=A[s][t]['length'])
             else:
                 G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
-                nonAedges.append((s, t))
+                non_A_edges.append((s, t))
             s = t
     if branches:
         calcload(G)
-    if nonAedges:
-        G.graph['nonAedges'] = nonAedges
+    if non_A_edges:
+        G.graph['non_A_edges'] = non_A_edges
     else:
         PathFinder(G).create_detours(in_place=True)
     log = result.stdout.decode('utf8')

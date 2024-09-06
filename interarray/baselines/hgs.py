@@ -94,7 +94,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
 
     result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data)
 
-    nonAedges = []
+    non_A_edges = []
     iC = N + B
     clone2prime = []
     for branch in result.routes:
@@ -105,7 +105,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                 if s >= 0:
                     G.add_edge(s, t, length=np.hypot(*(VertexC[s]
                                                        - VertexC[t]).T))
-                    nonAedges.append((s, t))
+                    non_A_edges.append((s, t))
                     s = t
                     continue
                 else:
@@ -141,8 +141,8 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                        clone2prime=clone2prime,
                        C=len(clone2prime))
     calcload(G)
-    if nonAedges:
-        G.graph['nonAedges'] = nonAedges
+    if non_A_edges:
+        G.graph['non_A_edges'] = non_A_edges
     else:
         pass
         #  PathFinder(G).create_detours(in_place=True)
