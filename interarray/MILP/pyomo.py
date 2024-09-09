@@ -344,9 +344,10 @@ def MILP_solution_to_G(model, *, solver=None, A=None):
             # update the planar embedding to include any Delaunay diagonals
             # used in G; the corresponding crossing Delaunay edge is removed
             u, v = (u, v) if u < v else (v, u)
-            s = diagonals.get((u, v))
-            if s is not None:
-                t = P[u][s]['ccw']  # same as P[v][s]['cw']
+            st = diagonals.get((u, v))
+            if st is not None:
+                # ⟨s, t⟩ is the Delaunay edge
+                s, t = st if P[u][st[1]]['cw'] == st[0] else st[::-1]
                 P.add_half_edge_cw(u, v, t)
                 P.add_half_edge_cw(v, u, s)
                 P.remove_edge(s, t)
