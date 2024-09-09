@@ -127,9 +127,9 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                     G.add_node(n, kind='contour')
                     iC += 1
                     # The full path length is assigned only to the final edge.
-                    G.add_edge(s, n, length=0., kind='contour')
+                    G.add_edge(s, n, length=0., kind='contour', A_edge=(s, t))
                     s = n
-                edge_attr.update(kind='contour')
+                edge_attr.update(kind='contour', A_edge=(s, t))
             G.add_edge(s, t, **edge_attr)
             s = t
 
