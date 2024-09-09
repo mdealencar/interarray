@@ -902,10 +902,11 @@ def planar_flipped_by_routeset(
         G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
                                  'exclusions'))
 
+    # TODO: I think this will only work if I can get a bijective mapping from
+    #       A edges to/from G inter-wtg paths. A->G is available from edge
+    #       attr 'path'. G->A is missing.
     P = planar.copy()
     diagonals = A.graph['diagonals']
-    #  diagonalsʹ = diagonals.copy()
-    #  P.graph['diagonals'] = diagonalsʹ
     for r in range(-M, 0):
         #  for u, v in nx.edge_dfs(G, r):
         for u, v in nx.edge_bfs(G, r):
@@ -920,33 +921,39 @@ def planar_flipped_by_routeset(
                 while fwd >= N:
                     rev, cur, fwd = cur, fwd, P[cur][rev]['ccw']
                 v = fwd
-                # now <u, v> represents the corresponding edge in A
+                # now ⟨u, v⟩ represents the corresponding edge in A
             u, v = (u, v) if u < v else (v, u)
             st = diagonals.get((u, v))
             if st is not None:
+                # ⟨u, v⟩ is a diagonal of Delaunay edge ⟨s, t⟩
                 s, t = st
-                if (s, t) in G.edges and s >= 0 and t >= 0:
-                    # (u, v) & (s, t) are in G (i.e. a crossing). This means
-                    # the diagonal (u, v) is a gate and (s, t) should remain
+                if st in G.edges and s >= 0 and t >= 0:
+                    # ⟨u, v⟩ & ⟨s, t⟩ are in G (i.e. a crossing). This means
+                    # the diagonal ⟨u, v⟩ is a gate and ⟨s, t⟩ should remain
                     continue
-                # examine the two triangles (s, t) belongs to
-                crossings = False
+                # ensure u–s–v–t is ccw
+                u, v = ((u, v)
+                        if (planar[u][t]['cw'] == s
+                            and planar[v][s]['cw'] == t) else
+                        (v, u))
+                # examine the two triangles ⟨s, t⟩ belongs to
                 for a, b, c in ((s, t, u), (t, s, v)):
                     # this is for diagonals crossing diagonals
                     d = planar[c][b]['ccw']
                     diag_da = (a, d) if a < d else (d, a)
                     if (d == planar[b][c]['cw']
-                            and diag_da in diagonals_base
-                            and diag_da[0] >= 0):
-                        crossings = crossings or diag_da in G.edges
+                            and diag_da in diagonals
+                            and diag_da[0] >= 0
+                            and diag_da in G.edges):
+                        continue
                     e = planar[a][c]['ccw']
                     diag_eb = (e, b) if e < b else (b, e)
                     if (e == planar[c][a]['cw']
-                            and diag_eb in diagonals_base
-                            and diag_eb[0] >= 0):
-                        crossings = crossings or diag_eb in G.edges
-                if crossings:
-                    continue
+                            and diag_eb in diagonals
+                            and diag_eb[0] >= 0
+                            and diag_eb in G.edges):
+                        continue
+                # ⟨u, v⟩ is not crossing any edge in G
                 P.add_half_edge(u, v, ccw=t)
                 P.add_half_edge(v, u, ccw=s)
                 P.remove_edge(s, t)

@@ -342,37 +342,34 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
                   '–'.join([F[n] for n in (u, v)]), '»')
 
 
-def edge_crossings(s, t, G, diagonals, P):
-    s, t = (s, t) if s < t else (t, s)
-    v = diagonals.get((s, t))
+def edge_crossings(u, v, G, diagonals, P):
+    u, v = (u, v) if u < v else (v, u)
+    st = diagonals.get((u, v))
     crossings = []
-    if v is None:
-        # ⟨s, t⟩ is a Delaunay edge
-        Pst = P[s][t]
-        Pts = P[t][s]
-        u = Pst['cw']
-        v = Pts['cw']
-        if u == Pts['ccw'] and v == Pst['ccw']:
-            diag = (u, v) if u < v else (v, u)
-            if diag in diagonals and diag in G.edges:
-                crossings.append(diag)
+    if st is None:
+        # ⟨u, v⟩ is a Delaunay edge
+        st = diagonals.inv.get((u, v))
+        if st is not None:
+            crossings.append(st)
     else:
-        # ⟨s, t⟩ is a diagonal
-        u = P[v][s]['cw']
-        triangles = ((u, v, s), (v, u, t))
-        u, v = (u, v) if u < v else (v, u)
+        # ⟨u, v⟩ is a diagonal of Delanay edge ⟨s, t⟩
+        s, t = st
         # crossing with Delaunay edge
-        crossings.append((u, v))
-        # examine the two triangles (u, v) belongs to
-        for a, b, c in triangles:
+        crossings.append(st)
+        # ensure u–s–v–t is ccw
+        u, v = ((u, v)
+                if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
+                (v, u))
+        # examine the two triangles ⟨s, t⟩ belongs to
+        for a, b, c in ((s, t, u), (t, s, v)):
             # this is for diagonals crossing diagonals
-            d = P[c][b]['cw']
+            d = P[c][b]['ccw']
             diag_da = (a, d) if a < d else (d, a)
-            if d == P[b][c]['ccw'] and diag_da in diagonals:
+            if d == P[b][c]['cw'] and diag_da in diagonals:
                 crossings.append(diag_da)
-            e = P[a][c]['cw']
+            e = P[a][c]['ccw']
             diag_eb = (e, b) if e < b else (b, e)
-            if e == P[c][a]['ccw'] and diag_eb in diagonals:
+            if e == P[c][a]['cw'] and diag_eb in diagonals:
                 crossings.append(diag_eb)
     return [edge for edge in crossings if edge in G.edges]
 

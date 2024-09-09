@@ -152,27 +152,29 @@ def edgeset_edgeXing_iter(A):
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
     checked = set()
-    for (s, t), v in diagonals.items():
-        u = P[v][s]['cw']
-        triangles = ((u, v, s), (v, u, t))
-        u, v = (u, v) if u < v else (v, u)
+    for (u, v), (s, t) in diagonals.items():
+        # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
         # crossing with Delaunay edge
-        yield ((u, v), (s, t))
-        # examine the two triangles (u, v) belongs to
-        for a, b, c in triangles:
+        yield ((s, t), (u, v))
+        # ensure u–s–v–t is ccw
+        u, v = ((u, v)
+                if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
+                (v, u))
+        # examine the two triangles ⟨s, t⟩ belongs to
+        for a, b, c in ((s, t, u), (t, s, v)):
             triangle = tuple(sorted((a, b, c)))
             if triangle in checked:
                 continue
             checked.add(triangle)
             # this is for diagonals crossing diagonals
-            conflicting = [(s, t)]
-            d = P[c][b]['cw']
+            conflicting = [(u, v)]
+            d = P[c][b]['ccw']
             diag_da = (a, d) if a < d else (d, a)
-            if d == P[b][c]['ccw'] and diag_da in diagonals:
+            if d == P[b][c]['cw'] and diag_da in diagonals:
                 conflicting.append(diag_da)
-            e = P[a][c]['cw']
+            e = P[a][c]['ccw']
             diag_eb = (e, b) if e < b else (b, e)
-            if e == P[c][a]['ccw'] and diag_eb in diagonals:
+            if e == P[c][a]['cw'] and diag_eb in diagonals:
                 conflicting.append(diag_eb)
             if len(conflicting) > 1:
                 yield conflicting
@@ -434,7 +436,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
 def list_edge_crossings(G: nx.Graph, P: nx.PlanarEmbedding, diagonals: dict) \
         -> list[tuple[tuple[int]]]:
     '''
-    List edge×edge crossings in the routeset in G.
+    List edge×edge crossings for the routeset in G.
     `G` must only use extended Delaunay edges. It will not detect crossings
     of non-extDelaunay gates or detours.
 
@@ -443,33 +445,35 @@ def list_edge_crossings(G: nx.Graph, P: nx.PlanarEmbedding, diagonals: dict) \
     '''
     eeXings = []
     checked = set()
-    for s, t in G.edges:
-        s, t = (s, t) if s < t else (t, s)
-        if (s, t) in diagonals:
-            # ⟨s, t⟩ is a diagonal
-            v = diagonals[s, t]
-            u = P[v][s]['cw']
-            triangles = ((u, v, s), (v, u, t))
-            u, v = (u, v) if u < v else (v, u)
-            if (u, v) in G.edges:
+    for u, v in G.edges:
+        u, v = (u, v) if u < v else (v, u)
+        st = diagonals.get((u, v))
+        if st is not None:
+            # ⟨u, v⟩ is a diagonal of Delanay edge ⟨s, t⟩
+            if st in G.edges:
                 # eeXing found
-                # crossing with Delaunay edge ⟨u, v⟩
-                eeXings.append(((u, v), (s, t)))
-            # examine the two triangles (u, v) belongs to
-            for a, b, c in triangles:
+                # crossing with Delaunay edge ⟨s, t⟩
+                eeXings.append((st, (u, v)))
+            s, t = st
+            # ensure u–s–v–t is ccw
+            u, v = ((u, v)
+                    if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
+                    (v, u))
+            # examine the two triangles ⟨s, t⟩ belongs to
+            for a, b, c in ((s, t, u), (t, s, v)):
                 # this is for diagonals crossing diagonals
                 triangle = tuple(sorted((a, b, c)))
                 if triangle in checked:
                     continue
                 checked.add(triangle)
-                conflicting = [(s, t)]
-                d = P[c][b]['cw']
+                conflicting = [(u, v)]
+                d = P[c][b]['ccw']
                 diag_da = (a, d) if a < d else (d, a)
-                if d == P[b][c]['ccw'] and diag_da in G.edges:
+                if d == P[b][c]['cw'] and diag_da in G.edges:
                     conflicting.append(diag_da)
-                e = P[a][c]['cw']
+                e = P[a][c]['ccw']
                 diag_eb = (e, b) if e < b else (b, e)
-                if e == P[c][a]['ccw'] and diag_eb in G.edges:
+                if e == P[c][a]['cw'] and diag_eb in G.edges:
                     conflicting.append(diag_eb)
                 if len(conflicting) > 1:
                     if len(conflicting) < 3:

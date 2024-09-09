@@ -267,14 +267,16 @@ def repair_routeset_path(G: nx.Graph) -> nx.Graph:
         edges_add = edges_add_ - edges_del_
         edges_del = edges_del_ - edges_add_
         for u, v in edges_add:
-            t = diagonals.get((u, v))
-            if t is None:
+            st = diagonals.get((u, v))
+            if st is None:
                 # ⟨u, v⟩ is a Delaunay edge, find its diagonal
-                _, s = P.next_face_half_edge(u, v)
-                _, t = P.next_face_half_edge(v, u)
-                if s == t or (s < 0 or t < 0):
-                    # ⟨u, v⟩ and the 3rd vertex are hull
-                    # or ⟨s, t⟩ is a gate
+                st = diagonals.inv.get((u, v))
+                if st is None:
+                    # ⟨u, v⟩ has no diagonal
+                    continue
+                s, t = st
+                if s < 0 or t < 0:
+                    # diagonal of ⟨u, v⟩ is a gate
                     continue
                 if (((s, t) in G2fix.edges
                         or (s, t) in edges_add)
@@ -283,27 +285,30 @@ def repair_routeset_path(G: nx.Graph) -> nx.Graph:
                     return False
             else:
                 # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
-                s = P[t][u]['cw']
-                s, t = (s, t) if s < t else (t, s)
+                s, t = st
                 if (((s, t) in G2fix.edges
                         or (s, t) in edges_add)
                         and (s, t) not in edges_del):
                     # crossing with Delaunay edge
                     return False
 
-                # examine the two triangles (s, t) belongs to
+                # ensure u–s–v–t is ccw
+                u, v = ((u, v)
+                        if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
+                        (v, u))
+                # examine the two triangles ⟨s, t⟩ belongs to
                 for a, b, c in ((s, t, u), (t, s, v)):
                     # this is for diagonals crossing diagonals (4 checks)
-                    d = P[c][b]['cw']
+                    d = P[c][b]['ccw']
                     diag_da = (a, d) if a < d else (d, a)
-                    if (d == P[b][c]['ccw']
+                    if (d == P[b][c]['cw']
                             and (diag_da in G2fix.edges
                                  or diag_da in edges_add)
                             and diag_da not in edges_del):
                         return False
-                    e = P[a][c]['cw']
+                    e = P[a][c]['ccw']
                     diag_eb = (e, b) if e < b else (b, e)
-                    if (e == P[c][a]['ccw']
+                    if (e == P[c][a]['cw']
                             and (diag_eb in G2fix.edges
                                  or diag_eb in edges_add)
                             and diag_eb not in edges_del):
