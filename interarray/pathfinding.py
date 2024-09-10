@@ -254,6 +254,7 @@ class PathFinder():
                     yield first, fside, None
             except IndexError:
                 # dead-end reached
+                trace('dead-end: {}', F[left], F[right])
                 return
             left, right = first
 
