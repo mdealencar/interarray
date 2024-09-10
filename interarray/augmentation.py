@@ -51,12 +51,12 @@ def normalize_site_single_oss(G: nx.Graph)\
 
     IF SITE HAS MULTIPLE OSSs, ONLY 1 IS RETURNED (mean of the OSSs' coords).
     '''
-    BoundaryC = G.graph['boundary']
+    VertexC = G.graph['VertexC']
+    BoundaryC = VertexC[G.graph['border']]
     bound_poly = shp.Polygon(BoundaryC)
     corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
                                  for A, B in ((0, 2), (2, 4)))
     M = G.graph['M']
-    VertexC = G.graph['VertexC']
     factor = 1/np.sqrt(bound_poly.area)
     BoundaryC -= corner_lo
     BoundaryC *= factor
