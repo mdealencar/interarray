@@ -595,10 +595,14 @@ def make_planar_embedding(
         if (s == P_A[v][u]['ccw']
                 and t == P_A[v][u]['cw']
                 and (s, t) in P.edges):
-            P.add_half_edge(u, v, ccw=t)
-            P.add_half_edge(v, u, ccw=s)
-            P.remove_edge(s, t)
-        #      print(F[u], F[v], 'replaces', F[s], F[t])
+            w, x = P[s][t]['cw'], P[s][t]['ccw']
+            if (w == u and x == v
+                    and w == P[t][s]['ccw']
+                    and x == P[t][s]['cw']):
+                print(F[u], F[v], 'replaces', F[s], F[t])
+                P.add_half_edge(u, v, ccw=t)
+                P.add_half_edge(v, u, ccw=s)
+                P.remove_edge(s, t)
         #  else:
         #      print(F[u], F[v], 'not in P, but', F[s], F[t], 'not available for flipping')
     #  print('&'*80)
@@ -788,7 +792,7 @@ def make_planar_embedding(
         s, t = (s, t) if s < t else (t, s)
         if (s, t) in diagonals:
             eData = A[s][t]
-            eData['kind'] = ('corner_delaunay'
+            eData['kind'] = ('contour_delaunay'
                              if 'path' in eData else
                              'delaunay')
             del diagonals[(s, t)]
@@ -911,7 +915,7 @@ def G_from_A_subset(subset):
     return G
 
 
-def planar_flipped_by_routeset(
+def old_planar_flipped_by_routeset(
         G: nx.Graph, *, A: nx.Graph, planar: nx.PlanarEmbedding) \
         -> nx.PlanarEmbedding:
     '''
@@ -925,12 +929,10 @@ def planar_flipped_by_routeset(
         G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
                                  'exclusions'))
 
-    # TODO: I think this will only work if I can get a bijective mapping from
-    #       A edges to/from G inter-wtg paths. A->G is available from edge
-    #       attr 'path'. G->A is missing.
     P = planar.copy()
     diagonals = A.graph['diagonals']
     P_A = A.graph['planar']
+    seen_endpoints = set()
     for u, v in G.edges - P.edges:
         # update the planar embedding to include any Delaunay diagonals
         # used in G; the corresponding crossing Delaunay edge is removed
@@ -938,8 +940,10 @@ def planar_flipped_by_routeset(
         if u >= N:
             # we are in a redundant segment of a multi-segment path
             continue
-        if v >= N:
+        if v >= N and u not in seen_endpoints:
             uvA = G[u][v]['A_edge']
+            seen_endpoints.add(uvA[0] if uvA[1] == u else uvA[1])
+            print('path_uv:', F[u], F[v], '->', F[uvA[0]], F[uvA[1]])
             u, v = uvA if uvA[0] < uvA[1] else uvA[::-1]
             path_uv = [u] + A[u][v]['path'] + [v]
             # now ⟨u, v⟩ represents the corresponding edge in A
@@ -952,7 +956,9 @@ def planar_flipped_by_routeset(
             path_st = A[s][t].get('path')
             if path_st is not None:
                 # pick a proxy segment for checking existance of path in G
-                st = min(st), path_st[0]
+                source, target = (s, t) if s < t else (t, s)
+                st = source, path_st[0]
+                path_st = [source] + path_st + [target]
                 # now st represents a corresponding segment in G of A's ⟨s, t⟩
             if st in G.edges and s >= 0:
                 if u >= 0:
@@ -994,11 +1000,65 @@ def planar_flipped_by_routeset(
                     continue
             # ⟨u, v⟩ is not crossing any edge in G
             # TODO: THIS NEEDS CHANGES: use paths
-            P.add_half_edge(u, v, ccw=t)
-            P.add_half_edge(v, u, ccw=s)
-            P.remove_edge(s, t)
-            # TODO: rethink if we need to return an updated diagonals
-            #  del diagonalsʹ[u, v]
-            #  s, t, v = (s, t, v) if s < t else (t, s, u)
-            #  diagonalsʹ[s, t] = v
+            #       it gets really complicated if the paths overlap!
+            if path_st is None:
+                P.remove_edge(s, t)
+            else:
+                for s, t in zip(path_st[:-1], path_st[1:]):
+                    P.remove_edge(s, t)
+            if path_uv is None:
+                P.add_half_edge(u, v, ccw=s)
+                P.add_half_edge(v, u, ccw=t)
+            else:
+                for u, v in zip(path_uv[:-1], path_uv[1:]):
+                    P.add_half_edge(u, v, ccw=s)
+                    P.add_half_edge(v, u, ccw=t)
+    return P
+
+
+def planar_flipped_by_routeset(
+        G: nx.Graph, *, A: nx.Graph, planar: nx.PlanarEmbedding) \
+        -> nx.PlanarEmbedding:
+    '''
+    Returns a modified PlanarEmbedding based on `planar`, where all edges used
+    in `G` are edges of the output embedding. For this to work, all non-gate
+    edges of `G` must be either edges of `planar` or one of `G`'s
+    graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
+    crossings.
+    '''
+    M, N, B, D, VertexC, border, exclusions = (
+        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+                                 'exclusions'))
+
+    P = planar.copy()
+    #  diagonals = A.graph['diagonals']
+    #  P_A = A.graph['planar']
+    seen_endpoints = set()
+    for u, v in G.edges - planar.edges:
+        print(f'{F[u]}–{F[v]}', end=': ')
+        intersection = set(planar[u]) & set(planar[v])
+        if len(intersection) != 2:
+            print(f'share {len(intersection)} neighbors.')
+            continue
+        s, t = set(planar[u]) & set(planar[v])
+        if (s, t) in G.edges and (u < 0 or v < 0):
+            # not replacing edge with gate
+            continue
+        if planar[u][s]['ccw'] == t and planar[v][t]['ccw'] == s:
+            pass
+        elif planar[u][s]['cw'] == t and planar[v][t]['cw'] == s:
+            s, t = t, s
+        else:
+            print(f'is not in two triangles')
+            continue
+        #  if not (s == planar[v][u]['ccw']
+        #          and t == planar[v][u]['cw']):
+        #      print(f'{F[u]}–{F[v]} is not in two triangles')
+        #      continue
+        #  if (s, t) not in planar:
+        #      print(f'{F[s]}–{F[t]} is not in planar')
+        #      continue
+        P.remove_edge(s, t)
+        P.add_half_edge(u, v, cw=s)
+        P.add_half_edge(v, u, cw=t)
     return P
