@@ -326,6 +326,7 @@ def make_planar_embedding(
     # H) Revisit A to replace edges crossing borders by P_path contours.
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # J) Calculate the area of the concave hull.
+    # X) Create hull_concave.
 
     VertexC, border, exclusions, M, N, B = (
         G.graph.get(k) for k in ('VertexC', 'border', 'exclusions',
@@ -585,6 +586,23 @@ def make_planar_embedding(
     print('hull_prunned_edges:',
           ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
 
+    #  print('&'*80 + '\n', P_A.edges - P.edges, '\n' + '&'*80)
+    #  print('\n' + '&'*80)
+
+    # Favor the triagulation in P_A over the one in P where possible.
+    for u, v in P_A.edges - P.edges:
+        s, t = P_A[u][v]['cw'], P_A[u][v]['ccw']
+        if (s == P_A[v][u]['ccw']
+                and t == P_A[v][u]['cw']
+                and (s, t) in P.edges):
+            P.add_half_edge(u, v, ccw=t)
+            P.add_half_edge(v, u, ccw=s)
+            P.remove_edge(s, t)
+        #      print(F[u], F[v], 'replaces', F[s], F[t])
+        #  else:
+        #      print(F[u], F[v], 'not in P, but', F[s], F[t], 'not available for flipping')
+    #  print('&'*80)
+
     A = P_A.to_undirected()
     nx.set_edge_attributes(A, 'delaunay', name='kind')
     #  nx.set_edge_attributes(A, {uv: True for uv in hull_prunned_edges},
@@ -654,6 +672,9 @@ def make_planar_embedding(
         if 'length' not in eData:
             eData['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
 
+    # #######################
+    # X) Create hull_concave.
+    # #######################
     in_A_not_in_P = A.edges - P_paths.edges
     cw, ccw = rotation_checkers_factory(VertexC)
 
@@ -844,6 +865,8 @@ def make_planar_embedding(
     #                 handle=G_base.graph['handle']
     #                )
 
+    print('changes_super', [(F[a], F[b]) for a, b in changes_super])
+    print('changes_exclusions', [(F[a], F[b]) for a, b in changes_exclusions])
     # TODO: are `concavityPolys` returned only for debugging?
     return P, A
     #  return P, A, diagonals, concavityPolys
@@ -908,18 +931,20 @@ def planar_flipped_by_routeset(
     P = planar.copy()
     diagonals = A.graph['diagonals']
     P_A = A.graph['planar']
-    for u, v, uvA in G.edges(data='A_edge'):
+    for u, v in G.edges - P.edges:
         # update the planar embedding to include any Delaunay diagonals
         # used in G; the corresponding crossing Delaunay edge is removed
+        u, v = (u, v) if u < v else (v, u)
         if u >= N:
             # we are in a redundant segment of a multi-segment path
             continue
         if v >= N:
+            uvA = G[u][v]['A_edge']
             u, v = uvA if uvA[0] < uvA[1] else uvA[::-1]
             path_uv = [u] + A[u][v]['path'] + [v]
             # now ⟨u, v⟩ represents the corresponding edge in A
         else:
-            u, v = (u, v) if u < v else (v, u)
+            path_uv = None
         st = diagonals.get((u, v))
         if st is not None:
             # ⟨u, v⟩ is a diagonal of Delaunay edge ⟨s, t⟩
@@ -927,33 +952,45 @@ def planar_flipped_by_routeset(
             path_st = A[s][t].get('path')
             if path_st is not None:
                 # pick a proxy segment for checking existance of path in G
-                st = (s if s < t else t, path_st[0])
+                st = min(st), path_st[0]
                 # now st represents a corresponding segment in G of A's ⟨s, t⟩
-            if st in G.edges and s >= 0 and t >= 0:
+            if st in G.edges and s >= 0:
+                if u >= 0:
+                    print('ERROR: both Delaunay st and diagonal uv are in G, '
+                          'but uv is not gate. Edge×edge crossing!')
                 # ⟨u, v⟩ & ⟨s, t⟩ are in G (i.e. a crossing). This means
                 # the diagonal ⟨u, v⟩ is a gate and ⟨s, t⟩ should remain
                 continue
-            # ensure u–s–v–t is ccw
-            u, v = ((u, v)
-                    if (P_A[u][t]['cw'] == s
-                        and P_A[v][s]['cw'] == t) else
-                    (v, u))
-            # examine the two triangles ⟨s, t⟩ belongs to
-            for a, b, c in ((s, t, u), (t, s, v)):
-                # this is for diagonals crossing diagonals
-                d = planar[c][b]['ccw']
-                diag_da = (a, d) if a < d else (d, a)
-                if (d == planar[b][c]['cw']
-                        and diag_da in diagonals
-                        and diag_da[0] >= 0
-                        and diag_da in G.edges):
-                    continue
-                e = planar[a][c]['ccw']
-                diag_eb = (e, b) if e < b else (b, e)
-                if (e == planar[c][a]['cw']
-                        and diag_eb in diagonals
-                        and diag_eb[0] >= 0
-                        and diag_eb in G.edges):
+            if u < 0:
+                # uv is a gate: any diagonals crossing it should prevail.
+                # ensure u–s–v–t is ccw
+                u, v = ((u, v)
+                        if (P_A[u][t]['cw'] == s
+                            and P_A[v][s]['cw'] == t) else
+                        (v, u))
+                # examine the two triangles ⟨s, t⟩ belongs to
+                crossings = False
+                for a, b, c in ((s, t, u), (t, s, v)):
+                    # this is for diagonals crossing diagonals
+                    d = planar[c][b]['ccw']
+                    diag_da = (a, d) if a < d else (d, a)
+                    if (d == planar[b][c]['cw']
+                            and diag_da in diagonals
+                            and diag_da[0] >= 0):
+                        path_da = A[d][a].get('path')
+                        if path_da is not None:
+                            diag_da = ((d if d < a else a), path_da[0])
+                        crossings = crossings or diag_da in G.edges
+                    e = planar[a][c]['ccw']
+                    diag_eb = (e, b) if e < b else (b, e)
+                    if (e == planar[c][a]['cw']
+                            and diag_eb in diagonals
+                            and diag_eb[0] >= 0):
+                        path_eb = A[e][b].get('path')
+                        if path_eb is not None:
+                            diag_eb = ((e if e < b else b), path_eb[0])
+                        crossings = crossings or diag_eb in G.edges
+                if crossings:
                     continue
             # ⟨u, v⟩ is not crossing any edge in G
             # TODO: THIS NEEDS CHANGES: use paths
