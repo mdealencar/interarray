@@ -1026,28 +1026,49 @@ def planar_flipped_by_routeset(
     graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
     crossings.
     '''
-    M, N, B, D, VertexC, border, exclusions = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
-                                 'exclusions'))
+    M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
+    VertexC, border, exclusions, fnT = (
+        G.graph.get(k) for k in ('VertexC', 'border', 'exclusions', 'fnT'))
+    if fnT is None:
+        fnT = np.arange(M + N + B + C + D)
+        fnT[-M:] = range(-M, 0)
 
     P = planar.copy()
     #  diagonals = A.graph['diagonals']
     #  P_A = A.graph['planar']
     seen_endpoints = set()
     for u, v in G.edges - planar.edges:
-        print(f'{F[u]}–{F[v]}', end=': ')
-        intersection = set(planar[u]) & set(planar[v])
+        u_, v_ = fnT[u], fnT[v]
+        if (u_, v_) in planar.edges:
+            continue
+        print(f'{F[u]}–{F[v]} ({F[u_]}–{F[v_]})', end=': ')
+        intersection = set(planar[u_]) & set(planar[v_])
         if len(intersection) != 2:
             print(f'share {len(intersection)} neighbors.')
             continue
-        s, t = set(planar[u]) & set(planar[v])
+        s_, t_ = intersection
+        if s_ >= N:
+            s_clones = G.nodes[s_].get('clones', [s_])
+            if len(s_clones) > 1:
+                print('s_clones > 1', F[s_], [F[c] for c in s_clones])
+            s = s_clones[0]
+        else:
+            s = s_
+        if t_ >= N:
+            t_clones = G.nodes[t_].get('clones', [t_])
+            if len(t_clones) > 1:
+                print('t_clones > 1', F[t_], [F[c] for c in t_clones])
+            t = t_clones[0]
+        else:
+            t = t_
+
         if (s, t) in G.edges and (u < 0 or v < 0):
             # not replacing edge with gate
             continue
-        if planar[u][s]['ccw'] == t and planar[v][t]['ccw'] == s:
+        if planar[u_][s_]['ccw'] == t_ and planar[v_][t_]['ccw'] == s_:
             pass
-        elif planar[u][s]['cw'] == t and planar[v][t]['cw'] == s:
-            s, t = t, s
+        elif planar[u_][s_]['cw'] == t_ and planar[v_][t_]['cw'] == s_:
+            s_, t_ = t_, s_
         else:
             print(f'is not in two triangles')
             continue
@@ -1058,7 +1079,7 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
-        P.remove_edge(s, t)
-        P.add_half_edge(u, v, cw=s)
-        P.add_half_edge(v, u, cw=t)
+        P.remove_edge(s_, t_)
+        P.add_half_edge(u_, v_, cw=s_)
+        P.add_half_edge(v_, u_, cw=t_)
     return P
