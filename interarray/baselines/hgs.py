@@ -38,6 +38,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
     assert M == 1, 'ERROR: only single depot supported'
     G = nx.create_empty_copy(A)
+    G.add_nodes_from(range(N, N + B), kind='border')
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
     # class AlgorithmParameters:
@@ -123,6 +124,11 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                 path_kind = A[s][t]['kind']
                 for n in path:
                     clone2prime.append(n)
+                    clones = G.nodes[n].get('clones')
+                    if clones is None:
+                        clones = [n]
+                    else:
+                        clones.append(n)
                     n = iC
                     G.add_node(n, kind='contour')
                     iC += 1
