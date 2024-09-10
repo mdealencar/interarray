@@ -409,6 +409,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)
 
+    lims = None
     # draw farm boundary
     if border is not None:
         BoundaryC = VertexC[border]
@@ -431,6 +432,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         ax.add_patch(area_polygon)
         ax.update_datalim(area_polygon.get_xy())
         ax.autoscale()
+        lims = ax.get_xlim(), ax.get_ylim()
     elif ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     ax.axis('off')
@@ -563,6 +565,9 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                   columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph and infobox:
             ax.add_artist(infobox)
+    if lims is not None:
+        ax.set_xlim(*lims[0])
+        ax.set_ylim(*lims[1])
     return ax
 
 
@@ -589,8 +594,10 @@ def compare(positional=None, **title2G_dict):
 def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding | None = None) -> nx.Graph:
     scaff = nx.Graph(G.graph['planar'] if P is None else P)
     scaff.graph.update(G.graph)
+    N, B, C, D = (G.graph.get(k, 0) for k in 'N B C D'.split())
     for n, d in scaff.nodes(data=True):
-        d.update(G.nodes[n])
-    for i, (u, v) in enumerate(scaff.edges - G.edges):
+        if n < N + B + C + D:
+            d.update(G.nodes[n])
+    for u, v in scaff.edges - G.edges:
         scaff[u][v]['kind'] = 'scaffold'
     return scaff
