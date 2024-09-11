@@ -82,6 +82,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
+        tentative='dashed',
         contour='solid',
         contour_delaunay='solid',
         contour_extended='dashed',
@@ -92,6 +93,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            tentative='red',
             contour='red',
             contour_delaunay='green',
             contour_extended='green',
@@ -108,6 +110,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
+            tentative='magenta',
             contour='magenta',
             contour_delaunay='darkgreen',
             contour_extended='darkgreen',
@@ -170,6 +173,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
 
     # Edges
     class_dict = {'delaunay': 'del',
+                  'tentative': 'ttt',
                   'contour': 'con',
                   'contour_delaunay': 'cod',
                   'contour_extended': 'coe',
@@ -237,6 +241,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         f'.cod {{stroke: {type2color["contour_delaunay"]}}} '
         f'.coe {{stroke: {type2color["contour_extended"]}; '
         f'stroke-dasharray: 18 15}} '
+        f'.ttt {{stroke: {type2color["tentative"]}; stroke-dasharray: 18 15}} '
         f'.ext {{stroke: {type2color["extended"]}; stroke-dasharray: 18 15}} '
         f'.scf {{stroke: {type2color["scaffold"]}; stroke-dasharray: 10 10}} '
         f'.dt {{stroke-dasharray: 18 15; fill: none; '

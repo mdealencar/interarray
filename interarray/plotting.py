@@ -362,6 +362,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
+        tentative='dashed',
         contour_delaunay='solid',
         contour_extended='dashed',
         contour='solid',
@@ -373,6 +374,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            tentative='red',
             contour_delaunay='green',
             contour_extended='green',
             contour='red',
@@ -390,6 +392,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
+            tentative='magenta',
             contour_delaunay='darkgreen',
             contour_extended='darkgreen',
             contour='magenta',
@@ -463,12 +466,21 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     node_colors = [colors[subtrees[n] % len(colors)] for n in range(N)]
 
     # draw edges
+    base_layer = ('scaffold',)
+    for edge_kind in base_layer:
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_kind],
+                               style=type2style[edge_kind], label=edge_kind,
+                               edgelist=[(u, v)
+                                         for u, v, kind in G.edges.data('kind')
+                                         if kind == edge_kind])
     nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color['unspecified'],
                            style=type2style['unspecified'], label='direct',
                            edgelist=[(u, v)
                                      for u, v, kind in G.edges.data('kind')
                                      if kind is None])
     for edge_kind in type2style:
+        if edge_kind in base_layer:
+            continue
         nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_kind],
                                style=type2style[edge_kind], label=edge_kind,
                                edgelist=[(u, v)
@@ -591,13 +603,25 @@ def compare(positional=None, **title2G_dict):
                      f'({creator})')
 
 
-def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding | None = None) -> nx.Graph:
-    scaff = nx.Graph(G.graph['planar'] if P is None else P)
+def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
+    scaff = P.to_undirected()
     scaff.graph.update(G.graph)
-    N, B, C, D = (G.graph.get(k, 0) for k in 'N B C D'.split())
+    for attr in 'fnT C'.split():
+        if attr in scaff.graph:
+            del scaff.graph[attr]
+    M, N, B, C, D = (G.graph.get(k, 0) for k in 'M N B C D'.split())
+    nx.set_edge_attributes(scaff, 'scaffold', 'kind')
     for n, d in scaff.nodes(data=True):
-        if n < N + B + C + D:
-            d.update(G.nodes[n])
-    for u, v in scaff.edges - G.edges:
-        scaff[u][v]['kind'] = 'scaffold'
+        if n not in G.nodes:
+            continue
+        d.update(G.nodes[n])
+    if C > 0 or D > 0:
+        fnT = G.graph['fnT']
+    else:
+        fnT = np.arange(M + N + B + C + D)
+        fnT[-M:] = range(-M, 0)
+    for u, v in G.edges:
+        st = fnT[u], fnT[v]
+        if st in scaff.edges:
+            del scaff.edges[st]['kind']
     return scaff
