@@ -162,7 +162,7 @@ def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
 def hull_processor(P: nx.PlanarEmbedding, N: int,
                    supertriangle: tuple[int, int, int],
                    vertex2conc_map: dict[int, int]) \
-        -> tuple[list[int], list[tuple[int, int]], list[tuple[int, int]]]:
+        -> tuple[list[int], list[tuple[int, int]], set[tuple[int, int]]]:
     '''
     Iterates over the edges that form a triangle with one of supertriangle's
     vertices.
@@ -182,7 +182,7 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
     '''
     a, b, c = supertriangle
     convex_hull = []
-    conc_outer_edges = []
+    conc_outer_edges = set()
     to_remove = []
     for pivot, begin, end in ((a, c, b),
                               (b, a, c),
@@ -201,7 +201,7 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
                     print('del_sup', pivot, v)
                 if vertex2conc_map.get(u, -1) == vertex2conc_map.get(v, -2):
                     to_remove.append((u, v))
-                    conc_outer_edges.append((u, v))
+                    conc_outer_edges.add((u, v) if u < v else (v, u))
                     print('del_int', u, v)
                     outer = v
             if u != begin and u != end and v != end:
@@ -307,6 +307,10 @@ def make_planar_embedding(
         max_tri_AR: float = 30) -> \
         tuple[nx.PlanarEmbedding, nx.Graph]:
     '''
+    This does more than the planar embedding. A name change is in order.
+
+    The available edges graph A is arguably the main product.
+
     `offset_scale`:
         Fraction of the diagonal of the site's bbox to use as spacing between
         border and nodes in concavities (only where nodes are the border).
@@ -495,12 +499,15 @@ def make_planar_embedding(
     # ######################################################################
     print('\nPART D')
     # create the PythonCDT edges
+    constraint_edges = set()
     edgesCDT = []
     concavityVertexSets = []
     for concPoly in concavityPolys:
-        edgesCDT.extend((cdt.Edge(verticeCDT_from_point[seg.start],
-                                  verticeCDT_from_point[seg.end])
-                         for seg in concPoly.edges))
+        for seg in concPoly.edges:
+            s, t = vertice_from_point[seg.start], vertice_from_point[seg.end]
+            constraint_edges.add((s, t) if s < t else (t, s))
+            edgesCDT.append(cdt.Edge(verticeCDT_from_point[seg.start],
+                                     verticeCDT_from_point[seg.end]))
         concavityVertexSets.append(tuple(vertice_from_point[v]
                                          for v in concPoly.border.vertices))
     # TODO: add exclusion zones
@@ -527,7 +534,6 @@ def make_planar_embedding(
     P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
 
     concavityVertex2concavity = {}
-    #  for conc in concavityVertexSets:
     for concavity_idx, conc in enumerate(concavityVertexSets):
         a, b = tee(conc)
         for u, v in zip(a, chain(b, (next(b),))):
@@ -544,9 +550,11 @@ def make_planar_embedding(
     convex_hull, to_remove, conc_outer_edges = hull_processor(
             P, N, supertriangle, concavityVertex2concavity)
     P.remove_edges_from(to_remove)
+    constraint_edges -= conc_outer_edges
 
     changes_exclusions = flip_triangles_near_exclusions(P, N, B, VertexC)
     P.check_structure()
+    P.graph['constraint_edges'] = constraint_edges
 
     # ##############################################################
     # F) Build the available-edges graph A and its planar embedding.
