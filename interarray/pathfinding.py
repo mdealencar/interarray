@@ -29,31 +29,31 @@ PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 
 
 class PathNodes(dict):
-    '''Helper class to build a tree that uses clones of base nodes
-    (i.e. where the same base node can appear as more that one node).'''
+    '''Helper class to build a tree that uses clones of prime nodes
+    (i.e. where the same prime node can appear as more that one node).'''
 
     def __init__(self):
         super().__init__()
         self.count = 0
-        self.base_from_id = {}
-        self.ids_from_base_sector = defaultdict(list)
+        self.prime_from_id = {}
+        self.ids_from_prime_sector = defaultdict(list)
         self.last_added = None
 
     def add(self, _source, sector, parent, dist, d_hop):
         if parent not in self:
             error('attempted to add an edge in `PathNodes` to nonexistent'
                   'parent ({})', parent)
-        _parent = self.base_from_id[parent]
-        for prev_id in self.ids_from_base_sector[_source, sector]:
+        _parent = self.prime_from_id[parent]
+        for prev_id in self.ids_from_prime_sector[_source, sector]:
             if self[prev_id].parent == parent:
                 self.last_added = prev_id
                 return prev_id
         id = self.count
         self.count += 1
         self[id] = PseudoNode(_source, sector, parent, dist, d_hop)
-        self.ids_from_base_sector[_source, sector].append(id)
-        self.base_from_id[id] = _source
-        debug('pseudoedge «{}->{}» added', F[_source], F[_parent])
+        self.ids_from_prime_sector[_source, sector].append(id)
+        self.prime_from_id[id] = _source
+        trace('pseudoedge «{}->{}» added', F[_source], F[_parent])
         self.last_added = id
         return id
 
@@ -79,50 +79,45 @@ class PathFinder():
                  planar: nx.PlanarEmbedding,
                  branching: bool = True,
                  only_if_crossings: bool = True) -> None:
-        M, N, B, VertexC = (G.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
-        self.VertexC = VertexC
+        M, N, VertexC, fnT = (
+            G.graph.get(k) for k in 'M N VertexC fnT'.split())
+        B, C = (G.graph.get(k, 0) for k in ('B', 'C'))
+        clone2prime = list(G.graph.get('clone2prime', ()))
 
         # Block for facilitating the printing of debug messages.
-        allnodes = np.arange(N + M)
+        allnodes = np.arange(N + M + B + 3)
         allnodes[-M:] = range(-M, 0)
-        self.n2s = NodeStr(allnodes, N)
+        self.n2s = NodeStr(allnodes, N + B + 3)
+
+        self.G, self.M, self.N, self.B, self.C, self.fnT = G, M, N, B, C, fnT
+        self.P, self.VertexC, self.clone2prime = planar, VertexC, clone2prime
 
         info('BEGIN pathfinding on "{}" (#wtg = {})',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
-        self.G, self.P, self.M, self.N, self.B = G, planar, M, N, B
-        # sets of gates (one per root) that are not in the planar embedding
+
         nonembed_Gates = tuple(
-            np.fromiter(set(n for n in G.neighbors(r) if n < N)
-                        - set(n for n in planar.neighbors(r) if n < N),
+            np.fromiter((n for n in G.neighbors(r)
+                         if G[r][n].get('kind') == 'tentative'),
                         dtype=int)
             for r in range(-M, 0))
         self.nonembed_Gates = nonembed_Gates
+
+        # NOTE: tentative is redundant with nonembed_Gates
+        self.tentative = set((r, n)
+                             for r, gates in zip(range(-M, 0),
+                                                 nonembed_Gates)
+                             for n in gates)
+
         edges_created_by = G.graph.get('edges_created_by')
         if edges_created_by is not None and edges_created_by[:5] == 'MILP.':
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
 
-        fnT = G.graph.get('fnT')
-        if fnT is not None:
-            # Assuming that if an edge has attr 'kind' it is 'contour'
-            #  contoured_gate_corners = [[n for n, edgeD in G[r].items()
-            #                             if 'kind' in edgeD]
-            #                            for r in range(-M, 0)]
-            contoured_gate_corners = [[n for n in G.neighbors(r) if n >= N]
-                                      for r in range(-M, 0)]
-            contoured_gates_per_root = []
-            for r, gate_corners in enumerate(contoured_gate_corners, start=-M):
-                contoured_gates = []
-                for cur in gate_corners:
-                    rev = r
-                    while cur >= N:
-                        fwd = planar[fnT[rev]][fnT[cur]]['cw']
-                        rev, cur = cur, fwd
-                    contoured_gates.append(cur)
-            print(contoured_gates_per_root)
-
-        Xings = list(gateXing_iter(G, gates=nonembed_Gates))
+        Xings = list(
+            gateXing_iter(
+                G, gates=nonembed_Gates,
+                constraint_edges=planar.graph.get('constraint_edges')))
         self.Xings = Xings
         if not Xings and only_if_crossings:
             # no crossings, there is no point in pathfinding
@@ -149,7 +144,7 @@ class PathFinder():
             while id >= 0:
                 dists.append(pseudonode.d_hop)
                 id = pseudonode.parent
-                path.append(paths.base_from_id[id])
+                path.append(paths.prime_from_id[id])
                 pseudonode = paths[id]
             return path, dists
         else:
@@ -226,11 +221,12 @@ class PathFinder():
             next_portals = []
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
+                debug('evaluating {}', self.n2s(s, t))
                 if (st_sorted not in self.portal_set
                         or (s < ST and t < ST
                             and s in G.nodes and t in G.nodes
-                            and G.nodes[s]['subtree'] ==
-                            G.nodes[t]['subtree'])):
+                            and G.nodes[s].get('subtree', -1) ==
+                            G.nodes[t].get('subtree', -2))):
                     # (s, t) is in G or is bounded by a subtree
                     continue
                 next_portals.append(((s, t), side))
@@ -244,17 +240,17 @@ class PathFinder():
                 #          else None)
                 if next_portals:
                     second, sside = next_portals[0]
-                    trace(f'branching {self.n2s(*first)} and '
+                    debug(f'branching {self.n2s(*first)} and '
                           f'{self.n2s(*second)}')
                     yield (first, fside,
                            chain(((second, sside, None),),
                                  self._advance_portal(*second)))
                 else:
-                    trace('{}', self.n2s(*first))
+                    debug('{}', self.n2s(*first))
                     yield first, fside, None
             except IndexError:
                 # dead-end reached
-                trace('dead-end: {}', F[left], F[right])
+                debug('dead-end: {}–{}', F[left], F[right])
                 return
             left, right = first
 
@@ -264,7 +260,7 @@ class PathFinder():
         # for variables that represent a node, they may occur in two versions:
         #     - _node: the index it contains maps to a coordinate in VertexC
         #     - node: contais a pseudonode index (i.e. an index in self.paths)
-        #             translation: _node = paths.base_from_id[node]
+        #             translation: _node = paths.prime_from_id[node]
         cw, ccw = rotation_checkers_factory(self.VertexC)
         paths = self.paths
 
@@ -288,23 +284,23 @@ class PathFinder():
             #  if _nearside == _apex:  # debug info
             #      print(f"{'RIGHT' if side else 'LEFT '} "
             #            f'nearside({F[_nearside]}) == apex({F[_apex]})')
-            debug(f"{'RIGHT' if side else 'LEFT '} "
+            trace(f"{'RIGHT' if side else 'LEFT '} "
                   f'new({F[_new]}) '
                   f'nearside({F[_nearside]}) '
                   f'farside({F[_farside]}) '
                   f'apex({F[_apex]}), wedge ends: '
-                  f'{F[paths.base_from_id[wedge_end[0]]]}, '
-                  f'{F[paths.base_from_id[wedge_end[1]]]}')
+                  f'{F[paths.prime_from_id[wedge_end[0]]]}, '
+                  f'{F[paths.prime_from_id[wedge_end[1]]]}')
             if _nearside == _apex or test(_nearside, _new, _apex):
                 # not infranear
                 if test(_farside, _new, _apex):
                     # ultrafar (new overlaps farside)
-                    debug('ultrafar')
+                    trace('ultrafar')
                     current_wapex = wedge_end[not side]
-                    _current_wapex = paths.base_from_id[current_wapex]
+                    _current_wapex = paths.prime_from_id[current_wapex]
                     _funnel[not side] = _current_wapex
                     contender_wapex = paths[current_wapex].parent
-                    _contender_wapex = paths.base_from_id[contender_wapex]
+                    _contender_wapex = paths.prime_from_id[contender_wapex]
                     #  print(f"{'RIGHT' if side else 'LEFT '} "
                     #        f'current_wapex({F[_current_wapex]}) '
                     #        f'contender_wapex({F[_contender_wapex]})')
@@ -316,25 +312,25 @@ class PathFinder():
                         current_wapex = contender_wapex
                         _current_wapex = _contender_wapex
                         contender_wapex = paths[current_wapex].parent
-                        _contender_wapex = paths.base_from_id[contender_wapex]
+                        _contender_wapex = paths.prime_from_id[contender_wapex]
                         #  print(f"{'RIGHT' if side else 'LEFT '} "
                         #        f'current_wapex({F[_current_wapex]}) '
                         #        f'contender_wapex({F[_contender_wapex]})')
                     _apex = _current_wapex
                     apex = current_wapex
                 else:
-                    debug('inside')
+                    trace('inside')
                 yield from self._rate_wait_add(portal, _new, _apex, apex)
                 wedge_end[side] = paths.last_added
                 _funnel[side] = _new
             else:
                 # infranear
-                debug('infranear')
+                trace('infranear')
                 current_wapex = wedge_end[side]
-                _current_wapex = paths.base_from_id[current_wapex]
+                _current_wapex = paths.prime_from_id[current_wapex]
                 #  print(f'{F[_current_wapex]}')
                 contender_wapex = paths[current_wapex].parent
-                _contender_wapex = paths.base_from_id[contender_wapex]
+                _contender_wapex = paths.prime_from_id[contender_wapex]
                 while (_current_wapex != _nearside
                        and _contender_wapex >= 0
                        and test(_current_wapex, _new, _contender_wapex)):
@@ -342,14 +338,14 @@ class PathFinder():
                     _current_wapex = _contender_wapex
                     #  print(f'{F[current_wapex]}')
                     contender_wapex = paths[current_wapex].parent
-                    _contender_wapex = paths.base_from_id[contender_wapex]
+                    _contender_wapex = paths.prime_from_id[contender_wapex]
                 yield from self._rate_wait_add(
                     portal, _new, _current_wapex, current_wapex)
                 wedge_end[side] = paths.last_added
 
     def _find_paths(self):
         #  print('[exp] starting _explore()')
-        G, P, M, N, B = self.G, self.P, self.M, self.N, self.B
+        G, P, M, N, B, C = self.G, self.P, self.M, self.N, self.B, self.C
         d2roots = G.graph['d2roots']
         d2rootsRank = G.graph['d2rootsRank']
         prioqueue = []
@@ -364,12 +360,30 @@ class PathFinder():
 
         # set of portals (i.e. edges of P that are not used in G)
         portal_set = set()
-        for i, (u, v) in enumerate(P.to_undirected(as_view=True).edges
-                                   - G.edges):
-            if u >= N and v >= N:
-                # constraint edge -> not a portal
-                continue
+
+        if C > 0:
+            fnT = self.fnT
+        else:
+            fnT = np.arange(M + N + B + C)
+            fnT[-M:] = range(-M, 0)
+        for u, v in (P.to_undirected(as_view=True).edges - G.edges):
             portal_set.add((u, v) if u < v else (v, u))
+        for u, v in G.edges:
+            new = False
+            if u >= N:
+                u = fnT[u]
+                new = True
+            if v >= N:
+                v = fnT[v]
+                new = True
+            if new:
+                portal_set.remove((u, v) if u < v else (v, u))
+
+        #  for u, v in P.to_undirected(as_view=True).edges - G.edges:
+        #      if u >= N and v >= N:
+        #          # constraint edge -> not a portal
+        #          continue
+        #      portal_set.add((u, v) if u < v else (v, u))
         self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
@@ -377,8 +391,8 @@ class PathFinder():
         ST = N + B
         for r in range(-M, 0):
             paths[r] = PseudoNode(r, r, None, 0., 0.)
-            paths.base_from_id[r] = r
-            paths.ids_from_base_sector[r, r] = [r]
+            paths.prime_from_id[r] = r
+            paths.ids_from_prime_sector[r, r] = [r]
             for left in P.neighbors(r):
                 right = P[r][left]['cw']
                 portal = (left, right)
@@ -417,6 +431,7 @@ class PathFinder():
                 ))
         # TODO: this is arbitrary, should be documented somewhere (or removed)
         MAX_ITER = 10000
+        #  MAX_ITER = 300
         # process edges in the prioqueue
         counter = 0
         #  print(f'[exp] starting main loop, |prioqueue| = {len(prioqueue)}')
@@ -528,30 +543,30 @@ class PathFinder():
         if 'crossings' in G.graph:
             # start by assumming that crossings will be fixed by detours
             del G.graph['crossings']
-        M, N, B = self.M, self.N, self.B
-        Xings = self.Xings
-
-        if not Xings:
-            # no crossings were detected, nothing to do
-            return None if in_place else G.copy()
+        M, N, B, C = self.M, self.N, self.B, self.C
+        clone2prime, Xings = self.clone2prime, self.Xings
 
         gates2detour = set(gate for _, gate in Xings)
+        nonembed_Gates = self.nonembed_Gates
+        tentative = self.tentative.copy()
 
-        clone2prime = []
-        D = 0
+        clone_idx = N + B + C
         subtree_map = G.nodes(data='subtree')
         paths = self.paths
         I_path = self.I_path
         for r, n in gates2detour:
+            tentative.remove((r, n))
             subtree_id = G.nodes[n]['subtree']
             subtree_load = G.nodes[n]['load']
             # set of nodes to examine is different depending on `branching`
             hookchoices = (  # all the subtree's nodes
-                           [n for n, v in subtree_map if v == subtree_id]
+                           [n for n, v in subtree_map
+                            if n < N and v == subtree_id]
                            if self.branching else
                            # only each subtree's head and tail
                            [n] + [n for n, v in subtree_map
-                                  if v == subtree_id and len(G._adj[n]) == 1])
+                                  if (n < N and v == subtree_id
+                                      and len(G._adj[n]) == 1)])
             debug('hookchoices: {}', self.n2s(*hookchoices))
 
             path_options = list(chain.from_iterable(
@@ -577,7 +592,7 @@ class PathFinder():
             while id >= 0:
                 dists.append(pseudonode.d_hop)
                 id = pseudonode.parent
-                path.append(paths.base_from_id[id])
+                path.append(paths.prime_from_id[id])
                 pseudonode = paths[id]
             if not math.isclose(sum(dists), dist):
                 error(f'distance sum ({sum(dists):.1f}) != '
@@ -588,16 +603,18 @@ class PathFinder():
             if len(path) < 2:
                 error('no path found for {}-{}', F[r], F[n])
                 continue
-            Dinc = len(path) - 2
-            Clone = list(range(N + B + D, N + B + D + Dinc))
+            added_clones = len(path) - 2
+            Clone = list(range(clone_idx, clone_idx + added_clones))
+            clone_idx += added_clones
             clone2prime.extend(path[1:-1])
-            D += Dinc
             G.add_nodes_from(((c, {'label': F[c],
                                    'kind': 'detour',
                                    'subtree': subtree_id,
                                    'load': subtree_load})
                               for c in Clone))
             if [n, r] != path:
+                # TODO: adapt this for contoured gates
+                #       maybe that's the place to prune contour clones
                 G.remove_edge(r, n)
                 if r != path[-1]:
                     debug(f'root changed from {F[r]} to '
@@ -608,7 +625,7 @@ class PathFinder():
                     weight='length')
                 for _, _, edgeD in G.edges(Clone, data=True):
                     edgeD.update(kind='detour', reverse=True)
-                if Dinc > 0:
+                if added_clones > 0:
                     # an edge reaching root always has target < source
                     del G[Clone[-1]][path[-1]]['reverse']
             else:
@@ -637,8 +654,15 @@ class PathFinder():
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
 
-        fnT = np.arange(N + B + D + M)
-        fnT[N + B: N + B + D] = clone2prime
+        #  for r in range(-M, 0):
+        #      for n in G.neighbors(r):
+        #          if G[r][n].get('kind') == 'tentative':
+        #              del G[r][n]['kind']
+        for r, n in tentative:
+            del G[r][n]['kind']
+        fnT = np.arange(M + clone_idx)
+        fnT[N + B: clone_idx] = clone2prime
         fnT[-M:] = range(-M, 0)
-        G.graph.update(D=D, fnT=fnT)
+        G.graph.update(D=clone_idx - N - B - C, fnT=fnT)
+        # TODO: there might be some lost contour clones that could be prunned
         return None if in_place else G
