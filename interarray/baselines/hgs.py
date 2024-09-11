@@ -110,11 +110,12 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                     s = t
                     continue
                 else:
+                    # s is a root
                     # NOTE: (unintuitive) The length might be from a contour
                     #       path, but the graph connection will be a straight
                     #       line. It is left to PathFinder to properly route
                     #       that gate.
-                    edge_attr = {'length': d2roots[t, s], 'reroute': True}
+                    edge_attr = {'length': d2roots[t, s], 'kind': 'tentative'}
                     path = None
             else:
                 edge_attr = {'length': A[s][t]['length']}
@@ -138,6 +139,47 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
                 edge_attr.update(kind='contour', A_edge=(s, t))
             G.add_edge(s, t, **edge_attr)
             s = t
+
+    # TODO: move this to an external function
+    # Check on crossings between G's gates that are in A and G's edges
+    diagonals = A.graph['diagonals']
+    P = A.graph['planar']
+    for r in range(-M, 0):
+        for n in set(G.neighbors(r)) & set(A.neighbors(r)):
+            st = diagonals.get((r, n))
+            if st is not None:
+                # st is a Delaunay edge
+                if st in G.edges:
+                    G[r][n]['kind'] = 'tentative'
+                    continue
+                crossings = False
+                s, t = st
+                # ensure u–s–v–t is ccw
+                u, v = ((r, n)
+                        if (P[r][t]['cw'] == s and P[n][s]['cw'] == t) else
+                        (n, r))
+                # examine the two triangles ⟨s, t⟩ belongs to
+                for a, b, c in ((s, t, u), (t, s, v)):
+                    # this is for diagonals crossing diagonals
+                    d = P[c][b]['ccw']
+                    diag_da = (a, d) if a < d else (d, a)
+                    if (d == P[b][c]['cw'] and diag_da in G.edges):
+                        crossings = True
+                        break
+                    e = P[a][c]['ccw']
+                    diag_eb = (e, b) if e < b else (b, e)
+                    if (e == P[c][a]['cw'] and diag_eb in G.edges):
+                        crossings = True
+                        break
+                if crossings:
+                    G[r][n]['kind'] = 'tentative'
+                    continue
+            else:
+                uv = diagonals.inv.get((r, n))
+                if uv is not None and uv in G.edges:
+                    # uv is a Delaunay edge crossing ⟨r, n⟩
+                    G[r][n]['kind'] = 'tentative'
+                    continue
 
     if clone2prime:
         fnT = np.arange(iC + M)
