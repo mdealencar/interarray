@@ -1,5 +1,6 @@
 import operator
 import math
+from itertools import chain
 import numpy as np
 import networkx as nx
 from .interarraylib import calcload
@@ -281,7 +282,7 @@ def edgeXing_iter_deprecated(A):
                        ((c, d) if c < d else (d, c)))
 
 
-def gateXing_iter(G, gates=None, touch_is_cross=True):
+def gateXing_iter(G, gates=None, constraint_edges=None, touch_is_cross=True):
     '''
     Iterate over all crossings between non-gate edges and the edges in `gates`.
     If `gates` is None, all nodes that are not a root neighbor are considered.
@@ -292,9 +293,8 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
     The order of items in `gates` must correspond to roots in range(-M, 0).
     Used in constraint generation for MILP model.
     '''
-    M = G.graph['M']
-    VertexC = G.graph['VertexC']
-    N = VertexC.shape[0] - M
+    M, N, B, fnT, VertexC = (G.graph.get(k) for k in ('M', 'N', 'B', 'fnT',
+                                                      'VertexC'))
     roots = range(-M, 0)
     anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
@@ -304,6 +304,8 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
     anglesYhp = G.graph['anglesYhp']
     # iterable of non-gate edges:
     Edge = nx.subgraph_view(G, filter_node=lambda n: n >= 0).edges()
+    if constraint_edges is not None:
+        Edge = chain(Edge, constraint_edges)
     if gates is None:
         all_nodes = set(range(N))
         IGate = []
@@ -318,6 +320,8 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
     # that node's subtree
     less = operator.le if touch_is_cross else operator.lt
     for u, v in Edge:
+        if fnT is not None:
+            u, v = fnT[u], fnT[v]
         uC = VertexC[u]
         vC = VertexC[v]
         for root, iGate in zip(roots, IGate):
@@ -340,6 +344,8 @@ def gateXing_iter(G, gates=None, touch_is_cross=True):
             for n in iGate[np.flatnonzero(is_rank_within)]:
                 # this test confirms the crossing because `is_rank_within`
                 # established that root–n is on a line crossing u–v
+                if n == u or n == v:
+                    continue
                 if not is_same_side(uC, vC, rootC, VertexC[n]):
                     u, v = (u, v) if u < v else (v, u)
                     yield (u, v), (root, n)
