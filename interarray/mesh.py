@@ -906,14 +906,14 @@ def make_planar_embedding(
     # ##########################################
     # J) Calculate the area of the concave hull.
     # ##########################################
-    bX, bY = VertexC[hull_prunned].T
+    bX, bY = VertexC[hull_concave].T
     lower_bound = np.array((bX.min(), bY.min()), dtype=np.float64)
     upper_bound = np.array((bX.max(), bY.max()), dtype=np.float64)
     # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
-    # Then take the sqrt() to get the linear scaling factor such that area=1.
-    norm_factor = math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
-                            + np.dot(bX[:-1], bY[1:])
-                            - np.dot(bY[:-1], bX[1:])))
+    # Then take the sqrt() and invert for the linear factor such that area=1.
+    norm_factor = 1.0/math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
+                                + np.dot(bX[:-1], bY[1:])
+                                - np.dot(bY[:-1], bX[1:])))
 
     # Set A's graph attributes.
     A.graph.update(
@@ -927,6 +927,7 @@ def make_planar_embedding(
         # TODO: make these 2 attribute names consistent across the code
         hull=convex_hull_A,
         hull_prunned=hull_prunned,
+        hull_concave=hull_concave,
         # experimental attr
         border_stunts=border_stunts,
         lower_bound=lower_bound,
