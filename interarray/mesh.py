@@ -361,14 +361,14 @@ def make_planar_embedding(
     #    create new concavity vertices to the inside of the concavity.
     # ###################################################################
     print('\nPART B')
-    vertices_to_move = set()
     offset = offset_scale*np.hypot(*(VertexC.max(axis=0)
                                      - VertexC.min(axis=0)))
     #  print(f'offset: {offset}')
-    newC = []
+    stuntC = []
+    border_stunts = []
     remove_from_border_pt_map = []
     B_old = B
-    # container for the concavities after duplicating coinciding vertices
+    # replace coinciding vertices with stunts and save concavities here
     concavityPolys = []
     for concavityPoly in getattr(concavityMPoly, 'polygons',
                                  (concavityMPoly,)):
@@ -376,8 +376,8 @@ def make_planar_embedding(
         if concavityPoly is gonb.EMPTY:
             continue
         print('concavityPoly', concavityPoly)
-        new_coords = []
-        new_points = []
+        stunt_coords = []
+        conc_points = []
         vertices = concavityPoly.border.vertices
         rev = vertices[-1]
         X = border_vertice_from_point[rev]
@@ -390,7 +390,7 @@ def make_planar_embedding(
             Z_is_hull = fwd in border_convex_hull.border.vertices
             if cur in points[:N]:
                 # Concavity border vertex coincides with node.
-                # Therefore, move the border.
+                # Therefore, create a stunt vertex for the border.
                 XY = VertexC[Y] - VertexC[X]
                 YZ = VertexC[Z] - VertexC[Y]
                 _XY_ = np.hypot(*XY)
@@ -422,17 +422,19 @@ def make_planar_embedding(
                 else:
                     T = offset*(nYZ+proj)
                 print(T, np.hypot(*T))
-                new_coord = VertexC[Y] + T
-                new_coords.append(new_coord)
-                new_point = gonb.Point(*new_coord)
-                new_points.append(new_point)
+                # to extract stunts' coordinates:
+                # stuntsC = VertexC[N + B - len(border_stunts): N + B]
+                border_stunts.append(Y)
+                stunt_coord = VertexC[Y] + T
+                stunt_point = gonb.Point(*stunt_coord)
+                stunt_coords.append(stunt_coord)
+                conc_points.append(stunt_point)
                 remove_from_border_pt_map.append(cur)
-                border_vertice_from_point[new_point] = N + B
+                border_vertice_from_point[stunt_point] = N + B
                 B += 1
                 changed = True
             else:
-                new_coords.append(VertexC[Y])
-                new_points.append(cur)
+                conc_points.append(cur)
             X, X_is_hull = Y, Y_is_hull
             Y, Y_is_hull = Z, Z_is_hull
             Y_is_hull = fwd in border_convex_hull.border.vertices
@@ -440,12 +442,13 @@ def make_planar_embedding(
         if changed:
             print('changed')
             concavityPolys.append(
-                    gonb.Polygon(border=gonb.Contour(new_points)))
-            newC.append(np.array(new_coords))
+                    gonb.Polygon(border=gonb.Contour(conc_points)))
+            stuntC.append(np.array(stunt_coords))
         else:
             concavityPolys.append(concavityPoly)
+    # stunts are added to the B range and they should be saved with routesets
     if changed:
-        print('newC lengths: ', [len(nc) for nc in newC],
+        print('stuntC lengths: ', [len(nc) for nc in stuntC],
               'B without supertriangle:', B)
 
     for pt in remove_from_border_pt_map:
@@ -478,7 +481,6 @@ def make_planar_embedding(
                                        dtype=int)
     # account for the supertriangle vertices that cdt.Triangulation() adds
     supertriangle = tuple(range(N + B, N + B + 3))
-    B += 3
     vertice_from_verticeCDT[:3] = supertriangle
     for i, pt in enumerate(chain(points[:N], points[-M:], points_used)):
         verticesCDT.append(cdt.V2d(pt.x, pt.y))
@@ -590,9 +592,9 @@ def make_planar_embedding(
             set(np.flatnonzero(mesh.calculate_triangle_depths())))
 
     # add any newly created plus the supertriangle's vertices to VertexC
-    # note: B has already been increased by all newC lengths within the loop
+    # note: B has already been increased by all stuntC lengths within the loop
     VertexC = np.vstack((VertexC[:-M],
-                         *newC,
+                         *stuntC,
                          [(v.x, v.y)
                           for v in mesh.vertices[:3]],
                          VertexC[-M:]))
@@ -614,15 +616,14 @@ def make_planar_embedding(
 
     # adjust flat triangles around concavities
     changes_super = flip_triangles_exclusions_super(
-            P, N, B, VertexC, max_tri_AR=max_tri_AR)
+            P, N, B + 3, VertexC, max_tri_AR=max_tri_AR)
 
-    # make_concavities_intransponible(P, N, B, tuple(range(N + B - 3, N + B)))
     convex_hull, to_remove, conc_outer_edges = hull_processor(
             P, N, supertriangle, concavityVertex2concavity)
     P.remove_edges_from(to_remove)
     constraint_edges -= conc_outer_edges
 
-    changes_exclusions = flip_triangles_near_exclusions(P, N, B, VertexC)
+    changes_exclusions = flip_triangles_near_exclusions(P, N, B + 3, VertexC)
     P.check_structure()
     P.graph['constraint_edges'] = constraint_edges
 
@@ -666,7 +667,7 @@ def make_planar_embedding(
                      and kind != 'concavity')]:
         s = P[u][v]['cw']
         t = P[u][v]['ccw']
-        if s >= N + B - 3 or t >= N + B - 3:
+        if s >= N + B or t >= N + B:
             # do not add diagonals incident to supertriangle's vertices
             continue
         if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
@@ -804,6 +805,7 @@ def make_planar_embedding(
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # ##################################################################
     print('\nPART I')
+    #  d2roots = cdist(VertexC[:N + B + 3], VertexC[-M:])
     d2roots = cdist(VertexC[:N + B], VertexC[-M:])
     # d2roots may not be the plain Euclidean distance if there are obstacles.
     if len(concavityVertexSets) > 0 or (exclusions and len(exclusions) > 0):
@@ -840,7 +842,7 @@ def make_planar_embedding(
 
     # Set A's graph attributes.
     A.graph.update(
-        VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
+        VertexC=VertexC, border=border, N=N, M=M, B=B,
         name=G.name,
         handle=G.graph['handle'],
         landscape_angle=G.graph['landscape_angle'],
@@ -851,6 +853,7 @@ def make_planar_embedding(
         hull=convex_hull_A,
         hull_prunned=hull_prunned,
         # experimental attr
+        border_stunts=border_stunts,
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         norm_factor=norm_factor,
