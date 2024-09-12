@@ -209,8 +209,6 @@ class PathFinder():
 
     def _advance_portal(self, left: int, right: int):
         G, P, N, B = self.G, self.P, self.N, self.B
-        #  ST = N + B - 3
-        ST = N + B
         while True:
             # look for children portals
             n = P[left][right]['ccw']
@@ -223,10 +221,9 @@ class PathFinder():
                 st_sorted = (s, t) if s < t else (t, s)
                 debug('evaluating {}', self.n2s(s, t))
                 if (st_sorted not in self.portal_set
-                        or (s < ST and t < ST
-                            and s in G.nodes and t in G.nodes
-                            and G.nodes[s].get('subtree', -1) ==
-                            G.nodes[t].get('subtree', -2))):
+                        or (s < N and t < N
+                            and G.nodes[s]['subtree'] ==
+                            G.nodes[t]['subtree'])):
                     # (s, t) is in G or is bounded by a subtree
                     continue
                 next_portals.append(((s, t), side))
@@ -346,6 +343,7 @@ class PathFinder():
     def _find_paths(self):
         #  print('[exp] starting _explore()')
         G, P, M, N, B, C = self.G, self.P, self.M, self.N, self.B, self.C
+        ST = N + B + C
         d2roots = G.graph['d2roots']
         d2rootsRank = G.graph['d2rootsRank']
         prioqueue = []
@@ -360,35 +358,22 @@ class PathFinder():
 
         # set of portals (i.e. edges of P that are not used in G)
         portal_set = set()
-
-        if C > 0:
-            fnT = self.fnT
-        else:
-            fnT = np.arange(M + N + B + C)
-            fnT[-M:] = range(-M, 0)
         for u, v in (P.to_undirected(as_view=True).edges - G.edges):
-            portal_set.add((u, v) if u < v else (v, u))
-        for u, v in G.edges:
-            new = False
-            if u >= N:
-                u = fnT[u]
-                new = True
-            if v >= N:
-                v = fnT[v]
-                new = True
-            if new:
-                portal_set.remove((u, v) if u < v else (v, u))
-
-        #  for u, v in P.to_undirected(as_view=True).edges - G.edges:
-        #      if u >= N and v >= N:
-        #          # constraint edge -> not a portal
-        #          continue
-        #      portal_set.add((u, v) if u < v else (v, u))
+            # TODO: also check here for constraint edges (never portals)
+            if u < ST or v < ST:
+                # ⟨u, v⟩ is not a supertriangle side
+                portal_set.add((u, v) if u < v else (v, u))
+        if C > 0:
+            # remove from portal_set the contour edges of G
+            fnT = self.fnT
+            for c in range(N + B, N + B + C):
+                for n in G.neighbors(c):
+                    n, c = fnT[n], fnT[c]
+                    if n < N or n < c:
+                        portal_set.remove((n, c))
         self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
-        #  ST = N + B - 3
-        ST = N + B
         for r in range(-M, 0):
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.prime_from_id[r] = r
