@@ -229,10 +229,12 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
     '''
     G = H.copy()
     M = G.graph['M']
+    N = G.graph['N']
+    B = G.graph.get('B', 0)
+    C = G.graph.get('C', 0)
     VertexC = G.graph['VertexC']
-    N = G.number_of_nodes() - M - G.graph.get('D', 0)
     for r in range(-M, 0):
-        detoured = [n for n in G.neighbors(r) if n >= N]
+        detoured = [n for n in G.neighbors(r) if n >= N + B + C]
         if detoured:
             G.graph['crossings'] = []
         for n in detoured:
@@ -244,11 +246,16 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
                 G.remove_node(ref)
             G.add_edge(n, r,
                        load=G.nodes[n]['load'],
+                       kind='tentative',
                        reverse=False,
                        length=np.hypot(*(VertexC[n] - VertexC[r]).T))
             G.graph['crossings'].append((r, n))
     G.graph.pop('D', None)
-    G.graph.pop('fnT', None)
+    if C:
+        fnT = G.graph['fnT']
+        G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
+    else:
+        G.graph.pop('fnT', None)
     return G
 
 
