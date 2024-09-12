@@ -4,6 +4,7 @@
 import math
 import numpy as np
 import networkx as nx
+import shapely as shp
 from scipy.spatial.distance import cdist
 
 from collections import defaultdict
@@ -569,30 +570,103 @@ def make_planar_embedding(
             zip(A_edges, np.hypot(*(VertexC[source,] - VertexC[target,]).T)))
     nx.set_edge_attributes(A, A_edge_length, name='length')
 
+    # D.1) get hull_concave
+
+    # prevent edges that cross the boudaries from going into PlanarEmbedding
+    # an exception is made for edges that include a root node
+    hull_concave = []
+    if border is not None:
+        singled_nodes = {}
+        hull_prunned_poly = shp.Polygon(VertexC[hull_prunned])
+        shp.prepare(hull_prunned_poly)
+        border_poly = shp.Polygon(VertexC[border])
+        shp.prepare(border_poly)
+        if not border_poly.covers(hull_prunned_poly):
+            hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
+            u, v = hull_prunned[-1], hull_stack.pop()
+            while hull_stack:
+                edge_line = shp.LineString(VertexC[[u, v]])
+                #  if (u >= 0 and v >= 0
+                #          and not border_poly.covers(edge_line)):
+                if not border_poly.covers(edge_line):
+                    t = P_A[u][v]['ccw']
+                    if t == u:
+                        # degenerate case 1
+                        singled_nodes[v] = u
+                        hull_concave.append(v)
+                        t = v
+                        v = u
+                        u = t
+                        continue
+                    if t in hull_prunned:
+                        # degenerate case 2
+                        if t == hull_concave[-2]:
+                            singled_nodes[u] = t
+                        else:
+                            singled_nodes[v] = t
+                        hull_concave.append(t)
+                        u = t
+                        continue
+                    hull_stack.append(v)
+                    v = t
+                else:
+                    hull_concave.append(v)
+                    u = v
+                    v = hull_stack.pop()
+    if not hull_concave:
+        hull_concave = hull_prunned
+    print('hull_concave:', '–'.join(F[n] for n in hull_concave))
+
     # ######################################################################
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
     # ######################################################################
     print('\nPART E')
     # create the PythonCDT edges
     constraint_edges = set()
+    edgesCDT_P_A = []
+
+    # Add A's hull as constraint edges.
+    for s, t in zip(hull_concave, hull_concave[1:] + [hull_concave[0]]):
+        constraint_edges.add((s, t) if s < t else (t, s))
+        edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else N + M + s,
+                                     t if t >= 0 else N + M + t))
+
+    # This ensures P_A edges within the concave hull remain unaltered.
+    mesh.insert_edges(edgesCDT_P_A)
+    # remove triangles outside the concave_hull of P_A
+    #  print(mesh.calculate_triangle_depths())
+    #  mesh.remove_triangles(set(np.flatnonzero(
+    #      ~np.array(mesh.calculate_triangle_depths(), dtype=bool))))
+    #  num_triangles_P_A = mesh.triangles_count()
+    #  print('num_triangles_P_A', num_triangles_P_A)
+
     edgesCDT = []
-    concavityVertexSets = []
+    concavityVertexSeqs = []
     for concPoly in concavityPolys:
         for seg in concPoly.edges:
             s, t = vertice_from_point[seg.start], vertice_from_point[seg.end]
-            constraint_edges.add((s, t) if s < t else (t, s))
+            st = (s, t) if s < t else (t, s)
+            if st in constraint_edges:
+                continue
+            constraint_edges.add(st)
             edgesCDT.append(cdt.Edge(verticeCDT_from_point[seg.start],
                                      verticeCDT_from_point[seg.end]))
-        concavityVertexSets.append(tuple(vertice_from_point[v]
+        concavityVertexSeqs.append(tuple(vertice_from_point[v]
                                          for v in concPoly.border.vertices))
     # TODO: add exclusion zones
 
     mesh.insert_vertices(verticesCDT[N + M:])
     mesh.insert_edges(edgesCDT)
+    #  print('\n\n', mesh.calculate_triangle_depths(), '\n\n')
 
-    # remove triangles inside holes
-    mesh.remove_triangles(
-            set(np.flatnonzero(mesh.calculate_triangle_depths())))
+    # this will remove all internal triangles, both in concavities and in the
+    # concave hull
+    #  mesh.remove_triangles(
+    #          set(np.flatnonzero(mesh.calculate_triangle_depths())))
+
+    # TODO: remove triangles inside exclusion zones (depth = 2)
+    #  mesh.remove_triangles(
+    #          set(np.flatnonzero(mesh.calculate_triangle_depths())))
 
     # add any newly created plus the supertriangle's vertices to VertexC
     # note: B has already been increased by all stuntC lengths within the loop
@@ -609,51 +683,53 @@ def make_planar_embedding(
     P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
 
     concavityVertex2concavity = {}
-    for concavity_idx, conc in enumerate(concavityVertexSets):
-        a, b = tee(conc)
-        for u, v in zip(a, chain(b, (next(b),))):
-            concavityVertex2concavity[u] = concavity_idx
-            print(u, v)
-            P[u][v]['kind'] = 'concavity'
-            P[v][u]['kind'] = 'concavity'
+    for concavity_idx, conc in enumerate(concavityVertexSeqs):
+        for rev, cur, fwd in zip(chain((conc[-1],), conc[:-1]),
+                                 conc, chain(conc[1:], (conc[0],))):
+            concavityVertex2concavity[cur] = concavity_idx
+            # Remove edges inside the concavities
+            while P[cur][fwd]['ccw'] != rev:
+                P.remove_edge(cur, P[cur][fwd]['ccw'])
+            P[cur][fwd]['kind'] = P[fwd][cur]['kind'] = 'concavity'
 
     # adjust flat triangles around concavities
-    changes_super = flip_triangles_exclusions_super(
-            P, N, B + 3, VertexC, max_tri_AR=max_tri_AR)
+    #  changes_super = flip_triangles_exclusions_super(
+    #          P, N, B + 3, VertexC, max_tri_AR=max_tri_AR)
 
     convex_hull, to_remove, conc_outer_edges = hull_processor(
             P, N, supertriangle, concavityVertex2concavity)
     P.remove_edges_from(to_remove)
     constraint_edges -= conc_outer_edges
-
-    changes_exclusions = flip_triangles_near_exclusions(P, N, B + 3, VertexC)
-    P.check_structure()
     P.graph['constraint_edges'] = constraint_edges
 
-
-
-
-
+    #  changes_exclusions = flip_triangles_near_exclusions(P, N, B + 3,
+    #                                                      VertexC)
+    #  P.check_structure()
+    #  print('changes_super', [(F[a], F[b]) for a, b in changes_super])
+    #  print('changes_exclusions',
+    #        [(F[a], F[b]) for a, b in changes_exclusions])
 
     #  print('&'*80 + '\n', P_A.edges - P.edges, '\n' + '&'*80)
     #  print('\n' + '&'*80)
-
-    # Favor the triagulation in P_A over the one in P where possible.
-    for u, v in P_A.edges - P.edges:
-        s, t = P_A[u][v]['cw'], P_A[u][v]['ccw']
-        if (s == P_A[v][u]['ccw']
-                and t == P_A[v][u]['cw']
-                and (s, t) in P.edges):
-            w, x = P[s][t]['cw'], P[s][t]['ccw']
-            if (w == u and x == v
-                    and w == P[t][s]['ccw']
-                    and x == P[t][s]['cw']):
-                print(F[u], F[v], 'replaces', F[s], F[t])
-                P.add_half_edge(u, v, ccw=t)
-                P.add_half_edge(v, u, ccw=s)
-                P.remove_edge(s, t)
-        #  else:
-        #      print(F[u], F[v], 'not in P, but', F[s], F[t], 'not available for flipping')
+    #
+    #  # Favor the triagulation in P_A over the one in P where possible.
+    #  for u, v in P_A.edges - P.edges:
+    #      print(F[u], F[v])
+    #      s, t = P_A[u][v]['cw'], P_A[u][v]['ccw']
+    #      if (s == P_A[v][u]['ccw']
+    #              and t == P_A[v][u]['cw']
+    #              and (s, t) in P.edges):
+    #          w, x = P[s][t]['cw'], P[s][t]['ccw']
+    #          if (w == u and x == v
+    #                  and w == P[t][s]['ccw']
+    #                  and x == P[t][s]['cw']):
+    #              print(F[u], F[v], 'replaces', F[s], F[t])
+    #              P.add_half_edge(u, v, ccw=t)
+    #              P.add_half_edge(v, u, ccw=s)
+    #              P.remove_edge(s, t)
+    #      #  else:
+    #      #      print(F[u], F[v], 'not in P, but', F[s], F[t],
+    #      #            'not available for flipping')
     #  print('&'*80)
 
     # #################
@@ -805,10 +881,9 @@ def make_planar_embedding(
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # ##################################################################
     print('\nPART I')
-    #  d2roots = cdist(VertexC[:N + B + 3], VertexC[-M:])
-    d2roots = cdist(VertexC[:N + B], VertexC[-M:])
+    d2roots = cdist(VertexC[:N + B + 3], VertexC[-M:])
     # d2roots may not be the plain Euclidean distance if there are obstacles.
-    if len(concavityVertexSets) > 0 or (exclusions and len(exclusions) > 0):
+    if len(concavityVertexSeqs) > 0 or (exclusions and len(exclusions) > 0):
         # Use P_paths to obtain estimates of d2roots taking into consideration
         # the concavities and exclusion zones.
         for r in range(-M, 0):
@@ -881,19 +956,8 @@ def make_planar_embedding(
     #          edgeD['root'] = -M + np.argmin(
     #                  cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
     #                        VertexC[-M:]))
-    #  A.graph.update(
-    #                 planar=planar,
-    #                 d2roots=d2roots,
-    #                 landscape_angle=G_base.graph.get('landscape_angle', 0),
-    #                 name=G_base.graph['name'],
-    #                 handle=G_base.graph['handle']
-    #                )
 
-    print('changes_super', [(F[a], F[b]) for a, b in changes_super])
-    print('changes_exclusions', [(F[a], F[b]) for a, b in changes_exclusions])
-    # TODO: are `concavityPolys` returned only for debugging?
     return P, A
-    #  return P, A, diagonals, concavityPolys
 
 
 def delaunay(G: nx.Graph):
