@@ -144,6 +144,36 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
     return G
 
 
+def as_single_oss(G: nx.Graph) -> nx.Graph:
+    Gʹ = G.copy()
+    M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
+    Gʹ.remove_nodes_from(range(-M, -1))
+    VertexCʹ = VertexC[:-M + 1].copy()
+    VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
+    Gʹ.graph.update(VertexC=VertexCʹ, M=1)
+    return Gʹ
+
+
+def normalized(A: nx.Graph) -> nx.Graph:
+    '''
+    Make a shallow copy and shift and scale it.
+    Coordinates as subtracted of graph attr 'lower_bound'.
+    All lengths and coordinates are divided by graph attr 'norm_factor'.
+
+    Returns a nx.Graph.
+    '''
+    norm_factor = A.graph['norm_factor']
+    Aʹ = A.copy()
+    Aʹ.graph['normalized'] = True
+    for u, v, eData in Aʹ.edges(data=True):
+        eData['length'] *= norm_factor
+    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['lower_bound'])
+    Aʹ.graph['VertexC'] = VertexC
+    d2roots = norm_factor*A.graph['d2roots']
+    Aʹ.graph['d2roots'] = d2roots
+    return Aʹ
+
+
 def update_lengths(G):
     '''Adds missing edge lengths.
     Changes G in place.'''

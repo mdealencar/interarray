@@ -46,6 +46,8 @@ def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
 def normalize_site_single_oss(G: nx.Graph)\
         -> tuple[float, np.ndarray, np.ndarray, np.ndarray]:
     '''
+    DEPRECATED: use interarraylib's `normalized()` and `as_single_oss()`
+
     Calculate the area and scale the boundary so that it has area 1.
     The boundary and OSS are translated to the 1st quadrant, near the origin.
 
