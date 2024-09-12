@@ -5,7 +5,7 @@ import networkx as nx
 from scipy.spatial.distance import cdist
 
 from .pathfinding import PathFinder
-from .geometric import delaunay
+from .mesh import make_planar_embedding
 from .crossings import list_edge_crossings
 from .interarraylib import remove_detours, calcload, NodeTagger
 
@@ -232,7 +232,7 @@ def _apply_choice(
     return G
 
 
-def repair_routeset_path(G: nx.Graph) -> nx.Graph:
+def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
     '''
     `G` is a NetworkX.Graph representing a routeset that is:
         - topologically sound (a tree, respecting capacity)
@@ -245,18 +245,16 @@ def repair_routeset_path(G: nx.Graph) -> nx.Graph:
         - a fixed routeset in a shallow copy of `G`.
     '''
 
-    M = G.graph['M']
-    VertexC = G.graph['VertexC']
-    N = VertexC.shape[0] - M
+    M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
 
-    A = delaunay(G)
-    diagonals = A.graph['diagonals']
     P = A.graph['planar']
+    diagonals = A.graph['diagonals']
 
+    G2fix = remove_detours(G) if D else G.copy()
     # make a subgraph without gates and detours
-    G_branches = nx.subgraph_view(G, filter_node=lambda n: 0 <= n < N)
+    # TODO: make G_branches compatible with contour edges
+    G_branches = nx.subgraph_view(G2fix, filter_node=lambda n: n >= 0)
     eeXings = list_edge_crossings(G_branches, P, diagonals)
-    G2fix = remove_detours(G)
     if eeXings:
         G2fix.graph['crossings_fixed'] = 0
 
@@ -340,7 +338,7 @@ def repair_routeset_path(G: nx.Graph) -> nx.Graph:
             src_path = list_path(G_branches, gateS)
             dst_path = list_path(G_branches, gateD)
             # TODO: remove this
-            #  print([f'{F[n]}' for n in dst_path])
+            print([f'{F[n]}' for n in dst_path])
             choices = _find_fix_choices_path(A, swapS, src_path, dst_path)
             choices = filter(not_crossing, choices)
             quant_choices.extend(
@@ -369,6 +367,6 @@ def repair_routeset_path(G: nx.Graph) -> nx.Graph:
         G_branches = nx.subgraph_view(G2fix, filter_node=lambda n: 0 <= n < N)
         eeXings = list_edge_crossings(G_branches, P, diagonals)
 
-    PathFinder(G2fix, branching=False).create_detours(in_place=True)
+    #  PathFinder(G2fix, branching=False).create_detours(in_place=True)
 
     return G2fix
