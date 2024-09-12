@@ -321,7 +321,7 @@ def make_planar_embedding(
     # ######
     # A) Transform border concavities in polygons.
     # B) Check if concavities' vertices coincide with wtg. Where they do,
-    #    create new concavity vertices to the inside of the concavity.
+    #    create stunt concavity vertices to the inside of the concavity.
     # C) Get Delaynay triangulation of the wtg+oss nodes only.
     # D) Build the available-edges graph A and its planar embedding.
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
@@ -358,7 +358,7 @@ def make_planar_embedding(
 
     # ###################################################################
     # B) Check if concavities' vertices coincide with wtg. Where they do,
-    #    create new concavity vertices to the inside of the concavity.
+    #    create stunt concavity vertices to the inside of the concavity.
     # ###################################################################
     print('\nPART B')
     offset = offset_scale*np.hypot(*(VertexC.max(axis=0)
@@ -446,7 +446,9 @@ def make_planar_embedding(
             stuntC.append(np.array(stunt_coords))
         else:
             concavityPolys.append(concavityPoly)
-    # stunts are added to the B range and they should be saved with routesets
+    # Stunts are added to the B range and they should be saved with routesets.
+    # Alternatively, one could convert stunts to clones of their primes, but
+    # this could create some small interferences between edges.
     if changed:
         print('stuntC lengths: ', [len(nc) for nc in stuntC],
               'B without supertriangle:', B)
@@ -560,11 +562,12 @@ def make_planar_embedding(
             diagonals[(s, t)] = (u, v)
             A.add_edge(s, t, kind='extended')
     # Add length attribute to A's edges.
-    source, target = zip(*A.edges)
+    A_edges = tuple(A.edges)
+    source, target = zip(*A_edges)
     # TODO: ¿use d2roots for root-incident edges? probably not worth it
-    A_lengths = np.hypot(*(VertexC[source,] - VertexC[target,]).T)
-    for u, v, length in zip(source, target, A_lengths):
-        A[u][v]['length'] = length
+    A_edge_length = dict(
+            zip(A_edges, np.hypot(*(VertexC[source,] - VertexC[target,]).T)))
+    nx.set_edge_attributes(A, A_edge_length, name='length')
 
     # ######################################################################
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
@@ -677,10 +680,7 @@ def make_planar_embedding(
             P_paths.add_edge(u, v, length=np.hypot(*(VertexC[u]
                                                      - VertexC[v]).T))
 
-    nx.set_edge_attributes(P_paths, {(s, t): length
-                                     for s, t, length in
-                                     zip(source, target, A_lengths)},
-                           name='length')
+    nx.set_edge_attributes(P_paths, A_edge_length, name='length')
     for u, v, eData in P_paths.edges(data=True):
         if 'length' not in eData:
             eData['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
