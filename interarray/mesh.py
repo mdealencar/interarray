@@ -323,9 +323,9 @@ def make_planar_embedding(
     # B) Check if concavities' vertices coincide with wtg. Where they do,
     #    create new concavity vertices to the inside of the concavity.
     # C) Get Delaynay triangulation of the wtg+oss nodes only.
-    # D) Add concavities+exclusions and get the Constrained Delaunay Triang.
-    # E) Build the planar embedding of the constrained triangulation.
-    # F) Build the available-edges graph A and its planar embedding.
+    # D) Build the available-edges graph A and its planar embedding.
+    # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
+    # F) Build the planar embedding of the constrained triangulation.
     # G) Build P_paths.
     # H) Revisit A to replace edges crossing borders by P_path contours.
     # I) Revisit A to update d2roots according to lengths along P_paths.
@@ -494,10 +494,80 @@ def make_planar_embedding(
 
     P_A = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
 
-    # ######################################################################
-    # D) Add concavities+exclusions and get the Constrained Delaunay Triang.
-    # ######################################################################
+    # ##############################################################
+    # D) Build the available-edges graph A and its planar embedding.
+    # ##############################################################
     print('\nPART D')
+    convex_hull_A = []
+    a, b, c = supertriangle
+    for pivot, begin, end in ((a, c, b),
+                              (b, a, c),
+                              (c, b, a)):
+        # Circles pivot in cw order -> hull becomes ccw order.
+        source, target = tee(P_A.neighbors_cw_order(pivot))
+        for u, v in zip(source, chain(target, (next(target),))):
+            if u != begin and u != end and v != end:
+                convex_hull_A.append(u)
+    print('convex_hull_A:', '–'.join(F[n] for n in convex_hull_A))
+    P_A.remove_nodes_from(supertriangle)
+
+    # Prune flat triangles from P_A (criterion is aspect_ratio > `max_tri_AR`).
+    # Also create a `hull_prunned`, a hull without the triangles (ccw order)
+    # and a set of prunned hull edges.
+    queue = list(zip(convex_hull_A[::-1],
+                     chain(convex_hull_A[0:1], convex_hull_A[:0:-1])))
+    hull_prunned = []
+    hull_prunned_edges = set()
+    while queue:
+        u, v = queue.pop()
+        n = P_A[u][v]['ccw']
+        if triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR:
+            P_A.remove_edge(u, v)
+            queue.extend(((n, v), (u, n)))
+            continue
+        hull_prunned.append(u)
+        hull_prunned_edges.add((u, v) if u < v else (v, u))
+    u, v = hull_prunned[0], hull_prunned[-1]
+    hull_prunned_edges.add((u, v) if u < v else (v, u))
+    print('hull_prunned:', '–'.join(F[n] for n in hull_prunned))
+    print('hull_prunned_edges:',
+          ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
+
+    A = P_A.to_undirected()
+    nx.set_edge_attributes(A, 'delaunay', name='kind')
+    # TODO: ¿do we really need node attr kind? separate with test: node < 0
+    nx.set_node_attributes(A, 'wtg', name='kind')
+    for r in range(-M, 0):
+        A.nodes[r]['kind'] = 'oss'
+
+    # Extend A with diagonals.
+    diagonals = bidict()
+    for u, v in tuple(A.edges):
+        u, v = (u, v) if u < v else (v, u)
+        if (u, v) in hull_prunned_edges:
+            continue
+        uvD = P_A[u][v]
+        s, t = uvD['cw'], uvD['ccw']
+
+        # SANITY check (if hull edges were skipped, this should always hold)
+        vuD = P_A[v][u]
+        assert s == vuD['ccw'] and t == vuD['cw']
+
+        if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
+            s, t = (s, t) if s < t else (t, s)
+            diagonals[(s, t)] = (u, v)
+            A.add_edge(s, t, kind='extended')
+    # Add length attribute to A's edges.
+    source, target = zip(*A.edges)
+    # TODO: ¿use d2roots for root-incident edges? probably not worth it
+    A_lengths = np.hypot(*(VertexC[source,] - VertexC[target,]).T)
+    for u, v, length in zip(source, target, A_lengths):
+        A[u][v]['length'] = length
+
+    # ######################################################################
+    # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
+    # ######################################################################
+    print('\nPART E')
     # create the PythonCDT edges
     constraint_edges = set()
     edgesCDT = []
@@ -528,9 +598,9 @@ def make_planar_embedding(
                          VertexC[-M:]))
 
     # ###############################################################
-    # E) Build the planar embedding of the constrained triangulation.
+    # F) Build the planar embedding of the constrained triangulation.
     # ###############################################################
-    print('\nPART E')
+    print('\nPART F')
     P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
 
     concavityVertex2concavity = {}
@@ -556,43 +626,10 @@ def make_planar_embedding(
     P.check_structure()
     P.graph['constraint_edges'] = constraint_edges
 
-    # ##############################################################
-    # F) Build the available-edges graph A and its planar embedding.
-    # ##############################################################
-    print('\nPART F')
-    convex_hull_A = []
-    a, b, c = supertriangle
-    for pivot, begin, end in ((a, c, b),
-                              (b, a, c),
-                              (c, b, a)):
-        # Circles pivot in cw order -> hull becomes ccw order.
-        source, target = tee(P_A.neighbors_cw_order(pivot))
-        for u, v in zip(source, chain(target, (next(target),))):
-            if u != begin and u != end and v != end:
-                convex_hull_A.append(u)
-    print('convex_hull_A:', '–'.join(F[n] for n in convex_hull_A))
-    P_A.remove_nodes_from(supertriangle)
 
-    # Prune flat triangles from P_A (criterion is aspect_ratio > `max_tri_AR`).
-    # Also create a `hull_prunned`, a hull without the triangles (ccw order).
-    queue = list(zip(convex_hull_A[::-1],
-                     chain(convex_hull_A[0:1], convex_hull_A[:0:-1])))
-    hull_prunned = []
-    hull_prunned_edges = set()
-    while queue:
-        u, v = queue.pop()
-        n = P_A[u][v]['ccw']
-        if triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR:
-            P_A.remove_edge(u, v)
-            queue.extend(((n, v), (u, n)))
-            continue
-        hull_prunned.append(u)
-        hull_prunned_edges.add((u, v) if u < v else (v, u))
-    u, v = hull_prunned[0], hull_prunned[-1]
-    hull_prunned_edges.add((u, v) if u < v else (v, u))
-    print('hull_prunned:', '–'.join(F[n] for n in hull_prunned))
-    print('hull_prunned_edges:',
-          ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
+
+
+
 
     #  print('&'*80 + '\n', P_A.edges - P.edges, '\n' + '&'*80)
     #  print('\n' + '&'*80)
@@ -614,43 +651,6 @@ def make_planar_embedding(
         #  else:
         #      print(F[u], F[v], 'not in P, but', F[s], F[t], 'not available for flipping')
     #  print('&'*80)
-
-    A = P_A.to_undirected()
-    nx.set_edge_attributes(A, 'delaunay', name='kind')
-    #  nx.set_edge_attributes(A, {uv: True for uv in hull_prunned_edges},
-    #                         name='is_hull')
-    #  for u, v in ((u, v) for u, v, is_hull in A.edges(data='is_hull')
-    #               if not is_hull):
-
-    diagonals = bidict()
-    for u, v in tuple(A.edges):
-        u, v = (u, v) if u < v else (v, u)
-        if (u, v) in hull_prunned_edges:
-            continue
-        uvD = P_A[u][v]
-        s, t = uvD['cw'], uvD['ccw']
-        if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
-            s, t = (s, t) if s < t else (t, s)
-            diagonals[(s, t)] = (u, v)
-            A.add_edge(s, t, kind='extended')
-    # Add length attribute to A's edges.
-    source, target = zip(*A.edges)
-    # TODO: ¿use d2roots for root-incident edges? probably not worth it
-    A_lengths = np.hypot(*(VertexC[source,] - VertexC[target,]).T)
-    for u, v, length in zip(source, target, A_lengths):
-        A[u][v]['length'] = length
-
-    A.graph.update(
-        VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
-        name=G.name,
-        handle=G.graph['handle'],
-        landscape_angle=G.graph['landscape_angle'],
-        planar=P_A,
-        diagonals=diagonals,
-        # TODO: make these attribute names consistent across the code
-        hull=convex_hull_A,
-        hull_prunned=hull_prunned,
-    )
 
     # #################
     # G) Build P_paths.
@@ -787,11 +787,6 @@ def make_planar_embedding(
                 A_edges_to_revisit.append((u, v))
     A.graph['corner_to_A_edges'] = corner_to_A_edges
 
-    for n in range(N):
-        A.nodes[n]['kind'] = 'wtg'
-    for r in range(-M, 0):
-        A.nodes[r]['kind'] = 'oss'
-
     # Diagonals in A which have a missing origin Delaunay edge become edges.
     for u, v in (uv for uv in A_edges_to_revisit
                  if uv not in hull_prunned_edges):
@@ -810,7 +805,6 @@ def make_planar_embedding(
     # ##################################################################
     print('\nPART I')
     d2roots = cdist(VertexC[:N + B], VertexC[-M:])
-    A.graph['d2roots'] = d2roots
     # d2roots may not be the plain Euclidean distance if there are obstacles.
     if len(concavityVertexSets) > 0 or (exclusions and len(exclusions) > 0):
         # Use P_paths to obtain estimates of d2roots taking into consideration
@@ -843,9 +837,24 @@ def make_planar_embedding(
     norm_factor = math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
                             + np.dot(bX[:-1], bY[1:])
                             - np.dot(bY[:-1], bX[1:])))
-    A.graph.update(lower_bound=lower_bound,
-                   upper_bound=upper_bound,
-                   norm_factor=norm_factor)
+
+    # Set A's graph attributes.
+    A.graph.update(
+        VertexC=VertexC, border=border, N=N, M=M, B=B - 3,
+        name=G.name,
+        handle=G.graph['handle'],
+        landscape_angle=G.graph['landscape_angle'],
+        planar=P_A,
+        diagonals=diagonals,
+        d2roots=d2roots,
+        # TODO: make these 2 attribute names consistent across the code
+        hull=convex_hull_A,
+        hull_prunned=hull_prunned,
+        # experimental attr
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        norm_factor=norm_factor,
+    )
 
     # products:
     # P: PlanarEmbedding
