@@ -1037,14 +1037,15 @@ def old_planar_flipped_by_routeset(
 
 
 def planar_flipped_by_routeset(
-        G: nx.Graph, *, A: nx.Graph, planar: nx.PlanarEmbedding) \
+        G: nx.Graph, *, planar: nx.PlanarEmbedding) \
         -> nx.PlanarEmbedding:
     '''
-    Returns a modified PlanarEmbedding based on `planar`, where all edges used
-    in `G` are edges of the output embedding. For this to work, all non-gate
-    edges of `G` must be either edges of `planar` or one of `G`'s
-    graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
-    crossings.
+    Copies `planar` and flips some of its edges so that the returned
+    PlanarEmbedding includes all edges present in `G`.
+
+    For this to work, all non-gate edges of `G` must be either edges of
+    `planar` or one of `G`'s graph attribute 'diagonals'. In addition, `G`
+    must be free of edge×edge crossings.
     '''
     M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
     VertexC, border, exclusions, fnT = (
@@ -1054,17 +1055,15 @@ def planar_flipped_by_routeset(
         fnT[-M:] = range(-M, 0)
 
     P = planar.copy()
-    #  diagonals = A.graph['diagonals']
-    #  P_A = A.graph['planar']
     seen_endpoints = set()
     for u, v in G.edges - planar.edges:
         u_, v_ = fnT[u], fnT[v]
         if (u_, v_) in planar.edges:
             continue
-        print(f'{F[u]}–{F[v]} ({F[u_]}–{F[v_]})', end=': ')
+        #  print(f'{F[u]}–{F[v]} ({F[u_]}–{F[v_]})', end=': ')
         intersection = set(planar[u_]) & set(planar[v_])
         if len(intersection) != 2:
-            print(f'share {len(intersection)} neighbors.')
+            #  print(f'share {len(intersection)} neighbors.')
             continue
         s_, t_ = intersection
         if s_ >= N:
@@ -1099,6 +1098,7 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
+        print(f'flipping {F[s_]}–{F[t_]} to {F[u_]}–{F[v_]}')
         P.remove_edge(s_, t_)
         P.add_half_edge(u_, v_, cw=s_)
         P.add_half_edge(v_, u_, cw=t_)
