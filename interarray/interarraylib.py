@@ -157,17 +157,17 @@ def as_single_oss(G: nx.Graph) -> nx.Graph:
 def normalized(A: nx.Graph) -> nx.Graph:
     '''
     Make a shallow copy and shift and scale it.
-    Coordinates as subtracted of graph attr 'lower_bound'.
-    All lengths and coordinates are divided by graph attr 'norm_factor'.
+    Coordinates as subtracted of graph attr 'norm_offset'.
+    All lengths and coordinates are divided by graph attr 'norm_scale'.
 
     Returns a nx.Graph.
     '''
-    norm_factor = A.graph['norm_factor']
+    norm_factor = A.graph['norm_scale']
     Aʹ = A.copy()
     Aʹ.graph['normalized'] = True
     for u, v, eData in Aʹ.edges(data=True):
         eData['length'] *= norm_factor
-    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['lower_bound'])
+    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['norm_offset'])
     Aʹ.graph['VertexC'] = VertexC
     d2roots = norm_factor*A.graph['d2roots']
     Aʹ.graph['d2roots'] = d2roots
