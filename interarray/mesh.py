@@ -670,10 +670,10 @@ def make_planar_embedding(
 
     # add any newly created plus the supertriangle's vertices to VertexC
     # note: B has already been increased by all stuntC lengths within the loop
+    supertriangleC = np.array([(v.x, v.y) for v in mesh.vertices[:3]])
     VertexC = np.vstack((VertexC[:-M],
                          *stuntC,
-                         [(v.x, v.y)
-                          for v in mesh.vertices[:3]],
+                         supertriangleC,
                          VertexC[-M:]))
 
     # ###############################################################
@@ -681,6 +681,7 @@ def make_planar_embedding(
     # ###############################################################
     print('\nPART F')
     P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
+    P.graph['supertriangleC'] = supertriangleC
 
     concavityVertex2concavity = {}
     for concavity_idx, conc in enumerate(concavityVertexSeqs):
