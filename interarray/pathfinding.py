@@ -77,39 +77,43 @@ class PathFinder():
 
     def __init__(self, G: nx.Graph, *,
                  planar: nx.PlanarEmbedding,
-                 branching: bool = True,
-                 only_if_crossings: bool = True) -> None:
+                 branching: bool = True) -> None:
         M, N, VertexC, fnT = (
             G.graph.get(k) for k in 'M N VertexC fnT'.split())
         B, C = (G.graph.get(k, 0) for k in ('B', 'C'))
-        clone2prime = list(G.graph.get('clone2prime', ()))
-        VertexC = np.vstack((VertexC[:-M],
-                             planar.graph['supertriangleC'],
-                             VertexC[-M:]))
 
         # Block for facilitating the printing of debug messages.
         allnodes = np.arange(N + M + B + 3)
         allnodes[-M:] = range(-M, 0)
         self.n2s = NodeStr(allnodes, N + B + 3)
 
-        self.G, self.M, self.N, self.B, self.C, self.fnT = G, M, N, B, C, fnT
-        self.P, self.VertexC, self.clone2prime = planar, VertexC, clone2prime
-
         info('BEGIN pathfinding on "{}" (#wtg = {})',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
 
-        nonembed_Gates = tuple(
+        tentative = tuple(
             np.fromiter((n for n in G.neighbors(r)
                          if G[r][n].get('kind') == 'tentative'),
                         dtype=int)
             for r in range(-M, 0))
-        self.nonembed_Gates = nonembed_Gates
 
-        # NOTE: tentative is redundant with nonembed_Gates
-        self.tentative = set((r, n)
-                             for r, gates in zip(range(-M, 0),
-                                                 nonembed_Gates)
-                             for n in gates)
+        Xings = list(
+            gateXing_iter(
+                G, gates=tentative,
+                constraint_edges=planar.graph.get('constraint_edges')))
+
+        self.G, self.Xings = G, Xings
+        if not Xings:
+            # no crossings, there is no point in pathfinding
+            info('Graph has no crossings, skipping path-finding '
+                 '(pass `only_if_crossings=False` to force path-finding).')
+            return
+
+        P = planar_flipped_by_routeset(G, planar=planar)
+        # clone2prime must be a copy of the one from G (for in_place=False)
+        clone2prime = list(G.graph.get('clone2prime', ()))
+        VertexC = np.vstack((VertexC[:-M],
+                             planar.graph['supertriangleC'],
+                             VertexC[-M:]))
 
         edges_created_by = G.graph.get('edges_created_by')
         if edges_created_by is not None and edges_created_by[:5] == 'MILP.':
@@ -117,16 +121,9 @@ class PathFinder():
         else:
             self.branching = branching
 
-        Xings = list(
-            gateXing_iter(
-                G, gates=nonembed_Gates,
-                constraint_edges=planar.graph.get('constraint_edges')))
-        self.Xings = Xings
-        if not Xings and only_if_crossings:
-            # no crossings, there is no point in pathfinding
-            info('Graph has no crossings, skipping path-finding '
-                 '(pass `only_if_crossings=False` to force path-finding).')
-            return
+        self.M, self.N, self.B, self.C, self.fnT = M, N, B, C, fnT
+        self.P, self.VertexC, self.clone2prime = P, VertexC, clone2prime
+        self.tentative = tentative
         self._find_paths()
 
     def get_best_path(self, n: int):
@@ -168,7 +165,7 @@ class PathFinder():
             # _node is in a border (which means it must only be reachable from
             # one side, so that sector becomes irrelevant)
             return NULL
-        is_gate = any(_node in Gate for Gate in self.nonembed_Gates)
+        is_gate = any(_node in Gate for Gate in self.tentative)
         _node_degree = len(self.G._adj[_node])
         if is_gate and _node_degree == 1:
             # special case where a branch with 1 node uses a non_embed gate
@@ -522,28 +519,33 @@ class PathFinder():
         If `in_place`, change the G given to PathFinder and return None,
         else return new nx.Graph (G with detours).
         '''
-        if in_place:
-            G = self.G
-        else:
-            G = self.G.copy()
-            # this self.H is only for debugging purposes
-            self.H = G
+        G = self.G if in_place else self.G.copy()
+        M, N, B, C = self.M, self.N, self.B, self.C
+
         if 'crossings' in G.graph:
             # start by assumming that crossings will be fixed by detours
             del G.graph['crossings']
-        M, N, B, C = self.M, self.N, self.B, self.C
-        clone2prime, Xings = self.clone2prime, self.Xings
+
+        Xings, tentative = self.Xings, self.tentative
+
+        # this keeps tracks of tentative gates that were not detoured yet
+        undetoured = set((r, n)
+                         for r, gates in zip(range(-M, 0), tentative)
+                         for n in gates)
+        if not Xings:
+            for r, n in undetoured:
+                del G[r][n]['kind']
+            return None if in_place else G
+
+        clone2prime = self.clone2prime
 
         gates2detour = set(gate for _, gate in Xings)
-        nonembed_Gates = self.nonembed_Gates
-        tentative = self.tentative.copy()
-
         clone_idx = N + B + C
         subtree_map = G.nodes(data='subtree')
         paths = self.paths
         I_path = self.I_path
         for r, n in gates2detour:
-            tentative.remove((r, n))
+            undetoured.remove((r, n))
             subtree_id = G.nodes[n]['subtree']
             subtree_load = G.nodes[n]['load']
             # set of nodes to examine is different depending on `branching`
@@ -643,11 +645,7 @@ class PathFinder():
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
 
-        #  for r in range(-M, 0):
-        #      for n in G.neighbors(r):
-        #          if G[r][n].get('kind') == 'tentative':
-        #              del G[r][n]['kind']
-        for r, n in tentative:
+        for r, n in undetoured:
             del G[r][n]['kind']
         fnT = np.arange(M + clone_idx)
         fnT[N + B: clone_idx] = clone2prime
