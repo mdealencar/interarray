@@ -8,7 +8,7 @@ import shapely as shp
 from scipy.spatial.distance import cdist
 
 from collections import defaultdict
-from itertools import chain, tee
+from itertools import chain, tee, combinations
 
 from bidict import bidict
 from gon import base as gonb
@@ -23,6 +23,7 @@ from interarray.geometric import (
 )
 from interarray import MAX_TRIANGLE_ASPECT_RATIO
 from interarray.interarraylib import NodeTagger
+from interarray.geometric import is_triangle_pair_a_convex_quadrilateral
 
 F = NodeTagger()
 
@@ -1127,10 +1128,19 @@ def planar_flipped_by_routeset(
             continue
         #  print(f'{F[u]}–{F[v]} ({F[u_]}–{F[v_]})', end=': ')
         intersection = set(planar[u_]) & set(planar[v_])
-        if len(intersection) != 2:
+        if len(intersection) < 2:
             #  print(f'share {len(intersection)} neighbors.')
             continue
-        s_, t_ = intersection
+        diagonal_found = False
+        for s_, t_ in combinations(intersection, 2):
+            if ((s_, t_) in planar.edges
+                and is_triangle_pair_a_convex_quadrilateral(
+                    *VertexC[[s_, t_, u_, v_]])):
+                diagonal_found = True
+                break
+        if not diagonal_found:
+            #  print(f'failed to find flippable for non-planar {F[u_]}–{F[v_]}')
+            continue
         if s_ >= N:
             s_clones = G.nodes[s_].get('clones', [s_])
             if len(s_clones) > 1:
@@ -1163,7 +1173,7 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
-        print(f'flipping {F[s_]}–{F[t_]} to {F[u_]}–{F[v_]}')
+        #  print(f'flipping {F[s_]}–{F[t_]} to {F[u_]}–{F[v_]}')
         P.remove_edge(s_, t_)
         P.add_half_edge(u_, v_, cw=s_)
         P.add_half_edge(v_, u_, cw=t_)
