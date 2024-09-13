@@ -32,6 +32,7 @@ def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
     N = nodeset.N
     M = nodeset.M
     G = nx.Graph(name=nodeset.name,
+                 N=N,
                  M=M,
                  VertexC=pickle.loads(nodeset.VertexC),
                  boundary=pickle.loads(nodeset.boundary),
