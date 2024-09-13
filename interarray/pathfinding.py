@@ -534,29 +534,29 @@ class PathFinder():
                          for n in gates)
         if not Xings:
             for r, n in undetoured:
+                # remove the 'tentative' kind
                 del G[r][n]['kind']
             return None if in_place else G
 
-        clone2prime = self.clone2prime
+        clone2prime, paths, I_path = self.clone2prime, self.paths, self.I_path
 
         gates2detour = set(gate for _, gate in Xings)
         clone_idx = N + B + C
-        subtree_map = G.nodes(data='subtree')
-        paths = self.paths
-        I_path = self.I_path
+        subtree_from_subtree_id = defaultdict(list)
+        subtree_id_from_n = {}
+        for n in chain(range(N), range(N + B, clone_idx)):
+            subtree_id = G.nodes[n]['subtree']
+            subtree_from_subtree_id[subtree_id].append(n)
+            subtree_id_from_n[n] = subtree_id
         for r, n in gates2detour:
             undetoured.remove((r, n))
-            subtree_id = G.nodes[n]['subtree']
+            subtree_id = subtree_id_from_n[n]
+            subtree = subtree_from_subtree_id[subtree_id]
             subtree_load = G.nodes[n]['load']
             # set of nodes to examine is different depending on `branching`
-            hookchoices = (  # all the subtree's nodes
-                           [n for n, v in subtree_map
-                            if n < N and v == subtree_id]
+            hookchoices = ([n for n in subtree if n < N]
                            if self.branching else
-                           # only each subtree's head and tail
-                           [n] + [n for n, v in subtree_map
-                                  if (n < N and v == subtree_id
-                                      and len(G._adj[n]) == 1)])
+                           [n, next(h for h in subtree if G._adj[h] == 1)])
             debug('hookchoices: {}', self.n2s(*hookchoices))
 
             path_options = list(chain.from_iterable(
@@ -627,9 +627,8 @@ class PathFinder():
                 debug('hook changed from {} to {}: recalculating loads',
                       F[n], F[path[0]])
 
-                for node in [n for n, v in subtree_map if v == subtree_id]:
-                    if 'load' in G.nodes[node]:
-                        del G.nodes[node]['load']
+                for node in subtree:
+                    del G.nodes[node]['load']
 
                 if Clone:
                     parent = Clone[0]
