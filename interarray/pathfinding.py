@@ -83,6 +83,9 @@ class PathFinder():
             G.graph.get(k) for k in 'M N VertexC fnT'.split())
         B, C = (G.graph.get(k, 0) for k in ('B', 'C'))
         clone2prime = list(G.graph.get('clone2prime', ()))
+        VertexC = np.vstack((VertexC[:-M],
+                             planar.graph['supertriangleC'],
+                             VertexC[-M:]))
 
         # Block for facilitating the printing of debug messages.
         allnodes = np.arange(N + M + B + 3)
@@ -614,6 +617,7 @@ class PathFinder():
                     # an edge reaching root always has target < source
                     del G[Clone[-1]][path[-1]]['reverse']
             else:
+                del G[n][r]['kind']
                 debug(f'gate {F[n]}–{F[r]} touches a '
                       'node (touched node does not become a detour).')
             if n != path[0]:
