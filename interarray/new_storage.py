@@ -16,15 +16,20 @@ from pony import orm
 from .interarraylib import calcload, site_fingerprint
 from .utils import NodeTagger
 
-# Coordinates use arrays of floats.
-# Somehow, nodesets with the same coordinates were getting different digests,
-# when the code ran on different computers.
-# Rouding to a fixed (small) number of decimal place to fix it.
-COORDINATES_DECIMAL_PLACES = 2
-
 F = NodeTagger()
 
 PackType = Mapping[str, Any]
+
+# Set of not-to-store keys commonly found in G routesets (they are either
+# already stored in database fields or are cheap to regenerate.
+_misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
+             'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
+             'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
+             'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
+             'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
+             'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
+             'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
+             'loading_length_mismatch', 'gnT', 'C', 'border'}
 
 
 def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
@@ -204,19 +209,11 @@ def oddtypes_to_serializable(obj):
 
 
 def packedges(G: nx.Graph) -> dict[str, Any]:
-    misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
-                'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
-                'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
-                'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
-                'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
-                'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
-                'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
-                'loading_length_mismatch', 'gnT'}
     M = G.graph['M']
     N = G.graph['VertexC'].shape[0] - M
     terse_graph = terse_graph_from_G(G)
     misc = {key: G.graph[key]
-            for key in G.graph.keys() - misc_not}
+            for key in G.graph.keys() - _misc_not}
     #  print('Storing in `misc`:', *misc.keys())
     for k, v in misc.items():
         misc[k] = oddtypes_to_serializable(v)
