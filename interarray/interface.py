@@ -21,8 +21,9 @@ heuristics = {
 def translate2global_optimizer(G):
     VertexC = G.graph['VertexC']
     M = G.graph['M']
-    X, Y = np.hstack((VertexC[-1:-1 - M:-1].T, VertexC[:-M].T))
-    return dict(WTc=G.number_of_nodes() - M, OSSc=M, X=X, Y=Y)
+    N = G.graph['N']
+    X, Y = np.hstack((VertexC[-1:-1 - M:-1].T, VertexC[:N].T))
+    return dict(WTc=N, OSSc=M, X=X, Y=Y)
 
 
 def assign_cables(G, cables):

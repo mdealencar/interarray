@@ -24,8 +24,9 @@ def make_edge_listing(A: nx.Graph, scale: float) -> str:
     node numbering starts from 0
     every node number will be incremented by 1 when loaded by LKH
     '''
-    V = A.number_of_nodes()
-    N = V - A.graph['M']
+    M = A.graph['M']
+    N = A.graph['N']
+    V = M + N
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     return '\n'.join((
         # first line is <number_of_nodes> <number_of_edges>

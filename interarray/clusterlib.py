@@ -231,6 +231,8 @@ def memory_usage_model_MB(N, solver_name):
 
 def unify_roots(G_base):
     '''
+    This is redundant with interarraylib.as_single_oss()
+
     `G_base` is changed in-place.
 
     Modify the provided nx.Graph `G_base` by reducing its root node to one.
@@ -241,11 +243,10 @@ def unify_roots(G_base):
     M = G_base.graph['M']
     if M <= 1:
         return
-    N = G_base.number_of_nodes() - M
     VertexC = G_base.graph['VertexC']
     G_base.remove_nodes_from(range(-M, -1))
     G_base.graph['VertexC'] = np.r_[
-            VertexC[:N],
+            VertexC[:-M],
             VertexC[-M:].mean(axis=0)[np.newaxis, :]
             ]
     G_base.graph['M'] = M = 1

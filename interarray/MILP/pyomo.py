@@ -28,7 +28,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     branching: if True, allow subtrees to branch; if False no branching.
     '''
     M = A.graph['M']
-    N = A.number_of_nodes() - M
+    N = A.graph['N']
     d2roots = A.graph['d2roots']
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
@@ -283,7 +283,7 @@ def MILP_solution_to_G(model, *, solver=None, A=None):
         G = nx.create_empty_copy(A)
         P = A.graph['planar'].copy()
     M = model.site['M']
-    N = G.number_of_nodes() - M
+    N = G.graph['N']
     diagonals = A.graph['diagonals']
 
     # gates

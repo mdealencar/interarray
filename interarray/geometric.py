@@ -535,12 +535,10 @@ def check_crossings(G, debug=False, MARGIN=0.1):
     MARGIN is how far an edge can advance across another one and still not be
     considered a crossing.'''
     VertexC = G.graph['VertexC']
-    M = G.graph['M']
-    N = G.number_of_nodes() - M
-
-    D = G.graph.get('D')
-    if D is not None:
-        N -= D
+    M, N, B = (G.graph[k] for k in 'MNB')
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    raise NotImplementedError, 'CDT requires changes in this function'
+    if C > 0 or D > 0:
         # detournodes = range(N, N + D)
         # G.add_nodes_from(((s, {'kind': 'detour'})
         #                   for s in detournodes))

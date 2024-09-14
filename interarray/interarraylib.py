@@ -78,7 +78,7 @@ def G_from_T(T: np.ndarray[:, :], G_base: nx.Graph,
     G.graph.update(G_base.graph)
     G.add_nodes_from(G_base.nodes(data=True))
     M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
+    N = G_base.graph['N']
 
     # indexing differences:
     # T starts at 1, while G starts at -M
@@ -111,7 +111,7 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
     G.graph.update(G_base.graph)
     G.add_nodes_from(G_base.nodes(data=True))
     M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
+    N = G_base.graph['N']
 
     # indexing differences:
     # T starts at 1, while G starts at 0
@@ -144,12 +144,17 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
 
 
 def as_single_oss(G: nx.Graph) -> nx.Graph:
+    '''
+    This is redundant with clusterlib.unify_roots()
+    '''
     Gʹ = G.copy()
     M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
     Gʹ.remove_nodes_from(range(-M, -1))
     VertexCʹ = VertexC[:-M + 1].copy()
     VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
     Gʹ.graph.update(VertexC=VertexCʹ, M=1)
+    Gʹ.graph['name'] += '.1_OSS'
+    Gʹ.graph['handle'] += '_1'
     return Gʹ
 
 

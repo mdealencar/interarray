@@ -73,7 +73,7 @@ class LayoutPlotter():
         self.VertexC = VertexC
         M = G_base.graph['M']
         self.M = M
-        N = G_base.number_of_nodes() - M
+        N = G_base.graph['N']
         self.N = N
         self.fnT = G_base.graph.get('fnT')
         pos = dict(zip(range(N), VertexC[:N]))
