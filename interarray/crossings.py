@@ -368,11 +368,10 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
                 else:
                     print(f'detour @ {F[u]} splits {F[s]}–{F[v]}–{F[t]}')
     '''
+    M, N, B = (G.graph[k] for k in 'MNB')
+    C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
-    M = G.graph['M']
-    N = VertexC.shape[0] - M
-    D = G.graph.get('D', 0)
-    if D > 0:
+    if C > 0 or D > 0:
         fnT = G.graph['fnT']
     else:
         fnT = np.arange(N + M)

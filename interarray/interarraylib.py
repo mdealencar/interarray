@@ -22,10 +22,9 @@ def G_base_from_G(G: nx.Graph) -> nx.Graph:
     Similar to `nx.create_empty_copy()`, but works with layout solutions that
     carry a lot of extra info (which it discards).
     '''
-    M = G.graph['M']
-    N = G.graph['VertexC'].shape[0] - M
-    transfer_fields = ('name', 'handle', 'VertexC', 'M', 'boundary',
-                       'landscape_angle')
+    M, N, B = (G.graph[k] for k in 'MNB')
+    transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
+                       'exclusions', 'landscape_angle')
     G_base = nx.Graph(**{k: G.graph[k] for k in transfer_fields})
     G_base.add_nodes_from(((n, {'label': label})
                            for n, label in G.nodes(data='label')

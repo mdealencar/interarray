@@ -450,10 +450,9 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The length of each edge is the euclidean distance between its vertices.'''
-    M = G_base.graph['M']
+    M, N, B = (G.graph[k] for k in 'MNB')
     VertexC = G_base.graph['VertexC']
-    N = VertexC.shape[0] - M
-    NodeC = VertexC[:-M]
+    NodeC = VertexC[:N]
     RootC = VertexC[-M:]
     Root = range(-M, 0)
     V = N + (M if include_roots else 0)
@@ -507,10 +506,10 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
 
 def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     '''Return a graph of the minimum spanning tree connecting the node in G.'''
-    M = G.graph['M']
+    M, N, B = (G.graph[k] for k in 'MNB')
     VertexC = G.graph['VertexC']
-    V = VertexC.shape[0]
-    N = V - M
+    V = M + N
+    raise NotImplementedError, 'CDT changed make_planar_embedding()'
     P = make_planar_embedding(M, VertexC)[0].to_undirected(as_view=True)
     E_planar = np.array(P.edges, dtype=np.int32)
     # E_planar = np.array(P.edges)
@@ -854,19 +853,16 @@ def denormalize(G_scaled, G_base):
     note: d2roots will be created in G_base if absent.
     '''
     G = G_scaled.copy()
-    M = G_base.graph['M']
+    M, N, B = (G.graph[k] for k in 'MNB')
+    C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC'] = G_base.graph['VertexC']
-    fnT = G_scaled.graph.get('fnT')
+    fnT = G.graph.get('fnT')
     if fnT is None:
-        N = VertexC.shape[0] - M
         fnT = np.arange(N + M)
         fnT[-M:] = range(-M, 0)
-    else:
-        fnT = G_scaled.graph['fnT']
-    G.graph['boundary'] = G_base.graph['boundary']
     d2roots = G_base.graph.get('d2roots')
     if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+        d2roots = cdist(VertexC[:N], VertexC[-M:])
         G_base.graph['d2roots'] = d2roots
     G.graph['d2roots'] = d2roots
     G.graph['landscape_angle'] = G_base.graph['landscape_angle']
@@ -875,6 +871,7 @@ def denormalize(G_scaled, G_base):
         G.graph['undetoured_length'] = ulength/G.graph['scale']
     for key in ('angle', 'scale', 'offset'):
         del G.graph[key]
+    # TODO: change this to the vectorized version
     for u, v, edgeD in G.edges(data=True):
         edgeD['length'] = np.hypot(*(VertexC[fnT[u]] - VertexC[fnT[v]]).T)
     return G
