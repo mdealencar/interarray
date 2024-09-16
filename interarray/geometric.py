@@ -509,7 +509,7 @@ def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     M, N, B = (G.graph[k] for k in 'MNB')
     VertexC = G.graph['VertexC']
     V = M + N
-    raise NotImplementedError, 'CDT changed make_planar_embedding()'
+    raise NotImplementedError('CDT changed make_planar_embedding()')
     P = make_planar_embedding(M, VertexC)[0].to_undirected(as_view=True)
     E_planar = np.array(P.edges, dtype=np.int32)
     # E_planar = np.array(P.edges)
@@ -537,7 +537,7 @@ def check_crossings(G, debug=False, MARGIN=0.1):
     VertexC = G.graph['VertexC']
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    raise NotImplementedError, 'CDT requires changes in this function'
+    raise NotImplementedError('CDT requires changes in this function')
     if C > 0 or D > 0:
         # detournodes = range(N, N + D)
         # G.add_nodes_from(((s, {'kind': 'detour'})
