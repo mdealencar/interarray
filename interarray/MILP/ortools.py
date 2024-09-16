@@ -10,9 +10,7 @@ import numpy as np
 from ortools.sat.python import cp_model
 
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
-from ..geometric import delaunay
-from ..interarraylib import (G_from_site, calcload, fun_fingerprint,
-                             remove_detours)
+from ..interarraylib import calcload, fun_fingerprint
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
@@ -173,12 +171,11 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                + cp_model.LinearExpr.WeightedSum(Bg.values(), w_G))
 
     # save data structure as model attributes
-    m.Be, m.Bg, m.De, m.Dg = Be, Bg, De, Dg
-    m.k = k
-    m.site = {key: A.graph[key]
-              for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
-                          'name', 'handle')
-              if key in A.graph}
+    m.Be, m.Bg, m.De, m.Dg, m.M, m.N, m.k = Be, Bg, De, Dg, M, N, k
+    #  m.site = {key: A.graph[key]
+    #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
+    #                        'name', 'handle')
+    #            if key in A.graph}
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
@@ -186,54 +183,51 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     return m
 
 
-def MILP_warmstart_from_G(m: cp_model.CpModel, G: nx.Graph):
+def MILP_warmstart_from_T(m: cp_model.CpModel, T: nx.Graph):
     '''
     Only implemented for non-branching models.
     '''
-    if not G.graph.get('has_loads'):
-        calcload(G)
-    if G.graph.get('D', 0) > 0:
-        G = remove_detours(G)
     m.ClearHints()
     upstream = getattr(m, 'upstream', None)
     if upstream is not None:
         let_branch = True
     for (u, v), Be in m.Be.items():
-        is_in_G = (u, v) in G.edges
+        is_in_G = (u, v) in T.edges
         m.AddHint(Be, is_in_G)
         De = m.De[u, v]
         if is_in_G:
-            edgeD = G.edges[u, v]
+            edgeD = T.edges[u, v]
             m.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
         else:
             m.AddHint(De, 0)
     for rn, Bg in m.Bg.items():
-        is_in_G = rn in G.edges
+        is_in_G = rn in T.edges
         m.AddHint(Bg, is_in_G)
         Dg = m.Dg[rn]
-        m.AddHint(Dg, G.edges[rn]['load'] if is_in_G else 0)
+        m.AddHint(Dg, T.edges[rn]['load'] if is_in_G else 0)
 
 
-def MILP_solution_to_G(model, *, solver, A=None):
+def MILP_solution_to_T(model, *, solver):
     '''Translate a MILP OR-tools solution to a networkx graph.'''
     # the solution is in the solver object not in the model
-    if A is None:
-        G = G_from_site(**model.site)
-        A = delaunay(G)
-    else:
-        G = nx.create_empty_copy(A)
-    M = G.graph['M']
-    N = G.graph['N']
-    P = A.graph['planar'].copy()
-    diagonals = A.graph['diagonals']
+
+    # create a topology graph T from the solution
+    T = nx.Graph(
+        M=model.M, N=model.N,
+        capacity=model.k,
+        edges_created_by='MILP.ortools',
+        creation_options=model.creation_options,
+        has_loads=True,
+        fun_fingerprint=model.fun_fingerprint,
+    )
 
     # gates
     gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
                             for (r, n), bg in model.Bg.items()
                             if solver.BooleanValue(bg))
-    G.add_weighted_edges_from(gates_and_loads, weight='load')
+    T.add_weighted_edges_from(gates_and_loads, weight='load')
     # node-node edges
-    G.add_weighted_edges_from(
+    T.add_weighted_edges_from(
         ((u, v, abs(solver.Value(model.De[u, v])))
          for (u, v), be in model.Be.items()
          if solver.BooleanValue(be)),
@@ -243,72 +237,25 @@ def MILP_solution_to_G(model, *, solver, A=None):
     # set the 'reverse' edges property
     # node-node edges
     nx.set_edge_attributes(
-        G,
+        T,
         {(u, v): solver.Value(model.De[u, v]) > 0
          for (u, v), be in model.Be.items() if solver.BooleanValue(be)},
         name='reverse')
     # gate edges
     for r in range(-M, 0):
-        for n in G[r]:
-            G[r][n]['reverse'] = False
-
-    # transfer edge attributes from A to G
-    nx.set_edge_attributes(G, {(u, v): data
-                               for u, v, data in A.edges(data=True)})
-
-    # take care of gates that were not in A
-    non_A_gates = G.graph['non_A_gates'] = defaultdict(list)
-    d2roots = A.graph['d2roots']
-    for r, n, _ in gates_and_loads:
-        if n not in A[r]:
-            non_A_gates[r].append(n)
-            edgeD = G[n][r]
-            edgeD['length'] = d2roots[n, r]
+        for n in T[r]:
+            T[r][n]['reverse'] = False
 
     # propagate loads from edges to nodes
     subtree = -1
-    Subtree = defaultdict(list)
-    gnT = np.empty((N,), dtype=int)
-    Root = np.empty((N,), dtype=int)
     for r in range(-M, 0):
-        for u, v in nx.edge_dfs(G, r):
-            if 'kind' in G[u][v]:
-                del G[u][v]['kind']
-            G.nodes[v]['load'] = G.edges[u, v]['load']
+        for u, v in nx.edge_dfs(T, r):
+            T.nodes[v]['load'] = T.edges[u, v]['load']
             if u == r:
                 subtree += 1
-                gate = v
-            Subtree[gate].append(v)
-            G.nodes[v]['subtree'] = subtree
-            gnT[v] = gate
-            Root[v] = r
-            # update the planar embedding to include any Delaunay diagonals
-            # used in G; the corresponding crossing Delaunay edge is removed
-            u, v = (u, v) if u < v else (v, u)
-            st = diagonals.get((u, v))
-            if st is not None:
-                # ⟨s, t⟩ is the Delaunay edge
-                s, t = st if P[u][st[1]]['cw'] == st[0] else st[::-1]
-                P.add_half_edge_cw(u, v, t)
-                P.add_half_edge_cw(v, u, s)
-                P.remove_edge(s, t)
+            T.nodes[v]['subtree'] = subtree
         rootload = 0
-        for nbr in G.neighbors(r):
-            rootload += G.nodes[nbr]['load']
-        G.nodes[r]['load'] = rootload
-
-    G.graph.update(
-        planar=P,
-        Subtree=Subtree,
-        Root=Root,
-        gnT=gnT,
-        capacity=model.k,
-        overfed=[len(G[r])/math.ceil(N/model.k)*M
-                 for r in range(-M, 0)],
-        edges_created_by='MILP.ortools',
-        creation_options=model.creation_options,
-        has_loads=True,
-        fun_fingerprint=model.fun_fingerprint,
-    )
-
-    return G
+        for nbr in T.neighbors(r):
+            rootload += T.nodes[nbr]['load']
+        T.nodes[r]['load'] = rootload
+    return T

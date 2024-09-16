@@ -10,8 +10,7 @@ import numpy as np
 import pyomo.environ as pyo
 
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
-from ..geometric import delaunay
-from ..interarraylib import G_from_site, fun_fingerprint
+from ..interarraylib import fun_fingerprint
 
 
 def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
@@ -239,62 +238,63 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
-    m.site = {key: A.graph[key]
-              for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
-                          'name', 'handle')
-              if key in A.graph}
+    m.M, m.N, m.k = M, N, k
+    #  m.site = {key: A.graph[key]
+    #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
+    #                        'name', 'handle')
+    #            if key in A.graph}
     m.fun_fingerprint = fun_fingerprint()
     return m
 
 
-def MILP_warmstart_from_G(m: pyo.ConcreteModel, G: nx.Graph):
+def MILP_warmstart_from_T(m: pyo.ConcreteModel, T: nx.Graph):
     Ne = len(m.diE)//2
     N = len(m.N)
     # the first half of diE has all the edges with u < v
     for u, v in list(m.diE)[:Ne]:
-        if (u, v) in G.edges:
-            if G[u][v]['reverse']:
+        if (u, v) in T.edges:
+            if T[u][v]['reverse']:
                 m.Be[u, v] = 1
-                m.De[u, v] = G[u][v]['load']
+                m.De[u, v] = T[u][v]['load']
             else:
                 m.Be[v, u] = 1
-                m.De[v, u] = G[u][v]['load']
+                m.De[v, u] = T[u][v]['load']
     for r in m.R:
-        nbr = list(G.neighbors(r))
+        nbr = list(T.neighbors(r))
         for n in nbr:
             ref = r
             # first skip any detour nodes
             while n >= N:
-                a, b = G.neighbors(n)
+                a, b = T.neighbors(n)
                 c = a if b == ref else b
                 ref = n
                 n = c
             m.Bg[r, n] = 1
-            m.Dg[r, n] = G[n][ref]['load']
+            m.Dg[r, n] = T[n][ref]['load']
 
 
-def MILP_solution_to_G(model, *, solver=None, A=None):
+def MILP_solution_to_T(model, *, solver=None):
     '''Translate a MILP pyomo solution to a networkx graph.'''
-    if A is None:
-        G = G_from_site(**model.site)
-        A = delaunay(G)
-        P = A.graph['planar']
-    else:
-        G = nx.create_empty_copy(A)
-        P = A.graph['planar'].copy()
-    M = model.site['M']
-    N = G.graph['N']
-    diagonals = A.graph['diagonals']
+
+    # create a topology graph T from the solution
+    T = nx.Graph(
+        M=model.M, N=model.N,
+        capacity=model.k.value,
+        edges_created_by='MILP.pyomo',
+        creation_options=model.creation_options,
+        has_loads=True,
+        fun_fingerprint=model.fun_fingerprint,
+    )
 
     # gates
-    G.add_weighted_edges_from(
+    T.add_weighted_edges_from(
         ((r, n, round(model.Dg[r, n].value))
          for (r, n), bg in model.Bg.items()
          if bg.value > 0.5),
         weight='load'
     )
     # node-node edges
-    G.add_weighted_edges_from(
+    T.add_weighted_edges_from(
         ((u, v, round(model.De[u, v].value))
          for (u, v), be in model.Be.items()
          if be.value > 0.5),
@@ -304,70 +304,24 @@ def MILP_solution_to_G(model, *, solver=None, A=None):
     # set the 'reverse' edge attribute
     # node-node edges
     nx.set_edge_attributes(
-        G,
+        T,
         {(u, v): v > u for (u, v), be in model.Be.items() if be.value > 0.5},
         name='reverse')
     # gate edges
     for r in range(-M, 0):
-        for n in G[r]:
-            G[r][n]['reverse'] = False
-
-    # transfer edge attributes from A to G
-    nx.set_edge_attributes(
-        G, {(u, v): data
-            for u, v, data in A.edges(data=True)})
-
-    non_A_gates = G.graph['non_A_gates'] = defaultdict(list)
+        for n in T[r]:
+            T[r][n]['reverse'] = False
 
     # propagate loads from edges to nodes
     subtree = -1
-    Subtree = defaultdict(list)
-    gnT = np.empty((N,), dtype=int)
-    Root = np.empty((N,), dtype=int)
     for r in range(-M, 0):
-        for u, v in nx.edge_dfs(G, r):
-            if 'kind' in G[u][v]:
-                del G[u][v]['kind']
-            G.nodes[v]['load'] = G[u][v]['load']
+        for u, v in nx.edge_dfs(T, r):
+            T.nodes[v]['load'] = T[u][v]['load']
             if u == r:
                 subtree += 1
-                gate = v
-                # check if gate is not expanded Delaunay
-                if v not in A[r]:
-                    # A may not have some gate edges
-                    G[u][v]['length'] = model.g[(u, v)]
-                    non_A_gates[r].append(v)
-            Subtree[gate].append(v)
-            G.nodes[v]['subtree'] = subtree
-            gnT[v] = gate
-            Root[v] = r
-            # update the planar embedding to include any Delaunay diagonals
-            # used in G; the corresponding crossing Delaunay edge is removed
-            u, v = (u, v) if u < v else (v, u)
-            st = diagonals.get((u, v))
-            if st is not None:
-                # ⟨s, t⟩ is the Delaunay edge
-                s, t = st if P[u][st[1]]['cw'] == st[0] else st[::-1]
-                P.add_half_edge_cw(u, v, t)
-                P.add_half_edge_cw(v, u, s)
-                P.remove_edge(s, t)
+            T.nodes[v]['subtree'] = subtree
         rootload = 0
-        for nbr in G.neighbors(r):
-            rootload += G.nodes[nbr]['load']
-        G.nodes[r]['load'] = rootload
-
-    G.graph.update(
-        planar=P,
-        Subtree=Subtree,
-        Root=Root,
-        gnT=gnT,
-        capacity=model.k.value,
-        overfed=[len(G[r])/math.ceil(N/model.k.value)*M
-                 for r in range(-M, 0)],
-        edges_created_by='MILP.pyomo',
-        creation_options=model.creation_options,
-        has_loads=True,
-        fun_fingerprint=model.fun_fingerprint,
-    )
-
-    return G
+        for nbr in T.neighbors(r):
+            rootload += T.nodes[nbr]['load']
+        T.nodes[r]['load'] = rootload
+    return T

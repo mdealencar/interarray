@@ -132,10 +132,7 @@ def bfs_subtree_loads(G, parent, children, subtree):
         grandchildren = set(G[child].keys())
         grandchildren.remove(parent)
         childload = bfs_subtree_loads(G, child, grandchildren, subtree)
-        G[parent][child].update((
-            ('load', childload),
-            ('reverse', parent > child)
-        ))
+        G[parent][child].update(load=childload, reverse=parent > child)
         load += childload
     nodeD['load'] = load
     return load
@@ -183,16 +180,16 @@ def pathdist(G, path):
     return dist
 
 
-def remove_detours(H: nx.Graph) -> nx.Graph:
+def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
     '''
-    Create a shallow copy of `H` without detour nodes
-    (and *with* the resulting crossings).
+    Create a shallow copy of `Gʹ` without detour nodes
+    (and possibly *with* the resulting crossings).
     '''
-    G = H.copy()
-    M = G.graph['M']
-    N = G.graph['N']
-    B = G.graph.get('B', 0)
-    C = G.graph.get('C', 0)
+    G = Gʹ.copy()
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    if not D:
+        return G
+    M, N, B = (G.graph[k] for k in 'MNB')
     VertexC = G.graph['VertexC']
     for r in range(-M, 0):
         detoured = [n for n in G.neighbors(r) if n >= N + B + C]
@@ -211,12 +208,12 @@ def remove_detours(H: nx.Graph) -> nx.Graph:
                        reverse=False,
                        length=np.hypot(*(VertexC[n] - VertexC[r]).T))
             G.graph['crossings'].append((r, n))
-    G.graph.pop('D', None)
+    del G.graph['D']
     if C:
         fnT = G.graph['fnT']
         G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
     else:
-        G.graph.pop('fnT', None)
+        del G.graph['fnT']
     return G
 
 
@@ -263,11 +260,14 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     common_TA = T.edges - non_A_edges
     iC = N + B
     clone2prime = []
+    diagonals_used = 0
     # add to G the T edges that are in A
     for edge in common_TA:
         s, t = edge if edge[0] < edge[1] else edge[::-1]
         edgeD = A[s][t]
+        diagonals_used += edgeD['kind'] == 'extended'
         path = edgeD.get('path')
+        load = edgeD['load']
         if path is not None:
             # contour edge
             u = s
@@ -281,12 +281,14 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                     clones = [v]
                 else:
                     clones.append(v)
-                G.add_node(v, kind='contour')
-                G.add_edge(u, v, length=length, kind='contour', A_edge=(s, t))
+                G.add_node(v, kind='contour', load=load)
+                G.add_edge(u, v, length=length, load=load, kind='contour',
+                           A_edge=(s, t))
                 u = v
-            G.add_edge(u, t, length=lengths[-1], kind='contour', A_edge=(s, t))
+            G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
+                       A_edge=(s, t))
         else:
-            G.add_edge(s, t, length=edgeD['length'])
+            G.add_edge(s, t, length=edgeD['length'], load=load)
     if clone2prime:
         fnT = np.arange(iC + M)
         fnT[N + B:-M] = clone2prime
@@ -299,19 +301,19 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     rogue = []
     for s, t in non_A_edges:
         s, t = (s, t) if s < t else (t, s)
+        load = A.nodes[s]['load'] if blah else A.nodes[t]['load']
         if s < 0:
             # far-reaching gate
-            G.add_edge(s, t, length=d2roots[t, s], kind='tentative')
+            G.add_edge(s, t, length=d2roots[t, s], kind='tentative', load=load)
             tentative.append((s, t))
         else:
             # rogue edge (not supposed to be on the routeset, poor solver)
             G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
-                       kind='rogue')
+                       kind='rogue', load=load)
             rogue.append((s, t))
     if rogue:
         G.graph['rogue'] = rogue
 
-    # TODO: move this to an external function
     # Check on crossings between G's gates that are in A and G's edges
     diagonals = A.graph['diagonals']
     P = A.graph['planar']
@@ -354,5 +356,7 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     if tentative:
         G.graph['tentative'] = tentative
 
-    calcload(G)
+    G.graph['diagonals_used'] = diagonals_used
+    G.graph['overfed'] = [len(G[r])/math.ceil(N/T.graph['capacity'])*M
+                          for r in range(-M, 0)]
     return G
