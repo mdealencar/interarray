@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from .pathfinding import PathFinder
 from .mesh import make_planar_embedding
 from .crossings import list_edge_crossings
-from .interarraylib import remove_detours, calcload, NodeTagger
+from .interarraylib import calcload, NodeTagger
 
 
 F = NodeTagger()
