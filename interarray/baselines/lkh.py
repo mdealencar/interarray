@@ -12,7 +12,6 @@ import numpy as np
 from . import length_matrix_single_depot_from_G
 from ..interarraylib import calcload, fun_fingerprint
 from ..pathfinding import PathFinder
-from ..geometric import make_graph_metrics, delaunay
 
 
 # TODO: Deprecate that. Unable to make LKH work in ACVRP with EDGE_FILE
@@ -60,7 +59,6 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
     M, N, B, VertexC = (
         A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
     assert M == 1, 'LKH allows only 1 depot'
-    G = nx.create_empty_copy(A)
     problem_fname = 'problem.txt'
     params_fname = 'params.txt'
     edge_fname = 'edge_file.txt'
@@ -184,59 +182,9 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             penalty = 0
             minimum = 'inf'
             branches = []
-    if not penalty or result.stderr:
-        print('===stdout===', result.stdout.decode('utf8'), sep='\n')
-        print('===stderr===', result.stderr.decode('utf8'), sep='\n')
-    else:
-        #  tail = result.stdout[result.stdout.rfind(b'Successes/'):].decode('ascii')
-        tail = result.stdout[result.stdout.rfind(b'Successes/'):].decode()
-        entries = iter(tail.splitlines())
-        # Decision to drop avg. stats: unreliable, possibly due to time_limit
-        next(entries)  # skip sucesses line
-        G.graph['cost_extrema'] = tuple(float(v) for v in re.match(
-            r'Cost\.min = (-?\d+), Cost\.avg = -?\d+\.?\d*,'
-            r' Cost\.max = -?(\d+)',
-            next(entries)).groups())
-        next(entries)  # skip gap line
-        G.graph['penalty_extrema'] = tuple(float(v) for v in re.match(
-            r'Penalty\.min = (\d+), Penalty\.avg = \d+\.?\d*,'
-            r' Penalty\.max = (\d+)',
-            next(entries)).groups())
-        G.graph['trials_extrema'] = tuple(float(v) for v in re.match(
-            r'Trials\.min = (\d+), Trials\.avg = \d+\.?\d*,'
-            r' Trials\.max = (\d+)',
-            next(entries)).groups())
-        G.graph['runtime_extrema'] = tuple(float(v) for v in re.match(
-            r'Time\.min = (\d+\.?\d*) sec., Time\.avg = \d+\.?\d* sec.,'
-            r' Time\.max = (\d+\.?\d*) sec.',
-            next(entries)).groups())
-    d2roots = G.graph['d2roots']
-    VertexC = G.graph['VertexC']
-    non_A_edges = []
-    for branch in branches:
-        if not branch:
-            continue
-        s = -1
-        t = branch[0]
-        G.add_edge(s, t, length=d2roots[t, s])
-        #  print(f'{F[s]}–{F[t]}', end='')
-        s = t
-        for t in branch[1:]:
-            #  print(f'–{F[t]}', end='')
-            if A is not None and (s, t) in A.edges:
-                G.add_edge(s, t, length=A[s][t]['length'])
-            else:
-                G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t]).T))
-                non_A_edges.append((s, t))
-            s = t
-    if branches:
-        calcload(G)
-    if non_A_edges:
-        G.graph['non_A_edges'] = non_A_edges
-    else:
-        PathFinder(G).create_detours(in_place=True)
     log = result.stdout.decode('utf8')
-    G.graph.update(
+    T = nx.Graph(
+        N=N, M=M,
         penalty=int(penalty),
         capacity=capacity,
         undetoured_length=float(minimum)/scale,
@@ -255,7 +203,35 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         solution_time=_solution_time(log, minimum),
         fun_fingerprint=fun_fingerprint(),
     )
-    return G
+    if not penalty or result.stderr:
+        print('===stdout===', result.stdout.decode('utf8'), sep='\n')
+        print('===stderr===', result.stderr.decode('utf8'), sep='\n')
+    else:
+        #  tail = result.stdout[result.stdout.rfind(b'Successes/'):].decode('ascii')
+        tail = result.stdout[result.stdout.rfind(b'Successes/'):].decode()
+        entries = iter(tail.splitlines())
+        # Decision to drop avg. stats: unreliable, possibly due to time_limit
+        next(entries)  # skip sucesses line
+        T.graph['cost_extrema'] = tuple(float(v) for v in re.match(
+            r'Cost\.min = (-?\d+), Cost\.avg = -?\d+\.?\d*,'
+            r' Cost\.max = -?(\d+)',
+            next(entries)).groups())
+        next(entries)  # skip gap line
+        T.graph['penalty_extrema'] = tuple(float(v) for v in re.match(
+            r'Penalty\.min = (\d+), Penalty\.avg = \d+\.?\d*,'
+            r' Penalty\.max = (\d+)',
+            next(entries)).groups())
+        T.graph['trials_extrema'] = tuple(float(v) for v in re.match(
+            r'Trials\.min = (\d+), Trials\.avg = \d+\.?\d*,'
+            r' Trials\.max = (\d+)',
+            next(entries)).groups())
+        T.graph['runtime_extrema'] = tuple(float(v) for v in re.match(
+            r'Time\.min = (\d+\.?\d*) sec., Time\.avg = \d+\.?\d* sec.,'
+            r' Time\.max = (\d+\.?\d*) sec.',
+            next(entries)).groups())
+    T.add_edges_from(sum(((tuple(zip([-1] + branch[:-1], branch)))
+                          for branch in branches), ()))
+    return T
 
 
 def _solution_time(log, undetoured_length) -> float:

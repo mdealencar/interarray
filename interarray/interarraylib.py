@@ -194,8 +194,9 @@ def bfs_subtree_loads(G, parent, children, subtree):
     used independently (e.g. from PathFinder).
     Nodes must not have a 'load' attribute.
     '''
+    N = G.graph['N']
     nodeD = G.nodes[parent]
-    default = 1 if nodeD['kind'] == 'wtg' else 0
+    default = 1 if parent < N else 0  # load is 1 for wtg nodes
     if not children:
         nodeD['load'] = default
         return default
@@ -313,3 +314,119 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             funfile=fcode.co_filename,
             funname=fcode.co_name,
             )
+
+
+def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
+    '''
+    Graph `T` contains the topology of a routeset network (nodes only, no
+    contours or detours). `T` must have been created from the available edges
+    in `A`, whose contour information is used to obtain a routeset `G`
+    (possibly with contours, but not with detours – use PathFinder afterward).
+    '''
+    M, N, B = (A.graph[k] for k in 'MNB')
+    VertexC, d2roots = (A.graph[k] for k in ('VertexC', 'd2roots'))
+    G = nx.create_empty_copy(A)
+    # include all the information about routeset creation
+    G.graph.update(T.graph)
+    # remove supertriangle coordinates from VertexC
+    G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
+    # non_A_edges are the far-reaching gates and ocasionally the result of
+    # a poor solver (e.g. LKH-3)
+    non_A_edges = T.edges - A.edges
+    # TA_source, TA_target = np.array(T.edges - non_A_edges).T
+    common_TA = T.edges - non_A_edges
+    iC = N + B
+    clone2prime = []
+    # add to G the T edges that are in A
+    for edge in common_TA:
+        s, t = edge if edge[0] < edge[1] else edge[::-1]
+        edgeD = A[s][t]
+        path = edgeD.get('path')
+        if path is not None:
+            # contour edge
+            u = s
+            lengths = np.hypot(*(VertexC[[s] + path] - VertexC[path + [t]]).T)
+            for prime, length in zip(path, lengths):
+                clone2prime.append(prime)
+                v = iC
+                iC += 1
+                clones = G.nodes[prime].get('clones')
+                if clones is None:
+                    clones = [v]
+                else:
+                    clones.append(v)
+                G.add_node(v, kind='contour')
+                G.add_edge(u, v, length=length, kind='contour', A_edge=(s, t))
+                u = v
+            G.add_edge(u, t, length=lengths[-1], kind='contour', A_edge=(s, t))
+        else:
+            G.add_edge(s, t, length=edgeD['length'])
+    if clone2prime:
+        fnT = np.arange(iC + M)
+        fnT[N + B:-M] = clone2prime
+        fnT[-M:] = range(-M, 0)
+        G.graph.update(fnT=fnT,
+                       clone2prime=clone2prime,
+                       C=len(clone2prime))
+    # add to G the T edges that are not in A
+    tentative = []
+    rogue = []
+    for s, t in non_A_edges:
+        s, t = (s, t) if s < t else (t, s)
+        if s < 0:
+            # far-reaching gate
+            G.add_edge(s, t, length=d2roots[t, s], kind='tentative')
+            tentative.append((s, t))
+        else:
+            # rogue edge (not supposed to be on the routeset, poor solver)
+            G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
+                       kind='rogue')
+            rogue.append((s, t))
+    if rogue:
+        G.graph['rogue'] = rogue
+
+    # TODO: move this to an external function
+    # Check on crossings between G's gates that are in A and G's edges
+    diagonals = A.graph['diagonals']
+    P = A.graph['planar']
+    for r in range(-M, 0):
+        for n in set(G.neighbors(r)) & set(A.neighbors(r)):
+            st = diagonals.get((r, n))
+            if st is not None:
+                # st is a Delaunay edge
+                if st in G.edges:
+                    G[r][n]['kind'] = 'tentative'
+                    continue
+                crossings = False
+                s, t = st
+                # ensure u–s–v–t is ccw
+                u, v = ((r, n)
+                        if (P[r][t]['cw'] == s and P[n][s]['cw'] == t) else
+                        (n, r))
+                # examine the two triangles ⟨s, t⟩ belongs to
+                for a, b, c in ((s, t, u), (t, s, v)):
+                    # this is for diagonals crossing diagonals
+                    d = P[c][b]['ccw']
+                    diag_da = (a, d) if a < d else (d, a)
+                    if (d == P[b][c]['cw'] and diag_da in G.edges):
+                        crossings = True
+                        break
+                    e = P[a][c]['ccw']
+                    diag_eb = (e, b) if e < b else (b, e)
+                    if (e == P[c][a]['cw'] and diag_eb in G.edges):
+                        crossings = True
+                        break
+                if crossings:
+                    G[r][n]['kind'] = 'tentative'
+                    continue
+            else:
+                uv = diagonals.inv.get((r, n))
+                if uv is not None and uv in G.edges:
+                    # uv is a Delaunay edge crossing ⟨r, n⟩
+                    G[r][n]['kind'] = 'tentative'
+                    continue
+    if tentative:
+        G.graph['tentative'] = tentative
+
+    calcload(G)
+    return G

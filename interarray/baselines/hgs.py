@@ -37,10 +37,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     M, N, B, VertexC = (
         A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
     assert M == 1, 'ERROR: only single depot supported'
-    G = nx.create_empty_copy(A)
-    # remove supertriangle coordinates from VertexC
-    G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
-    G.add_nodes_from(range(N, N + B), kind='border')
+
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
     # class AlgorithmParameters:
@@ -97,106 +94,9 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
 
     result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data)
 
-    non_A_edges = []
-    iC = N + B
-    clone2prime = []
-    for branch in result.routes:
-        s = -1
-        for t in branch:
-            t -= 1
-            if t not in A[s]:
-                if s >= 0:
-                    G.add_edge(s, t, length=np.hypot(*(VertexC[s]
-                                                       - VertexC[t]).T))
-                    non_A_edges.append((s, t))
-                    s = t
-                    continue
-                else:
-                    # s is a root
-                    # NOTE: (unintuitive) The length might be from a contour
-                    #       path, but the graph connection will be a straight
-                    #       line. It is left to PathFinder to properly route
-                    #       that gate.
-                    edge_attr = {'length': d2roots[t, s], 'kind': 'tentative'}
-                    path = None
-            else:
-                edge_attr = {'length': A[s][t]['length']}
-                path = A[s][t].get('path')
-            if path is not None:
-                path = path if s < t else reversed(path)
-                path_kind = A[s][t]['kind']
-                for n in path:
-                    clone2prime.append(n)
-                    clones = G.nodes[n].get('clones')
-                    if clones is None:
-                        clones = [n]
-                    else:
-                        clones.append(n)
-                    n = iC
-                    G.add_node(n, kind='contour')
-                    iC += 1
-                    # The full path length is assigned only to the final edge.
-                    G.add_edge(s, n, length=0., kind='contour', A_edge=(s, t))
-                    s = n
-                edge_attr.update(kind='contour', A_edge=(s, t))
-            G.add_edge(s, t, **edge_attr)
-            s = t
-
-    # TODO: move this to an external function
-    # Check on crossings between G's gates that are in A and G's edges
-    diagonals = A.graph['diagonals']
-    P = A.graph['planar']
-    for r in range(-M, 0):
-        for n in set(G.neighbors(r)) & set(A.neighbors(r)):
-            st = diagonals.get((r, n))
-            if st is not None:
-                # st is a Delaunay edge
-                if st in G.edges:
-                    G[r][n]['kind'] = 'tentative'
-                    continue
-                crossings = False
-                s, t = st
-                # ensure u–s–v–t is ccw
-                u, v = ((r, n)
-                        if (P[r][t]['cw'] == s and P[n][s]['cw'] == t) else
-                        (n, r))
-                # examine the two triangles ⟨s, t⟩ belongs to
-                for a, b, c in ((s, t, u), (t, s, v)):
-                    # this is for diagonals crossing diagonals
-                    d = P[c][b]['ccw']
-                    diag_da = (a, d) if a < d else (d, a)
-                    if (d == P[b][c]['cw'] and diag_da in G.edges):
-                        crossings = True
-                        break
-                    e = P[a][c]['ccw']
-                    diag_eb = (e, b) if e < b else (b, e)
-                    if (e == P[c][a]['cw'] and diag_eb in G.edges):
-                        crossings = True
-                        break
-                if crossings:
-                    G[r][n]['kind'] = 'tentative'
-                    continue
-            else:
-                uv = diagonals.inv.get((r, n))
-                if uv is not None and uv in G.edges:
-                    # uv is a Delaunay edge crossing ⟨r, n⟩
-                    G[r][n]['kind'] = 'tentative'
-                    continue
-
-    if clone2prime:
-        fnT = np.arange(iC + M)
-        fnT[N + B:-M] = clone2prime
-        fnT[-M:] = range(-M, 0)
-        G.graph.update(fnT=fnT,
-                       clone2prime=clone2prime,
-                       C=len(clone2prime))
-    calcload(G)
-    if non_A_edges:
-        G.graph['non_A_edges'] = non_A_edges
-    else:
-        pass
-        #  PathFinder(G).create_detours(in_place=True)
-    G.graph.update(
+    # create a topology graph T from the results
+    T = nx.Graph(
+        N=N, M=M,
         capacity=capacity,
         undetoured_length=result.cost/scale,
         edges_created_by='PyHygese',
@@ -209,7 +109,10 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         solution_time=_solution_time(out, result.cost),
         fun_fingerprint=fun_fingerprint(),
     )
-    return G
+    branches = ([n - 1 for n in branch] for branch in result.routes)
+    T.add_edges_from(sum(((tuple(zip([-1] + branch[:-1], branch)))
+                          for branch in branches), ()))
+    return T
 
 
 def _solution_time(log, undetoured_length) -> float:

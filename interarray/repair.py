@@ -13,33 +13,33 @@ from .interarraylib import remove_detours, calcload, NodeTagger
 F = NodeTagger()
 
 
-def gate_and_leaf_path(G: nx.Graph, n: int) -> tuple[int, int]:
+def gate_and_leaf_path(T: nx.Graph, n: int) -> tuple[int, int]:
     '''
-    `G` has no gate or detour edges and is non-branching
+    `T` has loads, is a rootless subgraph_view and non-branching
     '''
     # non-branching graphs only, gates and detours removed
-    if G.degree(n) == 2:
-        u, v = G[n]
+    if T.degree(n) == 2:
+        u, v = T[n]
         head, tail = ((u, v)
-                      if G.nodes[u]['load'] > G.nodes[v]['load'] else
+                      if T.nodes[u]['load'] > T.nodes[v]['load'] else
                       (v, u))
         # go towards the gate
         gate_leaf = []
         for fwd, back in ((head, tail), (tail, head)):
-            while G.degree(fwd) == 2:
-                s, t = G[fwd]
+            while T.degree(fwd) == 2:
+                s, t = T[fwd]
                 fwd, back = (s, fwd) if t == back else (t, fwd)
             gate_leaf.append(fwd)
         return tuple(gate_leaf)
     else:
-        if G.nodes[n]['load'] == 1:
+        if T.nodes[n]['load'] == 1:
             leaf = back = n
             gate = None
         else:
             gate = back = n
-        fwd, = G[n]
-        while G.degree(fwd) == 2:
-            s, t = G[fwd]
+        fwd, = T[n]
+        while T.degree(fwd) == 2:
+            s, t = T[fwd]
             fwd, back = (s, fwd) if t == back else (t, fwd)
         if gate is None:
             gate_leaf = (fwd, leaf)
@@ -48,25 +48,24 @@ def gate_and_leaf_path(G: nx.Graph, n: int) -> tuple[int, int]:
         return gate_leaf
 
 
-def list_path(G: nx.graph, n: int) -> list[int]:
+def list_path(T: nx.graph, n: int) -> list[int]:
     '''
-    `G` has no gate or detour edges
-    all subtrees of `G` are paths
+    `T` has loads, no gate or detour edges
+    all subtrees of `T` are paths
     `n` must be an extremity of the path
     '''
     path = [n]
-    far, = G[n]
-    while G.degree(far) == 2:
-        s, t = G[far]
+    far, = T[n]
+    while T.degree(far) == 2:
+        s, t = T[far]
         far, n = (s, far) if t == n else (t, far)
         path.append(n)
     path.append(far)
-    return path if G.nodes[far]['load'] == 1 else path[::-1]
+    return path if T.nodes[far]['load'] == 1 else path[::-1]
 
 
 def _find_fix_choices_path(A: nx.Graph, swapS: int, src_path: list[int],
                            dst_path: list[int]) -> tuple[tuple]:
-    # (G, A, swapS, hookS_alt, dst_gate):
     # this is named «...»_path because we could make a version that allows
     # branching and call it «...»_tree.
     '''
@@ -168,16 +167,11 @@ def _find_fix_choices_path(A: nx.Graph, swapS: int, src_path: list[int],
     return choices  # ((gateD, swapD, freeS, edges_del, edges_add), ...)
 
 
-def _quantify_choices(G, A, swapS, src_path, dst_path, choices):
+def _quantify_choices(T, A, swapS, src_path, dst_path, choices):
     quant_choices = []
-    rootS, = (n for n in G[src_path[0]] if n < 0)
-    rootD, = (n for n in G[dst_path[0]] if n < 0)
-    d2roots = G.graph.get('d2roots')
-    if d2roots is None:
-        VertexC = G.graph['VertexC']
-        M = G.graph['M']
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
-        G.graph['d2roots'] = d2roots
+    rootS, = (n for n in T[src_path[0]] if n < 0)
+    rootD, = (n for n in T[dst_path[0]] if n < 0)
+    d2roots = A.graph['d2roots']
     for gateD, swapD, freeS, edges_del, edges_add in choices:
         gates_del = []
         gates_add = []
@@ -213,28 +207,33 @@ def _quantify_choices(G, A, swapS, src_path, dst_path, choices):
 
 
 def _apply_choice(
-        G_orig: nx.Graph, A: nx.Graph, swapS: int, swapD: int,
+        T: nx.Graph, A: nx.Graph, swapS: int, swapD: int,
         edges_del: list[tuple[int, int]], edges_add: list[tuple[int, int]],
         gates_del: list[tuple[int, int]], gates_add: list[tuple[int, int]]
         ) -> nx.Graph:
-    d2roots = G_orig.graph['d2roots']
-    G = remove_detours(G_orig)
+    d2roots = A.graph['d2roots']
     # for edges: add first, then del
-    G.add_weighted_edges_from(((u, v, A[u][v]['length'])
-                               for u, v in edges_add), weight='length')
-    G.remove_edges_from(edges_del)
+    T.add_edges_from(edges_add)
+    T.remove_edges_from(edges_del)
     # for gates: del first, then add
     for gate, root in gates_del:
-        G.remove_edge(gate, root)
+        T.remove_edge(gate, root)
     for gate, root in gates_add:
-        G.add_edge(gate, root, length=d2roots[gate, root])
-    calcload(G)
-    return G
+        T.add_edge(gate, root, length=d2roots[gate, root], kind='tentative')
+    if gates_add:
+        tentative = T.graph.get(tentative)
+        if tentative is None:
+            T.graph['tentative'] = gates_add
+        else:
+            tentative.extend(gates_add)
+    calcload(T)
+    return T
 
 
-def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
+def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
+    # naming: suffix _path as opposed to _tree -> T is non-branching
     '''
-    `G` is a NetworkX.Graph representing a routeset that is:
+    `T` is a NetworkX.Graph representing a routeset that is:
         - topologically sound (a tree, respecting capacity)
         - non-branching
 
@@ -242,21 +241,22 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
     on one of its extreme edges (non-gate/detour).
 
     Returns:
-        - a fixed routeset in a shallow copy of `G`.
+        - a routeset without the crossing in a shallow copy of `T`.
     '''
 
-    M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
-
+    if 'C' in T.graph or 'D' in T.graph:
+        print('ERROR: `repair_routeset_path()` requires `T` as a topology.')
+        return
+    M, N = (T.graph[k] for k in 'MN')
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
+    T2fix = T.copy()
 
-    G2fix = remove_detours(G) if D else G.copy()
     # make a subgraph without gates and detours
-    # TODO: make G_branches compatible with contour edges
-    G_branches = nx.subgraph_view(G2fix, filter_node=lambda n: n >= 0)
-    eeXings = list_edge_crossings(G_branches, P, diagonals)
+    T_branches = nx.subgraph_view(T2fix, filter_node=lambda n: n >= 0)
+    eeXings = list_edge_crossings(T_branches, A)
     if eeXings:
-        G2fix.graph['crossings_fixed'] = 0
+        T2fix.graph['crossings_fixed'] = 0
 
     def not_crossing(choice):
         gateD, swapD, freeS, edges_del, edges_add = choice
@@ -276,7 +276,7 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
                 if s < 0 or t < 0:
                     # diagonal of ⟨u, v⟩ is a gate
                     continue
-                if (((s, t) in G2fix.edges
+                if (((s, t) in T2fix.edges
                         or (s, t) in edges_add)
                         and (s, t) not in edges_del):
                     # crossing with diagonal
@@ -284,7 +284,7 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
             else:
                 # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
                 s, t = st
-                if (((s, t) in G2fix.edges
+                if (((s, t) in T2fix.edges
                         or (s, t) in edges_add)
                         and (s, t) not in edges_del):
                     # crossing with Delaunay edge
@@ -300,25 +300,24 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
                     d = P[c][b]['ccw']
                     diag_da = (a, d) if a < d else (d, a)
                     if (d == P[b][c]['cw']
-                            and (diag_da in G2fix.edges
+                            and (diag_da in T2fix.edges
                                  or diag_da in edges_add)
                             and diag_da not in edges_del):
                         return False
                     e = P[a][c]['ccw']
                     diag_eb = (e, b) if e < b else (b, e)
                     if (e == P[c][a]['cw']
-                            and (diag_eb in G2fix.edges
+                            and (diag_eb in T2fix.edges
                                  or diag_eb in edges_add)
                             and diag_eb not in edges_del):
                         return False
         return True
 
     while eeXings:
-        if 'has_loads' not in G.graph:
-            calcloads(G2fix)
+        calcload(T2fix)
         (u, v), (s, t) = eeXings[0]
-        gateV, leafV = gate_and_leaf_path(G_branches, v)
-        gateT, leafT = gate_and_leaf_path(G_branches, t)
+        gateV, leafV = gate_and_leaf_path(T_branches, v)
+        gateT, leafT = gate_and_leaf_path(T_branches, t)
         src_dst_swap = []
         if u == gateV or u == leafV:
             src_dst_swap.append((gateV, gateT, u))
@@ -330,23 +329,23 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
             src_dst_swap.append((gateT, gateV, t))
 
         if not src_dst_swap:
-            print('ERROR: unable to fix crossing that does not have a single '
-                  'node in one of the cuts.')
-            return G
+            print('ERROR: unable to fix crossing that has more than one '
+                  'node in both components.')
+            return T
         quant_choices = []
         for gateS, gateD, swapS in src_dst_swap:
-            src_path = list_path(G_branches, gateS)
-            dst_path = list_path(G_branches, gateD)
+            src_path = list_path(T_branches, gateS)
+            dst_path = list_path(T_branches, gateD)
             # TODO: remove this
             print([f'{F[n]}' for n in dst_path])
             choices = _find_fix_choices_path(A, swapS, src_path, dst_path)
             choices = filter(not_crossing, choices)
             quant_choices.extend(
-                _quantify_choices(G2fix, A, swapS, src_path, dst_path, choices)
+                _quantify_choices(T2fix, A, swapS, src_path, dst_path, choices)
             )
         if not quant_choices:
             print('ERROR: unable to find fix.')
-            return G
+            return T
         quant_choices.sort()
         # TODO: remove this
         #  for line in [' | '.join(
@@ -360,13 +359,13 @@ def repair_routeset_path(G: nx.Graph, A: nx.Graph) -> nx.Graph:
         #          in quant_choices]:
         #      print(line)
         _, choice = quant_choices[0]
-        # apply_choice works on a copy of G
-        G2fix = _apply_choice(G2fix, A, swapS, *choice)
-        G2fix.graph['crossings_fixed'] += 1
-        del G2fix.graph['has_loads']
-        G_branches = nx.subgraph_view(G2fix, filter_node=lambda n: 0 <= n < N)
-        eeXings = list_edge_crossings(G_branches, P, diagonals)
+        # apply_choice works on a copy of T
+        T2fix = _apply_choice(T2fix, A, swapS, *choice)
+        T2fix.graph['crossings_fixed'] += 1
+        del T2fix.graph['has_loads']
+        T_branches = nx.subgraph_view(T2fix, filter_node=lambda n: 0 <= n < N)
+        eeXings = list_edge_crossings(T_branches, A)
 
-    #  PathFinder(G2fix, branching=False).create_detours(in_place=True)
+    #  PathFinder(T2fix, branching=False).create_detours(in_place=True)
 
-    return G2fix
+    return T2fix
