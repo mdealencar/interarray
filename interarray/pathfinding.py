@@ -9,6 +9,8 @@ from itertools import chain
 import matplotlib
 import networkx as nx
 import numpy as np
+from scipy.spatial.distance import cdist
+from scipy.stats import rankdata
 from loguru import logger
 
 from .crossings import gateXing_iter
@@ -63,6 +65,10 @@ class PathFinder():
     Router for gates that don't belong to the PlanarEmbedding of the graph.
     Initialize it with a detour-free routeset `G` and it will find paths from
     all nodes to the nearest root without crossing any used edges.
+
+    Only edges in graph attribute 'tentative' or, lacking that, edges with the
+    attribute 'kind' == 'tentative' are checked for crossings.
+
     These paths can be used to replace the existing gates that cross other
     edges by gate paths with detours.
 
@@ -72,15 +78,15 @@ class PathFinder():
     Example:
     ========
 
-    H = PathFinder(G).create_detours()
+    H = PathFinder(G, planar=P).create_detours()
     '''
 
     def __init__(self, G: nx.Graph, *,
                  planar: nx.PlanarEmbedding,
+                 A: nx.Graph | None = None,
                  branching: bool = True) -> None:
-        M, N, VertexC, fnT = (
-            G.graph.get(k) for k in 'M N VertexC fnT'.split())
-        B, C = (G.graph.get(k, 0) for k in ('B', 'C'))
+        M, N, B = (G.graph[k] for k in 'MNB')
+        C = G.graph.get('C', 0)
 
         # Block for facilitating the printing of debug messages.
         allnodes = np.arange(N + M + B + 3)
@@ -90,18 +96,29 @@ class PathFinder():
         info('BEGIN pathfinding on "{}" (#wtg = {})',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
 
-        tentative = tuple(
-            np.fromiter((n for n in G.neighbors(r)
-                         if G[r][n].get('kind') == 'tentative'),
-                        dtype=int)
-            for r in range(-M, 0))
+        tentative = G.graph.get('tentative')
+        gates2check = []
+        if tentative is None:
+            # TODO: this case should be removed ('tentative' attr mandatory)
+            tentative = []
+            for r in range(-M, 0):
+                gates = set(n for n in G.neighbors(r)
+                            if G[r][n].get('kind') == 'tentative')
+                tentative.extend((r, n) for n in gates)
+                gates2check.append(gates)
+                print(gates)
+        else:
+            gates2check.extend(set() for _ in range(M))
+            for r, n in tentative:
+                gates2check[r].add(n)
 
         Xings = list(
             gateXing_iter(
-                G, gates=tentative,
+                G, gates=[np.fromiter(g2c, count=len(g2c), dtype=int)
+                          for g2c in gates2check],
                 constraint_edges=planar.graph.get('constraint_edges')))
 
-        self.G, self.Xings = G, Xings
+        self.G, self.Xings, self.tentative = G, Xings, set(tentative)
         if not Xings:
             # no crossings, there is no point in pathfinding
             info('Graph has no crossings, skipping path-finding '
@@ -111,19 +128,33 @@ class PathFinder():
         P = planar_flipped_by_routeset(G, planar=planar)
         # clone2prime must be a copy of the one from G (for in_place=False)
         clone2prime = list(G.graph.get('clone2prime', ()))
-        VertexC = np.vstack((VertexC[:-M],
-                             planar.graph['supertriangleC'],
-                             VertexC[-M:]))
-
+        # TODO: work around PathFinder getting metrics for the supertriangle
+        #       nodes -> do away with A metrics, eliminate A from args
+        if A is None:
+            VertexC = G.graph['VertexC']
+            if G.graph.get('is_normalized'):
+                supertriangleC = G.graph['norm_scale']*(
+                    planar.graph['supertriangleC'] - G.graph['norm_offset'])
+            VertexC = np.vstack((VertexC[:N + B],
+                                 supertriangleC,
+                                 VertexC[-M:]))
+            d2roots = cdist(VertexC[:-M], VertexC[-M:])
+            Rank = None
+        else:
+            VertexC = A.graph['VertexC']
+            d2roots = A.graph['d2roots']
+            Rank = A.graph.get('d2rootsRank')
+        self.d2roots = d2roots
+        self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
         edges_created_by = G.graph.get('edges_created_by')
         if edges_created_by is not None and edges_created_by[:5] == 'MILP.':
             self.branching = G.graph['creation_options']['branching']
         else:
             self.branching = branching
 
-        self.M, self.N, self.B, self.C, self.fnT = M, N, B, C, fnT
+        self.M, self.N, self.B, self.C = M, N, B, C
         self.P, self.VertexC, self.clone2prime = P, VertexC, clone2prime
-        self.tentative = tentative
+        self.gates2check = gates2check
         self._find_paths()
 
     def get_best_path(self, n: int):
@@ -165,7 +196,7 @@ class PathFinder():
             # _node is in a border (which means it must only be reachable from
             # one side, so that sector becomes irrelevant)
             return NULL
-        is_gate = any(_node in Gate for Gate in self.tentative)
+        is_gate = any(_node in Gate for Gate in self.gates2check)
         _node_degree = len(self.G._adj[_node])
         if is_gate and _node_degree == 1:
             # special case where a branch with 1 node uses a non_embed gate
@@ -219,7 +250,7 @@ class PathFinder():
             next_portals = []
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
-                debug('evaluating {}', self.n2s(s, t))
+                trace('evaluating {}', self.n2s(s, t))
                 if (st_sorted not in self.portal_set
                         or (s < N and t < N
                             and G.nodes[s]['subtree'] ==
@@ -243,11 +274,11 @@ class PathFinder():
                            chain(((second, sside, None),),
                                  self._advance_portal(*second)))
                 else:
-                    debug('{}', self.n2s(*first))
+                    trace('{}', self.n2s(*first))
                     yield first, fside, None
             except IndexError:
                 # dead-end reached
-                debug('dead-end: {}–{}', F[left], F[right])
+                trace('dead-end: {}–{}', F[left], F[right])
                 return
             left, right = first
 
@@ -344,8 +375,8 @@ class PathFinder():
         #  print('[exp] starting _explore()')
         G, P, M, N, B, C = self.G, self.P, self.M, self.N, self.B, self.C
         ST = N + B + C
-        d2roots = G.graph['d2roots']
-        d2rootsRank = G.graph['d2rootsRank']
+        d2roots = self.d2roots
+        d2rootsRank = self.d2rootsRank
         prioqueue = []
         # `uncharted` records whether portals have been traversed
         # (it is orientation-sensitive – two permutations)
@@ -365,7 +396,7 @@ class PathFinder():
                 portal_set.add((u, v) if u < v else (v, u))
         if C > 0:
             # remove from portal_set the contour edges of G
-            fnT = self.fnT
+            fnT = G.graph['fnT']
             for c in range(N + B, N + B + C):
                 for n in G.neighbors(c):
                     n, c = fnT[n], fnT[c]
@@ -520,36 +551,30 @@ class PathFinder():
         else return new nx.Graph (G with detours).
         '''
         G = self.G if in_place else self.G.copy()
-        M, N, B, C = self.M, self.N, self.B, self.C
 
-        if 'crossings' in G.graph:
-            # start by assumming that crossings will be fixed by detours
-            del G.graph['crossings']
+        Xings, tentative = self.Xings, self.tentative.copy()
 
-        Xings, tentative = self.Xings, self.tentative
-
-        # this keeps tracks of tentative gates that were not detoured yet
-        undetoured = set((r, n)
-                         for r, gates in zip(range(-M, 0), tentative)
-                         for n in gates)
         if not Xings:
-            for r, n in undetoured:
+            for r, n in tentative:
                 # remove the 'tentative' kind
                 del G[r][n]['kind']
             return None if in_place else G
 
-        clone2prime, paths, I_path = self.clone2prime, self.paths, self.I_path
-
-        gates2detour = set(gate for _, gate in Xings)
+        M, N, B, C = self.M, self.N, self.B, self.C
+        clone2prime = self.clone2prime.copy()
+        paths, I_path = self.paths, self.I_path
         clone_idx = N + B + C
+        failed_detours = []
+
         subtree_from_subtree_id = defaultdict(list)
         subtree_id_from_n = {}
         for n in chain(range(N), range(N + B, clone_idx)):
             subtree_id = G.nodes[n]['subtree']
             subtree_from_subtree_id[subtree_id].append(n)
             subtree_id_from_n[n] = subtree_id
-        for r, n in gates2detour:
-            undetoured.remove((r, n))
+
+        for r, n in set(gate for _, gate in Xings):
+            tentative.remove((r, n))
             subtree_id = subtree_id_from_n[n]
             subtree = subtree_from_subtree_id[subtree_id]
             subtree_load = G.nodes[n]['load']
@@ -567,10 +592,7 @@ class PathFinder():
                 error('subtree of node {} has no non-crossing paths to any '
                       'root: leaving gate as-is', F[n])
                 # unable to fix this crossing
-                crossings = G.graph.get('crossings')
-                if crossings is None:
-                    G.graph['crossings'] = []
-                G.graph['crossings'].append((r, n))
+                failed_detours.append((r, n))
                 continue
             dist, id, hook, sect = min(path_options)
             debug('best: hook = {}, sector = {}, dist = {:.1f}',
@@ -617,7 +639,7 @@ class PathFinder():
                     edgeD.update(kind='detour', reverse=True)
                 if added_clones > 0:
                     # an edge reaching root always has target < source
-                    del G[Clone[-1]][path[-1]]['reverse']
+                    G[Clone[-1]][path[-1]]['reverse'] = False
             else:
                 del G[n][r]['kind']
                 debug(f'gate {F[n]}–{F[r]} touches a '
@@ -644,8 +666,16 @@ class PathFinder():
                     f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                     f'({total_parent_load}) != expected load ({ref_load})'
 
-        for r, n in undetoured:
+        # former tentative gates that were not in Xings cease to be tentative
+        for r, n in tentative:
             del G[r][n]['kind']
+
+        if failed_detours:
+            print('failed: ', ' '.join(f'{F[u]}–{F[v]}' for u, v in failed_detours))
+            G.graph['tentative'] = failed_detours
+        else:
+            del G.graph['tentative']
+
         fnT = np.arange(M + clone_idx)
         fnT[N + B: clone_idx] = clone2prime
         fnT[-M:] = range(-M, 0)
