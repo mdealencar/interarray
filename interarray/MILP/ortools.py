@@ -38,7 +38,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
-    G = tuple((r, n) for n in A_nodes.nodes.keys() for r in range(-M, 0))
+    G = tuple((r, n) for n in A_nodes.nodes for r in range(-M, 0))
     w_E = tuple(A[u][v]['length'] for u, v in E)
     w_G = tuple(d2roots[n, r] for r, n in G)
 
@@ -241,14 +241,10 @@ def MILP_solution_to_T(model, *, solver):
         {(u, v): solver.Value(model.De[u, v]) > 0
          for (u, v), be in model.Be.items() if solver.BooleanValue(be)},
         name='reverse')
-    # gate edges
-    for r in range(-M, 0):
-        for n in T[r]:
-            T[r][n]['reverse'] = False
 
     # propagate loads from edges to nodes
     subtree = -1
-    for r in range(-M, 0):
+    for r in range(-model.M, 0):
         for u, v in nx.edge_dfs(T, r):
             T.nodes[v]['load'] = T.edges[u, v]['load']
             if u == r:
@@ -256,6 +252,8 @@ def MILP_solution_to_T(model, *, solver):
             T.nodes[v]['subtree'] = subtree
         rootload = 0
         for nbr in T.neighbors(r):
+            # set the 'reverse' edge attribute for gates
+            T[r][nbr]['reverse'] = False
             rootload += T.nodes[nbr]['load']
         T.nodes[r]['load'] = rootload
     return T

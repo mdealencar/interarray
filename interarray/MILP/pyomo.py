@@ -238,7 +238,6 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
-    m.M, m.N, m.k = M, N, k
     #  m.site = {key: A.graph[key]
     #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
     #                        'name', 'handle')
@@ -260,26 +259,19 @@ def MILP_warmstart_from_T(m: pyo.ConcreteModel, T: nx.Graph):
                 m.Be[v, u] = 1
                 m.De[v, u] = T[u][v]['load']
     for r in m.R:
-        nbr = list(T.neighbors(r))
-        for n in nbr:
-            ref = r
-            # first skip any detour nodes
-            while n >= N:
-                a, b = T.neighbors(n)
-                c = a if b == ref else b
-                ref = n
-                n = c
+        for n in T.neighbors(r):
             m.Bg[r, n] = 1
-            m.Dg[r, n] = T[n][ref]['load']
+            m.Dg[r, n] = T[n][r]['load']
 
 
 def MILP_solution_to_T(model, *, solver=None):
     '''Translate a MILP pyomo solution to a networkx graph.'''
 
+    M, N, k = len(model.R), len(model.N), model.k.value
     # create a topology graph T from the solution
     T = nx.Graph(
-        M=model.M, N=model.N,
-        capacity=model.k.value,
+        M=M, N=N,
+        capacity=k,
         edges_created_by='MILP.pyomo',
         creation_options=model.creation_options,
         has_loads=True,
@@ -307,10 +299,6 @@ def MILP_solution_to_T(model, *, solver=None):
         T,
         {(u, v): v > u for (u, v), be in model.Be.items() if be.value > 0.5},
         name='reverse')
-    # gate edges
-    for r in range(-M, 0):
-        for n in T[r]:
-            T[r][n]['reverse'] = False
 
     # propagate loads from edges to nodes
     subtree = -1
@@ -322,6 +310,8 @@ def MILP_solution_to_T(model, *, solver=None):
             T.nodes[v]['subtree'] = subtree
         rootload = 0
         for nbr in T.neighbors(r):
+            # set the 'reverse' edge attribute for gates
+            T[r][nbr]['reverse'] = False
             rootload += T.nodes[nbr]['load']
         T.nodes[r]['load'] = rootload
     return T
