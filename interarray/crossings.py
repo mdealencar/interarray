@@ -153,14 +153,14 @@ def edgeset_edgeXing_iter(A):
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
     checked = set()
-    for (u, v), (s, t) in diagonals.items():
+    for uv, (s, t) in diagonals.items():
         # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
         # crossing with Delaunay edge
-        yield ((s, t), (u, v))
+        yield ((s, t), uv)
         # ensure u–s–v–t is ccw
-        u, v = ((u, v)
-                if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
-                (v, u))
+        u, v = (uv
+                if (P[uv[0]][t]['cw'] == s and P[uv[1]][s]['cw'] == t) else
+                uv[::-1])
         # examine the two triangles ⟨s, t⟩ belongs to
         for a, b, c in ((s, t, u), (t, s, v)):
             triangle = tuple(sorted((a, b, c)))
@@ -168,7 +168,7 @@ def edgeset_edgeXing_iter(A):
                 continue
             checked.add(triangle)
             # this is for diagonals crossing diagonals
-            conflicting = [(u, v)]
+            conflicting = [uv]
             d = P[c][b]['ccw']
             diag_da = (a, d) if a < d else (d, a)
             if d == P[b][c]['cw'] and diag_da in diagonals:
