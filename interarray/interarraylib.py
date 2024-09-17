@@ -248,9 +248,12 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     '''
     M, N, B = (A.graph[k] for k in 'MNB')
     VertexC, d2roots = (A.graph[k] for k in ('VertexC', 'd2roots'))
-    G = nx.create_empty_copy(A)
-    # include all the information about routeset creation
-    G.graph.update(T.graph)
+    # TODO: rethink whether to copy from T or from A
+    G = nx.create_empty_copy(T)
+    G.graph.update({key: A.graph[key] for key in 'B border name handle '
+                    'norm_scale norm_offset landscape_angle'.split()})
+    if A.graph.get('is_normalized'):
+        G.graph['is_normalized'] = True
     # remove supertriangle coordinates from VertexC
     G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
     # non_A_edges are the far-reaching gates and ocasionally the result of
@@ -264,10 +267,11 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     # add to G the T edges that are in A
     for edge in common_TA:
         s, t = edge if edge[0] < edge[1] else edge[::-1]
-        edgeD = A[s][t]
-        diagonals_used += edgeD['kind'] == 'extended'
-        path = edgeD.get('path')
-        load = edgeD['load']
+        AedgeD = A[s][t]
+        subtree_id = T.nodes[t]['subtree']
+        diagonals_used += AedgeD['kind'] == 'extended'
+        path = AedgeD.get('path')
+        load = T[s][t]['load']
         if path is not None:
             # contour edge
             u = s
@@ -281,14 +285,14 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                     clones = [v]
                 else:
                     clones.append(v)
-                G.add_node(v, kind='contour', load=load)
+                G.add_node(v, kind='contour', load=load, subtree=subtree_id)
                 G.add_edge(u, v, length=length, load=load, kind='contour',
                            A_edge=(s, t))
                 u = v
             G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
                        A_edge=(s, t))
         else:
-            G.add_edge(s, t, length=edgeD['length'], load=load)
+            G.add_edge(s, t, length=AedgeD['length'], load=load)
     if clone2prime:
         fnT = np.arange(iC + M)
         fnT[N + B:-M] = clone2prime
@@ -301,13 +305,16 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     rogue = []
     for s, t in non_A_edges:
         s, t = (s, t) if s < t else (t, s)
-        load = A.nodes[s]['load'] if blah else A.nodes[t]['load']
         if s < 0:
             # far-reaching gate
-            G.add_edge(s, t, length=d2roots[t, s], kind='tentative', load=load)
+            G.add_edge(s, t, length=d2roots[t, s], kind='tentative',
+                       load=T.nodes[t]['load'])
             tentative.append((s, t))
         else:
             # rogue edge (not supposed to be on the routeset, poor solver)
+            load = (T.nodes[s]['load']
+                    if T.edges[s, t]['reverse'] else
+                    T.nodes[t]['load'])
             G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
                        kind='rogue', load=load)
             rogue.append((s, t))
@@ -324,6 +331,7 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                 # st is a Delaunay edge
                 if st in G.edges:
                     G[r][n]['kind'] = 'tentative'
+                    tentative.append((r, n))
                     continue
                 crossings = False
                 s, t = st
@@ -346,17 +354,21 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                         break
                 if crossings:
                     G[r][n]['kind'] = 'tentative'
+                    tentative.append((r, n))
                     continue
             else:
                 uv = diagonals.inv.get((r, n))
                 if uv is not None and uv in G.edges:
                     # uv is a Delaunay edge crossing ⟨r, n⟩
                     G[r][n]['kind'] = 'tentative'
+                    tentative.append((r, n))
                     continue
     if tentative:
         G.graph['tentative'] = tentative
 
-    G.graph['diagonals_used'] = diagonals_used
-    G.graph['overfed'] = [len(G[r])/math.ceil(N/T.graph['capacity'])*M
-                          for r in range(-M, 0)]
+    G.graph.update(
+        diagonals_used=diagonals_used,
+        overfed=[len(G[r])/math.ceil(N/T.graph['capacity'])*M
+                 for r in range(-M, 0)],
+    )
     return G
