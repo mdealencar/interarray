@@ -147,19 +147,24 @@ def layout_edgeXing_iter(G, A):
 
 
 def edgeset_edgeXing_iter(A):
-    '''Iterator over all edge crossings in an expanded
-    Delaunay edge set `A`. Each crossing is a 2 or 3-tuple
-    of (u, v) edges.'''
+    '''
+    Iterator over all edge crossings in an expanded Delaunay edge set `A`.
+    Each crossing is a 2 or 3-tuple of (u, v) edges. Does not include gates.
+    '''
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
     checked = set()
-    for uv, (s, t) in diagonals.items():
+    for (u, v), (s, t) in diagonals.items():
         # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
+        if u < 0:
+            # diagonal is a gate
+            continue
+        uv = (u, v)
         # crossing with Delaunay edge
         yield ((s, t), uv)
         # ensure u–s–v–t is ccw
         u, v = (uv
-                if (P[uv[0]][t]['cw'] == s and P[uv[1]][s]['cw'] == t) else
+                if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
                 uv[::-1])
         # examine the two triangles ⟨s, t⟩ belongs to
         for a, b, c in ((s, t, u), (t, s, v)):
@@ -171,11 +176,11 @@ def edgeset_edgeXing_iter(A):
             conflicting = [uv]
             d = P[c][b]['ccw']
             diag_da = (a, d) if a < d else (d, a)
-            if d == P[b][c]['cw'] and diag_da in diagonals:
+            if d == P[b][c]['cw'] and diag_da in diagonals and diag_da[0] >= 0:
                 conflicting.append(diag_da)
             e = P[a][c]['ccw']
             diag_eb = (e, b) if e < b else (b, e)
-            if e == P[c][a]['cw'] and diag_eb in diagonals:
+            if e == P[c][a]['cw'] and diag_eb in diagonals and diag_eb[0] >= 0:
                 conflicting.append(diag_eb)
             if len(conflicting) > 1:
                 yield conflicting
