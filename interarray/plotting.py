@@ -626,7 +626,7 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
             del scaff.edges[st]['kind']
     VertexC = G.graph['VertexC']
     supertriangleC = P.graph['supertriangleC']
-    if G.graph.get('normalized'):
+    if G.graph.get('is_normalized'):
         supertriangleC = G.graph['norm_scale']*(supertriangleC
                                                 - G.graph['norm_offset'])
     VertexC = np.vstack((VertexC[:-M],
