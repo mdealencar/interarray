@@ -98,6 +98,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     T = nx.Graph(
         N=N, M=M,
         capacity=capacity,
+        has_loads=True,
         undetoured_length=result.cost/scale,
         edges_created_by='PyHygese',
         edges_fun=hgs_cvrp,
@@ -110,8 +111,19 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         fun_fingerprint=fun_fingerprint(),
     )
     branches = ([n - 1 for n in branch] for branch in result.routes)
-    T.add_edges_from(sum(((tuple(zip([-1] + branch[:-1], branch)))
-                          for branch in branches), ()))
+    for subtree_id, branch in enumerate(branches):
+        loads = range(len(branch), 0, -1)
+        T.add_nodes_from(((n, {'load': load})
+                          for n, load in zip(branch, loads)),
+                         subtree=subtree_id)
+        branch_roll = [-1] + branch[:-1]
+        reverses = tuple(u < v for u, v in zip(branch, branch_roll))
+        edgeD = ({'load': load, 'reverse': reverse}
+                 for load, reverse in zip(loads, reverses))
+        T.add_edges_from(zip(branch_roll, branch, edgeD))
+    root_load = sum(T.nodes[n]['load'] for n in T.neighbors(-1))
+    T.nodes[-1]['load'] = root_load
+    assert root_load == N, 'ERROR: root node load does not match N.'
     return T
 
 

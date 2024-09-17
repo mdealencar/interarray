@@ -185,6 +185,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
     log = result.stdout.decode('utf8')
     T = nx.Graph(
         N=N, M=M,
+        has_loads=True,
         penalty=int(penalty),
         capacity=capacity,
         undetoured_length=float(minimum)/scale,
@@ -229,8 +230,19 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             r'Time\.min = (\d+\.?\d*) sec., Time\.avg = \d+\.?\d* sec.,'
             r' Time\.max = (\d+\.?\d*) sec.',
             next(entries)).groups())
-    T.add_edges_from(sum(((tuple(zip([-1] + branch[:-1], branch)))
-                          for branch in branches), ()))
+    for subtree_id, branch in enumerate(branches):
+        loads = range(len(branch), 0, -1)
+        T.add_nodes_from(((n, {'load': load})
+                          for n, load in zip(branch, loads)),
+                         subtree=subtree_id)
+        branch_roll = [-1] + branch[:-1]
+        reverses = tuple(u < v for u, v in zip(branch, branch_roll))
+        edgeD = ({'load': load, 'reverse': reverse}
+                 for load, reverse in zip(loads, reverses))
+        T.add_edges_from(zip(branch_roll, branch, edgeD))
+    root_load = sum(T.nodes[n]['load'] for n in T.neighbors(-1))
+    T.nodes[-1]['load'] = root_load
+    assert root_load == N, 'ERROR: root node load does not match N.'
     return T
 
 
