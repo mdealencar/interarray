@@ -183,8 +183,12 @@ def pathdist(G, path):
 
 def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
     '''
-    Create a shallow copy of `Gʹ` without detour nodes
-    (and possibly *with* the resulting crossings).
+    Create a shallow copy of `Gʹ` without detour nodes (and possibly *with*
+    the resulting crossings).
+
+    This is to be applyed to a routeset that already has detours. It serves to
+    re-run PathFinder on a detoured routeset, but it is not the best solution
+    to prepare a routeset to be used as warmstart (re-hooking is missing).
     '''
     G = Gʹ.copy()
     C, D = (G.graph.get(k, 0) for k in 'CD')
@@ -192,29 +196,28 @@ def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
         return G
     M, N, B = (G.graph[k] for k in 'MNB')
     VertexC = G.graph['VertexC']
+    tentative = []
     for r in range(-M, 0):
-        detoured = [n for n in G.neighbors(r) if n >= N + B + C]
-        if detoured:
-            G.graph['crossings'] = []
-        for n in detoured:
-            ref = r
+        for n in [n for n in G.neighbors(r) if n >= N + B + C]:
+            rev = r
             G.remove_edge(n, r)
             while n >= N:
-                ref = n
-                n, = G.neighbors(ref)
-                G.remove_node(ref)
-            G.add_edge(n, r,
+                rev = n
+                n, = G.neighbors(rev)
+                G.remove_node(rev)
+            G.add_edge(r, n,
                        load=G.nodes[n]['load'],
                        kind='tentative',
                        reverse=False,
                        length=np.hypot(*(VertexC[n] - VertexC[r]).T))
-            G.graph['crossings'].append((r, n))
+            tentative.append((r, n))
     del G.graph['D']
     if C:
         fnT = G.graph['fnT']
         G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
     else:
         del G.graph['fnT']
+    G.graph['tentative'] = tentative
     return G
 
 
