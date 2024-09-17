@@ -372,3 +372,50 @@ def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                  for r in range(-M, 0)],
     )
     return G
+
+
+def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
+        -> nx.Graph:
+    '''
+    Changes G in place! Implemented only for branched routesets.
+
+    Sifts through all 'tentative' gates' subtrees and choose the hook closest
+    to the respective root according to `d2roots`.
+
+    Should be called after `as_undetoured()` if the goal is to use G as a
+    warmstart for MILP models.
+    '''
+    # mappings to quickly obtain all nodes on a subtree
+    num_subtree = sum(G.degree(r) for r in range(-M, 0))
+    nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
+                                        count=num_subtree, dtype=object)
+    subtree_from_node = np.empty((N,), dtype=object)
+    for n, subtree_id in G.nodes(data='subtree'):
+        if 0 <= n < N:
+            subtree = nodes_from_subtree_id[subtree_id]
+            subtree.append(n)
+            subtree_from_node[n] = subtree
+
+    # do the actual rehooking
+    # TODO: rehook should take into account the other roots
+    #       see PathFinder.create_detours()
+    tentative = []
+    for r, hook in G.graph.pop('tentative'):
+        subtree = subtree_from_node[hook]
+        new_hook = subtree[np.argmin(d2roots[subtree, r])]
+        if new_hook != hook:
+            subtree_load = G.nodes[hook]['load']
+            G.remove_edge(r, hook)
+            G.add_edge(r, new_hook, length=d2roots[new_hook, r],
+                       kind='tentative', load=subtree_load)
+            for node in subtree:
+                del G.nodes[node]['load']
+
+            ref_load = G.nodes[r]['load']
+            G.nodes[r]['load'] = ref_load - subtree_load
+            total_parent_load = bfs_subtree_loads(G, r, [new_hook], subtree_id)
+            assert total_parent_load == ref_load, \
+                f'detour {F[n]}–{F[path[0]]}: load calculated ' \
+                f'({total_parent_load}) != expected load ({ref_load})'
+        tentative.append(new_hook)
+    G.graph['tentative'] = tentative
