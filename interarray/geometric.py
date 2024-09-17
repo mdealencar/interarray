@@ -446,7 +446,9 @@ def get_crossings_map(Edge, VertexC, prune=True):
 
 
 # TODO: test this implementation
-def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
+def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
+                   prune: bool = True, map_crossings: bool = False) \
+        -> nx.Graph:
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The length of each edge is the euclidean distance between its vertices.'''
@@ -488,9 +490,9 @@ def complete_graph(G_base, include_roots=False, prune=True, crossings=False):
     Edge = EdgeComplete[~mask]
     # discard masked edges
     G.remove_edges_from(EdgeComplete[mask])
-    if crossings:
+    if map_crossings:
         # get_crossings_map() takes time and space
-        G.graph['crossings'] = get_crossings_map(Edge, VertexC)
+        G.graph['crossings_map'] = get_crossings_map(Edge, VertexC)
     # assign nodes to roots?
     # remove edges between nodes belonging to distinct roots whose length is
     # greater than both d2root
