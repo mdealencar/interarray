@@ -22,7 +22,7 @@ F = NodeTagger()
 PackType = Mapping[str, Any]
 
 # Set of not-to-store keys commonly found in G routesets (they are either
-# already stored in database fields or are cheap to regenerate.
+# already stored in database fields or are cheap to regenerate or too big.
 _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
              'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
@@ -31,7 +31,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
-             'diagonals_used'}
+             'diagonals_used', 'crossings_map', 'tentative'}
 
 
 def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
@@ -82,6 +82,9 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
     #      f"stored total length ({edgeset.length:.0f})")
     if abs(calc_length/edgeset.length - 1) > 1e-5:
         G.graph['length_mismatch_on_db_read'] = calc_length - edgeset.length
+    if edgeset.tentative:
+        for r, n in pairwise(edgeset.tentative):
+            G[r][n]['kind'] = 'tentative'
     return G
 
 
@@ -237,13 +240,16 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
         capacity=G.graph['capacity'],
         length=G.size(weight='length'),
         runtime=G.graph['runtime'],
-        gates=[len(G[root]) for root in range(-M, 0)],
+        num_gates=[len(G[root]) for root in range(-M, 0)],
         misc=misc,
         **terse_graph,
     )
     diagonals_used = G.graph.get('diagonals_used')
     if diagonals_used is not None:
         edgepack['diagonals_used'] = diagonals_used
+    tentative = G.graph.get('tentative')
+    if tentative is not None:
+        edgepack['tentative'] = sum(tentative, ())
     return edgepack
 
 

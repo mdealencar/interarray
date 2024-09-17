@@ -52,14 +52,15 @@ def define_entities(db):
         # runtime always in [s]
         runtime = Optional(float)
         machine = Optional(lambda: Machine)
-        gates = Required(IntArray)
-        N = Required(int)
-        M = Required(int)
+        num_gates = Required(IntArray)
+        N = Required(int)  # num_nodes
+        M = Required(int)  # num_roots
         # number of contour nodes
         C = Optional(int, default=0)
         # number of detour nodes
         D = Optional(int, default=0)
         diagonals_used = Optional(int)
+        tentative = Optional(IntArray)
         timestamp = Optional(datetime.datetime,
                              default=datetime.datetime.utcnow)
         misc = Optional(Json)
