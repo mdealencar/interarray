@@ -109,7 +109,7 @@ def update_lengths(G):
     '''Adds missing edge lengths.
     Changes G in place.'''
     VertexC = G.graph['VertexC']
-    for u, v, dataE in G.edges.data():
+    for u, v, dataE in G.edges(data=True):
         if 'length' not in dataE:
             dataE['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
 
