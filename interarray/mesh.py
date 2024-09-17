@@ -626,7 +626,7 @@ def make_planar_embedding(
     constraint_edges = set()
     edgesCDT_P_A = []
 
-    # Add A's hull as constraint edges.
+    # Add A's hull as constraint edges to ensure A's edges remain in P.
     for s, t in zip(hull_concave, hull_concave[1:] + [hull_concave[0]]):
         constraint_edges.add((s, t) if s < t else (t, s))
         edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else N + M + s,
@@ -682,7 +682,6 @@ def make_planar_embedding(
     # ###############################################################
     print('\nPART F')
     P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
-    P.graph['supertriangleC'] = supertriangleC
 
     concavityVertex2concavity = {}
     for concavity_idx, conc in enumerate(concavityVertexSeqs):
@@ -702,7 +701,9 @@ def make_planar_embedding(
             P, N, supertriangle, concavityVertex2concavity)
     P.remove_edges_from(to_remove)
     constraint_edges -= conc_outer_edges
-    P.graph['constraint_edges'] = constraint_edges
+    P.graph.update(M=M, N=N, B=B,
+                   constraint_edges=constraint_edges,
+                   supertriangleC=supertriangleC,)
 
     #  changes_exclusions = flip_triangles_near_exclusions(P, N, B + 3,
     #                                                      VertexC)
