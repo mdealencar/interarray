@@ -22,7 +22,7 @@ def define_entities(db):
     Database model for storage of layouts.
     Tables:
     - NodeSet: site
-    - EdgeSet: routeset
+    - RouteSet: routeset (i.e. a record of G)
     - Method: info on algorithm & options to produce layouts
     - Machine: info on machine that generated a layout
     '''
@@ -32,6 +32,7 @@ def define_entities(db):
         name = Required(str, unique=True)
         N = Required(int)  # # of non-root nodes
         M = Required(int)  # # of root nodes
+        B = Required(int)  # num_border_vertices
         # vertices (nodes + roots) coordinates (UTM)
         # pickle.dumps(np.empty((M + N + B, 2), dtype=float)
         VertexC = Required(bytes)
@@ -42,23 +43,26 @@ def define_entities(db):
         constraint_vertices = Required(IntArray)
         landscape_angle = Optional(float)
         digest = PrimaryKey(bytes)
-        EdgeSets = Set(lambda: EdgeSet)
+        RouteSets = Set(lambda: RouteSet)
 
-    class EdgeSet(db.Entity):
+    class RouteSet(db.Entity):
         id = PrimaryKey(int, auto=True)
         handle = Required(str)
         capacity = Required(int)
         length = Required(float)
+        is_normalized = Required(bool)
         # runtime always in [s]
         runtime = Optional(float)
         machine = Optional(lambda: Machine)
         num_gates = Required(IntArray)
-        N = Required(int)  # num_nodes
         M = Required(int)  # num_roots
+        N = Required(int)  # num_nodes
+        stuntC = Optional(bytes)  # coords of border stunts
         # number of contour nodes
         C = Optional(int, default=0)
         # number of detour nodes
         D = Optional(int, default=0)
+        creator = Optional(str)
         diagonals_used = Optional(int)
         tentative = Optional(IntArray)
         timestamp = Optional(datetime.datetime,
@@ -81,21 +85,21 @@ def define_entities(db):
         funhash = Required(bytes)
         # hashlib.sha256(funhash + pickle(options)).digest()
         digest = PrimaryKey(bytes)
-        EdgeSets = Set(EdgeSet)
+        RouteSets = Set(RouteSet)
 
     class Machine(db.Entity):
         name = Required(str, unique=True)
         attrs = Optional(Json)
-        EdgeSets = Set(EdgeSet)
+        RouteSets = Set(RouteSet)
 
     # class CableSet(db.Entity):
     #     name = Required(str)
     #     cableset = Required(bytes)
-    #     EdgeSets = Set(EdgeSet)
+    #     RouteSets = Set(RouteSet)
     #     max_capacity = Required(int)
     #     # name = Required(str)
     #     # types = Required(int)
     #     # areas = Required(IntArray)  # mm²
     #     # capacities  = Required(IntArray)  # num of wtg
-    #     # EdgeSets = Set(EdgeSet)
+    #     # RouteSets = Set(RouteSet)
     #     # max_capacity = Required(int)

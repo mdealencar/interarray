@@ -35,13 +35,13 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'is_normalized'}
 
 
-def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
+def S_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     N = nodeset.N
     M = nodeset.M
     B, *exclusion_groups = nodeset.constraint_groups
     border = nodeset.constraint_vertices[:B]
-    G = nx.Graph(
+    S = nx.Graph(
          M=M, N=N, B=B,
          name=nodeset.name,
          border=border,
@@ -50,41 +50,41 @@ def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
          landscape_angle=nodeset.landscape_angle,
     )
     if exclusion_groups:
-        G.graph.update(
+        S.graph.update(
             exclusions=[nodeset.constraint_vertices[a:b] for a, b in
                         pairwise([B] + exclusion_groups + [None])])
-    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
+    S.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
+    S.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
-    return G
+    return S
 
 
-def graph_from_edgeset(edgeset: object) -> nx.Graph:
-    nodeset = edgeset.nodes
+def G_from_record(record: object) -> nx.Graph:
+    nodeset = record.nodes
     M, N = nodeset.M, nodeset.N
-    G = base_graph_from_nodeset(nodeset)
+    G = S_from_nodeset(nodeset)
     G.graph.update(
-        handle=edgeset.handle,
-        capacity=edgeset.capacity,
-        funhash=edgeset.method.funhash,
-        funfile=edgeset.method.funfile,
-        funname=edgeset.method.funname,
-        runtime=edgeset.runtime,
-        creation_options=edgeset.method.options,
-        **edgeset.misc)
+        handle=record.handle,
+        capacity=record.capacity,
+        funhash=record.method.funhash,
+        funfile=record.method.funfile,
+        funname=record.method.funname,
+        runtime=record.runtime,
+        creation_options=record.method.options,
+        **record.misc)
 
-    add_edges_to(G, edges=edgeset.edges, clone2prime=edgeset.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
+    add_edges_to(G, edges=record.edges, clone2prime=record.clone2prime)
+    G.graph['overfed'] = [len(G[root])/np.ceil(N/record.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')
-    #  assert abs(calc_length/edgeset.length - 1) < 1e-5, (
+    #  assert abs(calc_length/record.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "
-    #      f"stored total length ({edgeset.length:.0f})")
-    if abs(calc_length/edgeset.length - 1) > 1e-5:
-        G.graph['length_mismatch_on_db_read'] = calc_length - edgeset.length
-    if edgeset.tentative:
-        for r, n in pairwise(edgeset.tentative):
+    #      f"stored total length ({record.length:.0f})")
+    if abs(calc_length/record.length - 1) > 1e-5:
+        G.graph['length_mismatch_on_db_read'] = calc_length - record.length
+    if record.tentative:
+        for r, n in pairwise(record.tentative):
             G[r][n]['kind'] = 'tentative'
     return G
 
@@ -137,23 +137,32 @@ def add_if_absent(entity: object, pack: PackType) -> bytes:
     return digest
 
 
-def method_from_graph(G: nx.Graph, db: orm.Database) -> bytes:
-    '''Returns primary key of the entry.'''
+def method_from_G(G: nx.Graph, db: orm.Database) -> bytes:
+    '''
+    Returns:
+        Primary key of the entry.
+    '''
     pack = packmethod(G.graph['fun_fingerprint'], G.graph['creation_options'])
     return add_if_absent(db.Method, pack)
 
 
-def nodeset_from_graph(G: nx.Graph, db: orm.Database) -> bytes:
+def nodeset_from_G(G: nx.Graph, db: orm.Database) -> bytes:
     '''Returns primary key of the entry.'''
     pack = packnodes(G)
     return add_if_absent(db.NodeSet, pack)
 
 
-def terse_graph_from_G(G: nx.Graph) -> dict:
-    '''
-    Returns a dict with:
-        edges: where ⟨i, edge[i]⟩ is a directed edge
-        clone2prime: mapping the above-N clones to below-N nodes
+def terse_graph_from_G(G: nx.Graph) -> PackType:
+    '''Convert `G`'s edges to a format suitable for storing in the database.
+
+    Although graph `G` in undirected, the edge attribute `'reverse'` and its
+    nodes' numbers encode the direction of power flow. The terse
+    representation uses that and the fact that `G` is a tree.
+
+    Returns:
+        dict with keys:
+            edges: where ⟨i, edges[i]⟩ is a directed edge of `G`
+            clone2prime: mapping the above-N clones to below-N nodes
     '''
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
@@ -225,7 +234,7 @@ def oddtypes_to_serializable(obj):
         return obj
 
 
-def packedges(G: nx.Graph) -> dict[str, Any]:
+def pack_G(G: nx.Graph) -> dict[str, Any]:
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     terse_graph = terse_graph_from_G(G)
@@ -240,6 +249,8 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
                            G.graph['name'].strip().replace(' ', '_')),
         capacity=G.graph['capacity'],
         length=G.size(weight='length'),
+        creator=G.graph['creator'],
+        is_normalized=G.graph['is_normalized'],
         runtime=G.graph['runtime'],
         num_gates=[len(G[root]) for root in range(-M, 0)],
         misc=misc,
@@ -254,23 +265,29 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
     return edgepack
 
 
-def edgeset_from_graph(G: nx.Graph, db: orm.Database) -> int:
-    '''Add a new EdgeSet entry in the database, using the data in `G`.
+def store_G(G: nx.Graph, db: orm.Database) -> int:
+    '''Store `G`'s data to a new `RouteSet` record in the database `db`.
+
     If the NodeSet or Method are not yet in the database, they will be added.
 
-    Return value: primary key of the newly created EdgeSet record
+    Args:
+        G: Graph with the routeset.
+        db: Database instance.
+
+    Returns:
+        Primary key of the newly created RouteSet record.
     '''
-    edgepack = packedges(G)
-    nodesetID = nodeset_from_graph(G, db)
-    methodID = method_from_graph(G, db),
+    packed_G = pack_G(G)
+    nodesetID = nodeset_from_G(G, db)
+    methodID = method_from_G(G, db),
     machineID = get_machine_pk(db)
     with orm.db_session:
-        edgepack.update(
+        packed_G.update(
             nodes=db.NodeSet[nodesetID],
             method=db.Method[methodID],
             machine=db.Machine[machineID],
         )
-        return db.EdgeSet(**edgepack).get_pk()
+        return db.RouteSet(**packed_G).get_pk()
 
 
 def get_machine_pk(db: orm.Database) -> int:
