@@ -243,7 +243,7 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             )
 
 
-def routeset_from_topology(T: nx.Graph, A: nx.Graph) -> nx.Graph:
+def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     '''
     Graph `T` contains the topology of a routeset network (nodes only, no
     contours or detours). `T` must have been created from the available edges
