@@ -378,7 +378,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
     G.graph['capacity'] = capacity
     G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
                           for root in roots]
-    G.graph['edges_created_by'] = 'ClassicEW'
+    G.graph['creator'] = 'ClassicEW'
     G.graph['edges_fun'] = ClassicEW
     G.graph['creation_options'] = options
     G.graph['runtime_unit'] = 's'

@@ -184,12 +184,12 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             branches = []
     log = result.stdout.decode('utf8')
     T = nx.Graph(
+        creator='LKH-3',
         N=N, M=M,
         has_loads=True,
         penalty=int(penalty),
         capacity=capacity,
         undetoured_length=float(minimum)/scale,
-        edges_created_by='LKH-3',
         edges_fun=lkh_acvrp,
         creation_options=dict(
             complete=A.number_of_edges() == 0,

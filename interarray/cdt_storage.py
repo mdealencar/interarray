@@ -31,7 +31,8 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
-             'diagonals_used', 'crossings_map', 'tentative'}
+             'diagonals_used', 'crossings_map', 'tentative', 'creator',
+             'is_normalized'}
 
 
 def base_graph_from_nodeset(nodeset: object) -> nx.Graph:

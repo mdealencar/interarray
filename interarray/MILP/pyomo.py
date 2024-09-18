@@ -272,7 +272,7 @@ def MILP_solution_to_T(model, *, solver=None):
     T = nx.Graph(
         M=M, N=N,
         capacity=k,
-        edges_created_by='MILP.pyomo',
+        creator='MILP.pyomo.' + solver_name[1:],
         creation_options=model.creation_options,
         has_loads=True,
         fun_fingerprint=model.fun_fingerprint,

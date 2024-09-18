@@ -585,7 +585,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     G.graph['capacity'] = capacity
     G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
                           for root in roots]
-    G.graph['edges_created_by'] = 'CPEW'
+    G.graph['creator'] = 'CPEW'
     G.graph['edges_fun'] = CPEW
     G.graph['creation_options'] = options
     G.graph['runtime_unit'] = 's'

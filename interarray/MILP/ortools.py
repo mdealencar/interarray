@@ -215,7 +215,7 @@ def MILP_solution_to_T(model, *, solver):
     T = nx.Graph(
         M=model.M, N=model.N,
         capacity=model.k,
-        edges_created_by='MILP.ortools',
+        creator='MILP.ortools',
         creation_options=model.creation_options,
         has_loads=True,
         fun_fingerprint=model.fun_fingerprint,

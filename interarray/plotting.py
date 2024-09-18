@@ -331,7 +331,7 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
         #  if remove_apng:
         #      os.remove(workpath + fname)
     else:
-        fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
+        fname = f'{G.name}_{G.graph["creator"]}_' \
                 f'{G.graph["capacity"]}.gif'
         writer = animation.PillowWriter(fps=1000/interval)
         anim.save(savepath + fname, writer=writer,
@@ -598,7 +598,7 @@ def compare(positional=None, **title2G_dict):
     fig, axes = plt.subplots(1, len(title2G_dict), squeeze=False)
     for ax, (title, G) in zip(axes.ravel(), title2G_dict.items()):
         gplot(G, ax=ax, node_tag=None)
-        creator = G.graph.get("edges_created_by", 'no edges')
+        creator = G.graph.get("creator", 'no edges')
         ax.set_title(f'{title} – {G.graph["name"]} '
                      f'({creator})')
 

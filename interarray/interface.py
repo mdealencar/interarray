@@ -138,7 +138,7 @@ def G_from_table(table: np.ndarray[:, :], G_base: nx.Graph,
                 cost_scale*table[:, 5])})
     G.graph['has_loads'] = True
     G.graph['has_costs'] = True
-    G.graph['edges_created_by'] = 'G_from_table()'
+    G.graph['creator'] = 'G_from_table()'
     if capacity is not None:
         G.graph['capacity'] = capacity
         G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
@@ -182,7 +182,7 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
             assert Gload == load, (
                 f'<G.edges[{u}, {v}]> {Gload} != {load} <T matrix>')
     G.graph['has_loads'] = True
-    G.graph['edges_created_by'] = 'G_from_TG()'
+    G.graph['creator'] = 'G_from_TG()'
     G.graph['prevented_crossings'] = 0
     if capacity is not None:
         G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
