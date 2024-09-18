@@ -13,18 +13,23 @@ from ..crossings import edgeset_edgeXing_iter, gateXing_iter
 from ..interarraylib import fun_fingerprint
 
 
-def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
-                     branching=True):
+def make_min_length_model(A: nx.Graph, capacity: int, *,
+                          gateXings_constraint: bool = False,
+                          gates_limit: bool = False,
+                          branching: bool = True) -> pyo.ConcreteModel:
     '''
-    MILP pyomo model for the collector system length minimization.
-    A is the networkx graph with the available edges (gate edges
-    should not be included, but will be assumed available).
+    Build ILP Pyomo model for the collector system length minimization.
+    `A` is the graph with the available edges to choose from.
 
-    gates_limit: if True, use the minimum feasible number of gates
+    `capacity`: cable capacity
+
+    `gateXing_constraint`: if gates and edges are forbidden to cross.
+
+    `gates_limit`: if True, use the minimum feasible number of gates
     (total for all roots); if False, no limit is imposed; if a number,
     use it as the limit.
 
-    branching: if True, allow subtrees to branch; if False no branching.
+    `branching`: if root branches are paths (False) or can be trees (True).
     '''
     M = A.graph['M']
     N = A.graph['N']
@@ -63,7 +68,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
                     initialize=lambda m, r, n: d2roots[n, r])
 
     m.k = pyo.Param(domain=pyo.PositiveIntegers,
-                    name='capacity', default=k)
+                    name='capacity', default=capacity)
 
     #############
     # Variables #
@@ -165,13 +170,6 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     #          pyo.summation(m.Bte[edge]) <= m.De[edge]
     #          pyo.summation(m.k[t]*m.Bte[edge][t]) >= m.De[edge]
 
-    # flow consevation at each node
-    #  m.cons_flow_conservation = pyo.Constraint(
-    #      m.N,
-    #      rule=lambda m, u: (sum((m.De[u, v] - m.De[v, u])
-    #                             for v in A_nodes.neighbors(u))
-    #                         + sum(m.Dg[r, u] for r in m.R)) == 1
-    #  )
     # flow conservation with possibly non-unitary node power
     m.cons_flow_conservation = pyo.Constraint(
         m.N,
@@ -238,36 +236,42 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     m.creation_options = dict(gateXings_constraint=gateXings_constraint,
                               gates_limit=gates_limit,
                               branching=branching)
-    #  m.site = {key: A.graph[key]
-    #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
-    #                        'name', 'handle')
-    #            if key in A.graph}
+
     m.fun_fingerprint = fun_fingerprint()
     return m
 
 
-def MILP_warmstart_from_T(m: pyo.ConcreteModel, T: nx.Graph):
-    Ne = len(m.diE)//2
-    N = len(m.N)
+def set_T_into_model(T: nx.Graph, model: pyo.ConcreteModel) \
+        -> pyo.ConcreteModel:
+    '''
+    Changes `model` in-place.
+    '''
+    Ne = len(model.diE)//2
+    N = len(model.N)
     # the first half of diE has all the edges with u < v
-    for u, v in list(m.diE)[:Ne]:
+    for u, v in list(model.diE)[:Ne]:
         if (u, v) in T.edges:
             if T[u][v]['reverse']:
-                m.Be[u, v] = 1
-                m.De[u, v] = T[u][v]['load']
+                model.Be[u, v] = 1
+                model.De[u, v] = T[u][v]['load']
             else:
-                m.Be[v, u] = 1
-                m.De[v, u] = T[u][v]['load']
-    for r in m.R:
+                model.Be[v, u] = 1
+                model.De[v, u] = T[u][v]['load']
+    for r in model.R:
         for n in T.neighbors(r):
-            m.Bg[r, n] = 1
-            m.Dg[r, n] = T[n][r]['load']
+            model.Bg[r, n] = 1
+            model.Dg[r, n] = T[n][r]['load']
+    return model
 
 
-def MILP_solution_to_T(model, *, solver=None):
-    '''Translate a MILP pyomo solution to a networkx graph.'''
+def get_T_from_model(model: pyo.ConcreteModel, solver) -> nx.Graph:
+    '''
+    Create a topology `T` with the solution in `model` by `solver`.
+    '''
 
     M, N, k = len(model.R), len(model.N), model.k.value
+
+    solver_name, *_ = solver._solver_model.__repr__().split('.', maxsplit=1)
     # create a topology graph T from the solution
     T = nx.Graph(
         M=M, N=N,

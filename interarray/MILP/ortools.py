@@ -13,21 +13,23 @@ from ..crossings import edgeset_edgeXing_iter, gateXing_iter
 from ..interarraylib import calcload, fun_fingerprint
 
 
-def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
-                     branching=True):
+def make_min_length_model(A: nx.Graph, capacity: int, *,
+                          gateXings_constraint: bool = False,
+                          gates_limit: bool = False,
+                          branching: bool = True) -> cp_model.CpModel:
     '''
-    MILP OR-tools CP model for the collector system optimization.
-    A is the networkx graph with the available edges.
+    Build ILP CP OR-tools model for the collector system length minimization.
+    `A` is the graph with the available edges to choose from.
 
-    `k`: cable capacity
+    `capacity`: cable capacity
 
-    `gateXings_constraint`: whether to avoid crossing of gate edges.
+    `gateXing_constraint`: if gates and edges are forbidden to cross.
 
-    `gates_limit`: if True, use the minimum feasible number of gates.
+    `gates_limit`: if True, use the minimum feasible number of gates
     (total for all roots); if False, no limit is imposed; if a number,
     use it as the limit.
 
-    `branching`: if True, allow subtrees to branch; if False, no branching.
+    `branching`: if root branches are paths (False) or can be trees (True).
     '''
     M = A.graph['M']
     N = A.graph['N']
@@ -47,6 +49,7 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
 
     # Parameters
     # k = m.NewConstant(3)
+    k = capacity
 
     #############
     # Variables #
@@ -183,32 +186,37 @@ def make_MILP_length(A, k, gateXings_constraint=False, gates_limit=False,
     return m
 
 
-def MILP_warmstart_from_T(m: cp_model.CpModel, T: nx.Graph):
+def set_T_into_model(T: nx.Graph, model: cp_model.CpModel) -> cp_model.CpModel:
     '''
+    Changes `model` in-place.
+
     Only implemented for non-branching models.
     '''
-    m.ClearHints()
-    upstream = getattr(m, 'upstream', None)
+    model.ClearHints()
+    upstream = getattr(model, 'upstream', None)
     if upstream is not None:
         let_branch = True
-    for (u, v), Be in m.Be.items():
+    for (u, v), Be in model.Be.items():
         is_in_G = (u, v) in T.edges
-        m.AddHint(Be, is_in_G)
-        De = m.De[u, v]
+        model.AddHint(Be, is_in_G)
+        De = model.De[u, v]
         if is_in_G:
             edgeD = T.edges[u, v]
-            m.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
+            model.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
         else:
-            m.AddHint(De, 0)
-    for rn, Bg in m.Bg.items():
+            model.AddHint(De, 0)
+    for rn, Bg in model.Bg.items():
         is_in_G = rn in T.edges
-        m.AddHint(Bg, is_in_G)
-        Dg = m.Dg[rn]
-        m.AddHint(Dg, T.edges[rn]['load'] if is_in_G else 0)
+        model.AddHint(Bg, is_in_G)
+        Dg = model.Dg[rn]
+        model.AddHint(Dg, T.edges[rn]['load'] if is_in_G else 0)
+    return model
 
 
-def MILP_solution_to_T(model, *, solver):
-    '''Translate a MILP OR-tools solution to a networkx graph.'''
+def get_T_from_model(model: cp_model.CpModel, solver) -> nx.Graph:
+    '''
+    Create a topology `T` with the OR-tools solution to `model` in `solver`.
+    '''
     # the solution is in the solver object not in the model
 
     # create a topology graph T from the solution
