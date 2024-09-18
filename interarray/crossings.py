@@ -1,5 +1,6 @@
 import operator
 import math
+from collections.abc import Iterator, Iterable
 from itertools import chain
 import numpy as np
 import networkx as nx
@@ -287,19 +288,28 @@ def edgeXing_iter_deprecated(A):
                        ((c, d) if c < d else (d, c)))
 
 
-def gateXing_iter(G, gates=None, constraint_edges=None, touch_is_cross=True):
-    '''
-    Iterate over all crossings between non-gate edges and the edges in `gates`.
-    If `gates` is None, all nodes that are not a root neighbor are considered.
-    Arguments:
-    - `gates`: sequence of #root sequences of gate nodes; if None, all nodes
-    - `touch_is_cross`: if True, count as crossing a gate going over a node
+def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
+                  borders: Iterable | None = None,
+                  touch_is_cross: bool = True) \
+        -> Iterator[tuple[tuple[int, int]]]:
+    '''Iterate over all crossings between gates and edges/borders in G.
 
-    The order of items in `gates` must correspond to roots in range(-M, 0).
-    Used in constraint generation for MILP model.
+    If `hooks` is `None`, all nodes that are not a root neighbor are
+    considered. Used in constraint generation for ILP model.
+
+    Args:
+        G: Routeset or edgeset (A) to examine.
+        hooks: Nodes to check, grouped by root in sub-sequences from root `-M`
+            to `-1`. If `None`, all non-root nodes are checked using `'root'`
+            node attribute.
+        borders: Impassable line segments between border vertices.
+        touch_is_cross: If `True`, count as crossing a gate going over a node.
+
+    Yields:
+        Pair of (edge, gate) that cross (each a 2-tuple of nodes).
     '''
-    M, N, B, fnT, VertexC = (G.graph.get(k) for k in ('M', 'N', 'B', 'fnT',
-                                                      'VertexC'))
+    M, N, B, VertexC = (G.graph[k] for k in ('M', 'N', 'B', 'VertexC'))
+    fnT = G.graph.get('fnT')
     roots = range(-M, 0)
     anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
@@ -307,18 +317,17 @@ def gateXing_iter(G, gates=None, constraint_edges=None, touch_is_cross=True):
         anglesRank = G.graph['anglesRank']
     anglesXhp = G.graph['anglesXhp']
     anglesYhp = G.graph['anglesYhp']
+    # TODO: There is a corner case here: for multiple roots, the gates are not
+    #       being checked between different roots. Unlikely but possible case.
     # iterable of non-gate edges:
     Edge = nx.subgraph_view(G, filter_node=lambda n: n >= 0).edges()
-    if constraint_edges is not None:
-        Edge = chain(Edge, constraint_edges)
-    if gates is None:
-        all_nodes = set(range(N))
-        IGate = []
-        for r in roots:
-            nodes = all_nodes.difference(G.neighbors(r))
-            IGate.append(np.fromiter(nodes, dtype=int, count=len(nodes)))
+    if borders is not None:
+        Edge = chain(Edge, borders)
+    if hooks is None:
+        all_nodes = np.arange(N)
+        IGate = [all_nodes]*M
     else:
-        IGate = gates
+        IGate = hooks
     # it is important to consider touch as crossing
     # because if a gate goes precisely through a node
     # there will be nothing to prevent it from spliting
