@@ -78,7 +78,7 @@ class PathFinder():
     Example:
     ========
 
-    H = PathFinder(G, planar=P).create_detours()
+    H = PathFinder(G, planar=P, A=A).create_detours()
     '''
 
     def __init__(self, G: nx.Graph, *,
@@ -97,7 +97,7 @@ class PathFinder():
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
 
         tentative = G.graph.get('tentative')
-        gates2check = []
+        hooks2check = []
         if tentative is None:
             # TODO: this case should be removed ('tentative' attr mandatory)
             tentative = []
@@ -105,18 +105,18 @@ class PathFinder():
                 gates = set(n for n in G.neighbors(r)
                             if G[r][n].get('kind') == 'tentative')
                 tentative.extend((r, n) for n in gates)
-                gates2check.append(gates)
+                hooks2check.append(gates)
                 print(gates)
         else:
-            gates2check.extend(set() for _ in range(M))
+            hooks2check.extend(set() for _ in range(M))
             for r, n in tentative:
-                gates2check[r].add(n)
+                hooks2check[r].add(n)
 
         Xings = list(
             gateXing_iter(
-                G, gates=[np.fromiter(g2c, count=len(g2c), dtype=int)
-                          for g2c in gates2check],
-                constraint_edges=planar.graph.get('constraint_edges')))
+                G, hooks=[np.fromiter(h2c, count=len(h2c), dtype=int)
+                          for h2c in hooks2check],
+                borders=planar.graph.get('constraint_edges')))
 
         self.G, self.Xings, self.tentative = G, Xings, set(tentative)
         if not Xings:
@@ -154,7 +154,7 @@ class PathFinder():
 
         self.M, self.N, self.B, self.C = M, N, B, C
         self.P, self.VertexC, self.clone2prime = P, VertexC, clone2prime
-        self.gates2check = gates2check
+        self.hooks2check = hooks2check
         self._find_paths()
 
     def get_best_path(self, n: int):
@@ -196,8 +196,8 @@ class PathFinder():
             # _node is in a border (which means it must only be reachable from
             # one side, so that sector becomes irrelevant)
             return NULL
-        is_gate = any(_node in Gate for Gate in self.gates2check)
-        _node_degree = len(self.G._adj[_node])
+        is_gate = any(_node in Gate for Gate in self.hooks2check)
+        _node_degree = self.G.degree(_node)
         if is_gate and _node_degree == 1:
             # special case where a branch with 1 node uses a non_embed gate
             root = self.G.nodes[_node]['root']
@@ -497,8 +497,8 @@ class PathFinder():
                 #      print(f'[exp]_traverser {self.n2s(*hop)} was '
                 #            'dropped (no better that previous traverser).')
         if counter == MAX_ITER:
-            warn('_find_paths() ended prematurely!')
-        info('_find_path looped {} times', counter)
+            warn('Path-finding loop aborted at MAX_ITER!')
+        info('Path-finding loops performed: {}.', counter)
 
     def _apply_all_best_paths(self, G: nx.Graph):
         '''
@@ -581,7 +581,7 @@ class PathFinder():
             # set of nodes to examine is different depending on `branching`
             hookchoices = ([n for n in subtree if n < N]
                            if self.branching else
-                           [n, next(h for h in subtree if G._adj[h] == 1)])
+                           [n, next(h for h in subtree if G.degree(h) == 1)])
             debug('hookchoices: {}', self.n2s(*hookchoices))
 
             path_options = list(chain.from_iterable(
@@ -671,7 +671,8 @@ class PathFinder():
             del G[r][n]['kind']
 
         if failed_detours:
-            print('failed: ', ' '.join(f'{F[u]}–{F[v]}' for u, v in failed_detours))
+            warn('Failed: ', ' '.join(f'{F[u]}–{F[v]}'
+                                      for u, v in failed_detours))
             G.graph['tentative'] = failed_detours
         else:
             del G.graph['tentative']
