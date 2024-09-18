@@ -320,7 +320,7 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
         blit=blit)
     if use_apng2gif:
         print('apng2gif is disabled in the source code.')
-        #  fname = f'{G.name}_{G.graph["edges_created_by"]}_' \
+        #  fname = f'{G.name}_{G.graph["creator"]}_' \
         #          f'{G.graph["capacity"]}.apng'
         # from numpngw import AnimatedPNGWriter
         # writer = AnimatedPNGWriter(fps=1000/interval)
