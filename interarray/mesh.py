@@ -931,10 +931,11 @@ def make_planar_embedding(
         hull_prunned=hull_prunned,
         hull_concave=hull_concave,
         # experimental attr
-        border_stunts=border_stunts,
         norm_offset=norm_offset,
         norm_scale=norm_scale,
     )
+    if border_stunts:
+        A.graph['border_stunts'] = border_stunts
 
     # products:
     # P: PlanarEmbedding
