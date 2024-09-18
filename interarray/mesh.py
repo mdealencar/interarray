@@ -548,7 +548,7 @@ def make_planar_embedding(
     debug('hull_prunned_edges: {}',
           ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
 
-    A = P_A.to_undirected()
+    A = nx.Graph(P_A.to_undirected().edges)
     nx.set_edge_attributes(A, 'delaunay', name='kind')
     # TODO: ¿do we really need node attr kind? separate with test: node < 0
     nx.set_node_attributes(A, 'wtg', name='kind')
@@ -749,7 +749,7 @@ def make_planar_embedding(
     # G) Build P_paths.
     # #################
     debug('PART G')
-    P_paths = P.to_undirected()
+    P_paths = nx.Graph(P.to_undirected().edges)
     P_paths.remove_nodes_from(supertriangle)
 
     # this adds diagonals to P_paths
