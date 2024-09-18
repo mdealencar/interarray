@@ -125,7 +125,6 @@ class PathFinder():
                  '(pass `only_if_crossings=False` to force path-finding).')
             return
 
-        P = planar_flipped_by_routeset(G, planar=planar)
         # clone2prime must be a copy of the one from G (for in_place=False)
         clone2prime = list(G.graph.get('clone2prime', ()))
         # TODO: work around PathFinder getting metrics for the supertriangle
@@ -144,6 +143,7 @@ class PathFinder():
             VertexC = A.graph['VertexC']
             d2roots = A.graph['d2roots']
             Rank = A.graph.get('d2rootsRank')
+        P = planar_flipped_by_routeset(G, planar=planar, VertexC=VertexC)
         self.d2roots = d2roots
         self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
         creator = G.graph.get('creator')

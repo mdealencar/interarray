@@ -1102,7 +1102,7 @@ def _deprecated_planar_flipped_by_routeset(
 
 
 def planar_flipped_by_routeset(
-        G: nx.Graph, *, planar: nx.PlanarEmbedding) \
+        G: nx.Graph, *, planar: nx.PlanarEmbedding, VertexC: np.ndarray) \
         -> nx.PlanarEmbedding:
     '''
     Copies `planar` and flips some of its edges so that the returned
@@ -1113,10 +1113,10 @@ def planar_flipped_by_routeset(
     must be free of edge×edge crossings.
     '''
     M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
-    VertexC, border, exclusions, fnT = (
-        G.graph.get(k) for k in ('VertexC', 'border', 'exclusions', 'fnT'))
+    border, exclusions, fnT = (
+        G.graph.get(k) for k in ('border', 'exclusions', 'fnT'))
     if fnT is None:
-        fnT = np.arange(M + N + B + C + D)
+        fnT = np.arange(M + N + B + 3 + C + D)
         fnT[-M:] = range(-M, 0)
 
     P = planar.copy()
