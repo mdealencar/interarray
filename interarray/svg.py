@@ -128,10 +128,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
               '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f',
               '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5')
 
-    if D or C:
-        fnT = G.graph['fnT']
-    else:
-        fnT = np.arange(N + B + M)
+    fnT = G.graph.get('fnT')
+    if fnT is None:
+        fnT = np.arange(M + N + B + 3)
         fnT[-M:] = range(-M, 0)
 
     # farm border shape
@@ -180,7 +179,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                   'extended': 'ext',
                   'scaffold': 'scf',
                   None: 'std'}
-    edges_with_kind = G.edges(data='kind', default=None)
+    edges_with_kind = G.edges(data='kind')
     edge_lines = defaultdict(list)
     for u, v, edge_kind in edges_with_kind:
         if edge_kind == 'detour':
@@ -196,20 +195,21 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     #      edges.append(svg.G(id='edges', class_=class_, elements=lines))
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
-    for r in range(-M, 0):
-        detoured = [n for n in G.neighbors(r) if n >= N + B + C]
-        for t in detoured:
-            s = r
-            detour_hops = [s, fnT[t]]
-            while True:
-                nbr = set(G.neighbors(t))
-                nbr.remove(s)
-                u = nbr.pop()
-                detour_hops.append(fnT[u])
-                if u < N:
-                    break
-                s, t = t, u
-            Points.append(' '.join(str(c) for c in VertexS[detour_hops].flat))
+    if D:
+        for r in range(-M, 0):
+            detoured = [n for n in G.neighbors(r) if n >= N + B + C]
+            for t in detoured:
+                s = r
+                hops = [s, fnT[t]]
+                while True:
+                    nbr = set(G.neighbors(t))
+                    nbr.remove(s)
+                    u = nbr.pop()
+                    hops.append(fnT[u])
+                    if u < N:
+                        break
+                    s, t = t, u
+                Points.append(' '.join(str(c) for c in VertexS[hops].flat))
     if Points:
         edgesdt = svg.G(
             id='detours', class_='dt',
