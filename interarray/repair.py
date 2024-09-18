@@ -221,7 +221,7 @@ def _apply_choice(
     for gate, root in gates_add:
         T.add_edge(gate, root, length=d2roots[gate, root], kind='tentative')
     if gates_add:
-        tentative = T.graph.get(tentative)
+        tentative = T.graph.get('tentative')
         if tentative is None:
             T.graph['tentative'] = gates_add
         else:
