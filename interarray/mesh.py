@@ -102,13 +102,16 @@ def edges_and_hull_from_cdt(triangles: list[cdt.Triangle],
 
 def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
                               vertmap: np.ndarray) -> nx.PlanarEmbedding:
-    '''
-    `triangles` is a `PythonCDT.Triangulation().triangles` list
+    '''Convert from a PythonCDT.Triangulation to NetworkX.PlanarEmbedding.
 
-    `vertmap` is a node number translation table, from CDT numbers to NetworkX
+    Used internally in `make_planar_embedding()`.
+
+    Args:
+        triangles: `PythonCDT.Triangulation().triangles` list
+        vertmap: node number translation table, from CDT numbers to NetworkX
 
     Returns:
-    planar embedding
+        planar embedding
     '''
     nodes_todo = {}
     nodes_done = set()
@@ -343,9 +346,8 @@ def make_planar_embedding(
     # J) Calculate the area of the concave hull.
     # X) Create hull_concave.
 
-    VertexC, border, exclusions, M, N, B = (
-        S.graph.get(k) for k in ('VertexC', 'border', 'exclusions',
-                                 'M', 'N', 'B'))
+    M, N, B, VertexC = (S.graph[k] for k in 'M N B VertexC'.split())
+    border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
     points = np.fromiter((gonb.Point(*xy) for xy in VertexC),
                          dtype=object,
                          count=N + B + M)
@@ -701,6 +703,7 @@ def make_planar_embedding(
             # Remove edges inside the concavities
             while P[cur][fwd]['ccw'] != rev:
                 P.remove_edge(cur, P[cur][fwd]['ccw'])
+            trace('{}: {}–{}', concavity_idx, cur, fwd)
             P[cur][fwd]['kind'] = P[fwd][cur]['kind'] = 'concavity'
 
     # adjust flat triangles around concavities
@@ -800,10 +803,9 @@ def make_planar_embedding(
     for u, v in in_A_not_in_P:
         # For the edges in A that are not in P, we find their corresponding
         # shortest path in P_path and update the length attribute in A.
-        trace('{}–{}', u, v)
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        trace('length: {}; path: {}', length, path)
+        debug('A_edge: {}–{} length: {}; path: {}', length, path)
         if all(n >= N for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
@@ -816,6 +818,7 @@ def make_planar_embedding(
                 # The vertice is kept if the border angle and the path angle
                 # point to the same side. Otherwise, remove the vertice.
                 s, b, t = path[i:i + 3]
+                trace('s: {}; b: {}; t: {}', s, b, t)
                 a, c = (n for n in P[b]
                         if (P[b][n].get('kind') == 'concavity'
                             or n in supertriangle))
