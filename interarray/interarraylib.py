@@ -38,20 +38,21 @@ def G_base_from_G(G: nx.Graph) -> nx.Graph:
 
 def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
     '''
-    Arguments:
-    - 'VertexC': numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
-    - 'N': int number of wtg
-    - 'M': int number of oss
+    Args:
+        VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
+        N: int number of wtg
+        M: int number of oss
 
-    Addtional relevant arguments:
+    Additional relevant arguments:
     - 'name': str site name
     - 'handle': str site identifier
     - 'B': int number of border and exclusion zones' vertices
     - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
     - 'exclusions': sequence of numpy.ndarray of VertexC indices
 
-    Returns: `networkx.Graph` containing V nodes and no edges. All keyword
-    arguments are made available in `Graph().graph` dict.
+    Returns:
+        Graph containing V nodes and no edges. All keyword arguments are made
+        available as graph attributes.
     '''
     if 'handle' not in kwargs:
         kwargs['handle'] = 'G_from_site'
@@ -72,8 +73,9 @@ def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
 
 def as_single_oss(G: nx.Graph) -> nx.Graph:
     '''
-    This is redundant with clusterlib.unify_roots()
+    This is redundant with clusterlib.unify_roots().
     '''
+    #  But keep this one.
     Gʹ = G.copy()
     M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
     Gʹ.remove_nodes_from(range(-M, -1))
@@ -86,12 +88,18 @@ def as_single_oss(G: nx.Graph) -> nx.Graph:
 
 
 def as_normalized(A: nx.Graph) -> nx.Graph:
-    '''
-    Make a shallow copy and shift and scale it.
-    Coordinates as subtracted of graph attr 'norm_offset'.
-    All lengths and coordinates are divided by graph attr 'norm_scale'.
+    '''Make a shallow copy of an instance and shift and scale its geometry.
 
-    Returns a nx.Graph.
+    Coordinates are subtracted by graph attribute 'norm_offset'.
+    All lengths and coordinates are multiplied by graph attribute 'norm_scale'.
+    Graph attribute 'is_normalized' is set to `True`.
+    Affected linear attributes: 'VertexC', 'd2roots' (graph); 'length' (edge).
+
+    Args:
+        A: any instance that has inherited 'norm_scale' from an edgeset `A`.
+
+    Returns:
+        A copy of the instance with changed coordinates and linear metrics.
     '''
     norm_factor = A.graph['norm_scale']
     Aʹ = A.copy()
