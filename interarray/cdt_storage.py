@@ -60,31 +60,38 @@ def S_from_nodeset(nodeset: object) -> nx.Graph:
     return S
 
 
-def G_from_record(record: object) -> nx.Graph:
-    nodeset = record.nodes
-    M, N = nodeset.M, nodeset.N
+def G_from_routeset(routeset: object) -> nx.Graph:
+    nodeset = routeset.nodes
+    M, N, B = nodeset.M, nodeset.N, nodeset.B
     G = S_from_nodeset(nodeset)
     G.graph.update(
-        handle=record.handle,
-        capacity=record.capacity,
-        funhash=record.method.funhash,
-        funfile=record.method.funfile,
-        funname=record.method.funname,
-        runtime=record.runtime,
-        creation_options=record.method.options,
-        **record.misc)
+        M=M, N=N, B=B,
+        handle=routeset.handle,
+        capacity=routeset.capacity,
+        funhash=routeset.method.funhash,
+        funfile=routeset.method.funfile,
+        funname=routeset.method.funname,
+        runtime=routeset.runtime,
+        creation_options=routeset.method.options,
+        **routeset.misc)
 
-    add_edges_to(G, edges=record.edges, clone2prime=record.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/record.capacity)*M
+    if routeset.stuntC:
+        stuntC = pickle.loads(routeset.stuntC)
+        G.graph['B'] += len(stuntC)
+        VertexC = G.graph['VertexC']
+        G.graph['VertexC'] = np.vstack((VertexC[:-M], stuntC,
+                                        VertexC[-M:]))
+    add_edges_to(G, edges=routeset.edges, clone2prime=routeset.clone2prime)
+    G.graph['overfed'] = [len(G[root])/np.ceil(N/routeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')
-    #  assert abs(calc_length/record.length - 1) < 1e-5, (
+    #  assert abs(calc_length/routeset.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "
-    #      f"stored total length ({record.length:.0f})")
-    if abs(calc_length/record.length - 1) > 1e-5:
-        G.graph['length_mismatch_on_db_read'] = calc_length - record.length
-    if record.tentative:
-        for r, n in pairwise(record.tentative):
+    #      f"stored total length ({routeset.length:.0f})")
+    if abs(calc_length/routeset.length - 1) > 1e-5:
+        G.graph['length_mismatch_on_db_read'] = calc_length - routeset.length
+    if routeset.tentative:
+        for r, n in pairwise(routeset.tentative):
             G[r][n]['kind'] = 'tentative'
     return G
 
@@ -92,7 +99,13 @@ def G_from_record(record: object) -> nx.Graph:
 def packnodes(G: nx.Graph) -> PackType:
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    VertexCpkl = pickle.dumps(G.graph['VertexC'])
+    VertexC = G.graph['VertexC']
+    # border_stunts, stuntC
+    border_stunts = G.graph.get('border_stunts')
+    if border_stunts:
+        VertexC = np.vstack((VertexC[:N + B - len(border_stunts)],
+                             VertexC[-M:]))
+    VertexCpkl = pickle.dumps(VertexC)
     digest = sha256(VertexCpkl).digest(),
 
     if G.name[0] == '!':
@@ -116,10 +129,12 @@ def packnodes(G: nx.Graph) -> PackType:
 def packmethod(method_options: dict) -> PackType:
     options = method_options.copy()
     ffprint = options.pop('fun_fingerprint')
+    solver_name = options.pop('solver_name')
     optionsstr = json.dumps(options)
     digest = sha256(ffprint['funhash'] + optionsstr.encode()).digest()
     pack = dict(
         digest=digest,
+        solver_name=solver_name,
         options=options,
         **ffprint,
     )
@@ -254,6 +269,11 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         misc=misc,
         **terse_graph,
     )
+    # border_stunts, stuntC
+    border_stunts = G.graph.get('border_stunts')
+    if border_stunts:
+        stuntC = VertexC[N + B - len(border_stunts): N + B].copy()
+        packed_G['stuntC'] = pickle.dumps(stuntC)
     objective = G.graph.get('objective')
     if D > 0 and objective is not None:
         packed_G['detextra'] = length/objective - 1
