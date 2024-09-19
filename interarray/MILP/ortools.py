@@ -179,14 +179,21 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
     #                        'name', 'handle')
     #            if key in A.graph}
-    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
-                              gates_limit=gates_limit,
-                              branching=branching)
+
+    ##################
+    # Store metadata #
+    ##################
+
+    m.handle = A.graph['handle']
+    m.method_options = dict(gateXings_constraint=gateXings_constraint,
+                            gates_limit=gates_limit,
+                            branching=branching)
     m.fun_fingerprint = fun_fingerprint()
+    m.warmed_by = None
     return m
 
 
-def set_T_into_model(T: nx.Graph, model: cp_model.CpModel) -> cp_model.CpModel:
+def warmup_model(model: cp_model.CpModel, T: nx.Graph) -> cp_model.CpModel:
     '''
     Changes `model` in-place.
 
@@ -210,25 +217,53 @@ def set_T_into_model(T: nx.Graph, model: cp_model.CpModel) -> cp_model.CpModel:
         model.AddHint(Bg, is_in_G)
         Dg = model.Dg[rn]
         model.AddHint(Dg, T.edges[rn]['load'] if is_in_G else 0)
+    model.warmed_by = T.graph['creator']
     return model
 
 
-def get_T_from_model(model: cp_model.CpModel, solver) -> nx.Graph:
-    '''
-    Create a topology `T` with the OR-tools solution to `model` in `solver`.
+def T_from_solution(model: cp_model.CpModel,
+                    solver: cp_model.CpSolver, status: int = 0) -> nx.Graph:
+    '''Create a topology `T` from the OR-tools solution to the MILP model.
+
+    Args:
+        model: passed to the solver.
+        solver: used to solve the model.
+        status: irrelevant, exists only to mirror the Pyomo alternative.
+    Returns:
+        Graph topology from the solution.
     '''
     # the solution is in the solver object not in the model
 
-    # create a topology graph T from the solution
+    # Metadata
+    M, N = model.M, model.N
+    solver_name = 'ortools'
+    bound = solver.best_objective_bound
+    objective = solver.objective_value
     T = nx.Graph(
-        M=model.M, N=model.N,
+        M=M, N=N,
+        handle=model.handle,
         capacity=model.k,
-        creator='MILP.ortools',
-        creation_options=model.creation_options,
+        objective=objective,
+        bound=bound,
+        runtime=solver.wall_time,
+        termination=solver.status_name(),
+        gap=objective/bound - 1.,
+        creator='MILP.' + solver_name,
+        warmstart=model.warmed_by,
         has_loads=True,
-        fun_fingerprint=model.fun_fingerprint,
+        method_options=dict(
+            solver_name=solver_name,
+            mipgap=solver.parameters.relative_gap_limit,
+            timelimit=solver.parameters.max_time_in_seconds,
+            fun_fingerprint=model.fun_fingerprint,
+            **model.method_options,
+        ),
+        solver_details=dict(
+            strategy=solver.SolutionInfo(),
+        )
     )
 
+    # Graph data
     # gates
     gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
                             for (r, n), bg in model.Bg.items()
@@ -252,7 +287,7 @@ def get_T_from_model(model: cp_model.CpModel, solver) -> nx.Graph:
 
     # propagate loads from edges to nodes
     subtree = -1
-    for r in range(-model.M, 0):
+    for r in range(-M, 0):
         for u, v in nx.edge_dfs(T, r):
             T.nodes[v]['load'] = T.edges[u, v]['load']
             if u == r:

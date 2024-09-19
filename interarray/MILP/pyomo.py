@@ -6,8 +6,11 @@ from collections import defaultdict
 
 import networkx as nx
 import numpy as np
+from varname.helpers import jsobj
 
 import pyomo.environ as pyo
+from pyomo.contrib.solver.base import SolverBase
+from pyomo.opt import SolverResults
 
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
 from ..interarraylib import fun_fingerprint
@@ -233,15 +236,21 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
         sense=pyo.minimize,
     )
 
-    m.creation_options = dict(gateXings_constraint=gateXings_constraint,
-                              gates_limit=gates_limit,
-                              branching=branching)
+    ##################
+    # Store metadata #
+    ##################
+
+    m.handle = A.graph['handle']
+    m.method_options = dict(gateXings_constraint=gateXings_constraint,
+                            gates_limit=gates_limit,
+                            branching=branching)
 
     m.fun_fingerprint = fun_fingerprint()
+    m.warmed = None
     return m
 
 
-def set_T_into_model(T: nx.Graph, model: pyo.ConcreteModel) \
+def warmup_model(model: pyo.ConcreteModel, T: nx.Graph) \
         -> pyo.ConcreteModel:
     '''
     Changes `model` in-place.
@@ -261,27 +270,46 @@ def set_T_into_model(T: nx.Graph, model: pyo.ConcreteModel) \
         for n in T.neighbors(r):
             model.Bg[r, n] = 1
             model.Dg[r, n] = T[n][r]['load']
+    model.warmed_by = T.graph['creator']
     return model
 
 
-def get_T_from_model(model: pyo.ConcreteModel, solver) -> nx.Graph:
+def T_from_solution(model: pyo.ConcreteModel,
+                    solver: SolverBase, status: SolverResults) -> nx.Graph:
     '''
     Create a topology `T` with the solution in `model` by `solver`.
     '''
 
+    # Metadata
     M, N, k = len(model.R), len(model.N), model.k.value
-
-    solver_name, *_ = solver._solver_model.__repr__().split('.', maxsplit=1)
+    solver_name = solver._solver_model.__repr__().split('.', maxsplit=1)[0][1:]
+    bound = status['Problem'][0]['Lower bound']
+    objective = status['Problem'][0]['Upper bound']
     # create a topology graph T from the solution
     T = nx.Graph(
         M=M, N=N,
+        handle=model.handle,
         capacity=k,
-        creator='MILP.pyomo.' + solver_name[1:],
-        creation_options=model.creation_options,
+        objective=objective,
+        bound=bound,
+        runtime=status['Solver'][0]['Wallclock time'],
+        termination=status['Solver'][0]['Termination condition'],
+        gap=objective/bound - 1.,
+        creator='MILP.pyomo.' + solver_name,
+        warmstart=model.warmed_by,
         has_loads=True,
-        fun_fingerprint=model.fun_fingerprint,
+        method_options=dict(
+            solver_name=solver_name,
+            mipgap=solver.options['mipgap'],
+            timelimit=solver.options['timelimit'],
+            fun_fingerprint=model.fun_fingerprint,
+            **model.method_options,
+        ),
+        #  solver_details=dict(
+        #  )
     )
 
+    # Graph data
     # gates
     T.add_weighted_edges_from(
         ((r, n, round(model.Dg[r, n].value))
@@ -303,7 +331,6 @@ def get_T_from_model(model: pyo.ConcreteModel, solver) -> nx.Graph:
         T,
         {(u, v): v > u for (u, v), be in model.Be.items() if be.value > 0.5},
         name='reverse')
-
     # propagate loads from edges to nodes
     subtree = -1
     for r in range(-M, 0):
@@ -318,4 +345,5 @@ def get_T_from_model(model: pyo.ConcreteModel, solver) -> nx.Graph:
             T[r][nbr]['reverse'] = False
             rootload += T.nodes[nbr]['load']
         T.nodes[r]['load'] = rootload
+
     return T

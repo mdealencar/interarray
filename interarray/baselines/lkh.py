@@ -184,25 +184,26 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             branches = []
     log = result.stdout.decode('utf8')
     T = nx.Graph(
-        creator='LKH-3',
+        creator='baselines.lkh',
         N=N, M=M,
         has_loads=True,
-        penalty=int(penalty),
         capacity=capacity,
-        undetoured_length=float(minimum)/scale,
-        edges_fun=lkh_acvrp,
-        creation_options=dict(
+        objective=float(minimum)/scale,
+        method_options=dict(
+            solver_name='LKH-3',
             complete=A.number_of_edges() == 0,
             scale=scale,
             type=specs['TYPE'],
             time_limit=time_limit,
             runs=runs,
-            per_run_limit=per_run_limit),
-        runtime_unit='s',
+            per_run_limit=per_run_limit,
+            fun_fingerprint=fun_fingerprint()),
         runtime=elapsed_time,
         solver_log=log,
         solution_time=_solution_time(log, minimum),
-        fun_fingerprint=fun_fingerprint(),
+        penalty=int(penalty),
+        #  solver_details=dict(
+        #  )
     )
     if not penalty or result.stderr:
         print('===stdout===', result.stdout.decode('utf8'), sep='\n')

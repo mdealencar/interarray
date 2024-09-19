@@ -148,7 +148,7 @@ class PathFinder():
         self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
         creator = G.graph.get('creator')
         if creator is not None and creator[:5] == 'MILP.':
-            self.branching = G.graph['creation_options']['branching']
+            self.branching = G.graph['method_options']['branching']
         else:
             self.branching = branching
 

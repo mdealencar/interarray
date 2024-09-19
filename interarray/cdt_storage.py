@@ -113,14 +113,11 @@ def packnodes(G: nx.Graph) -> PackType:
     return pack
 
 
-def packmethod(ffprint: dict, options: Mapping | None = None) -> PackType:
-    options = options or {}
-    if 'capacity' in options:
-        del options['capacity']
-    #  funhash = sha256(fun.__code__.co_code).digest()
-    funhash = ffprint['funhash']
+def packmethod(method_options: dict) -> PackType:
+    options = method_options.copy()
+    ffprint = options.pop('fun_fingerprint')
     optionsstr = json.dumps(options)
-    digest = sha256(funhash + optionsstr.encode()).digest()
+    digest = sha256(ffprint['funhash'] + optionsstr.encode()).digest()
     pack = dict(
         digest=digest,
         options=options,
@@ -142,7 +139,7 @@ def method_from_G(G: nx.Graph, db: orm.Database) -> bytes:
     Returns:
         Primary key of the entry.
     '''
-    pack = packmethod(G.graph['fun_fingerprint'], G.graph['creation_options'])
+    pack = packmethod(G.graph['method_options'])
     return add_if_absent(db.Method, pack)
 
 
@@ -243,12 +240,13 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     #  print('Storing in `misc`:', *misc.keys())
     for k, v in misc.items():
         misc[k] = oddtypes_to_serializable(v)
-    edgepack = dict(
+    length = G.size(weight='length')
+    packed_G = dict(
         M=M, N=N, B=B, C=C, D=D,
         handle=G.graph.get('handle',
                            G.graph['name'].strip().replace(' ', '_')),
         capacity=G.graph['capacity'],
-        length=G.size(weight='length'),
+        length=length,
         creator=G.graph['creator'],
         is_normalized=G.graph['is_normalized'],
         runtime=G.graph['runtime'],
@@ -256,13 +254,17 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         misc=misc,
         **terse_graph,
     )
+    objective = G.graph.get('objective')
+    if D > 0 and objective is not None:
+        packed_G['detextra'] = length/objective - 1
     diagonals_used = G.graph.get('diagonals_used')
     if diagonals_used is not None:
-        edgepack['diagonals_used'] = diagonals_used
+        packed_G['diagonals_used'] = diagonals_used
     tentative = G.graph.get('tentative')
     if tentative is not None:
-        edgepack['tentative'] = sum(tentative, ())
-    return edgepack
+        # edges are concatenated in a single array of nodes
+        packed_G['tentative'] = sum(tentative, ())
+    return packed_G
 
 
 def store_G(G: nx.Graph, db: orm.Database) -> int:

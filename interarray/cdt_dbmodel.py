@@ -62,7 +62,11 @@ def define_entities(db):
         C = Optional(int, default=0)
         # number of detour nodes
         D = Optional(int, default=0)
+        # short identifier of routeset origin (redundant with Method)
         creator = Optional(str)
+        # relative increase from undetoured routeset to the detoured one
+        # detoured_length = (1 + detextra)*undetoured_length
+        detextra = Optional(float)
         diagonals_used = Optional(int)
         tentative = Optional(IntArray)
         timestamp = Optional(datetime.datetime,
@@ -75,6 +79,7 @@ def define_entities(db):
         method = Required(lambda: Method)
 
     class Method(db.Entity):
+        solver_name = Required(str)
         funname = Required(str)
         # options is a dict of function parameters
         options = Required(Json)

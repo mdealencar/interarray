@@ -99,16 +99,17 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         N=N, M=M,
         capacity=capacity,
         has_loads=True,
-        undetoured_length=result.cost/scale,
-        creator='PyHygese',
-        edges_fun=hgs_cvrp,
-        creation_options=dict(complete=A.number_of_edges() == 0,
-                              scale=scale) | asdict(ap),
-        runtime_unit='s',
+        objective=result.cost/scale,
+        creator='baselines.hgs',
         runtime=result.time,
         solver_log=out,
         solution_time=_solution_time(out, result.cost),
-        fun_fingerprint=fun_fingerprint(),
+        method_options=dict(solver_name='HGS-CVRP',
+                            'complete=A.number_of_edges() == 0,
+                            fun_fingerprint=fun_fingerprint(),
+                            scale=scale) | asdict(ap),
+        #  solver_details=dict(
+        #  )
     )
     branches = ([n - 1 for n in branch] for branch in result.routes)
     for subtree_id, branch in enumerate(branches):
