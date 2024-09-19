@@ -105,7 +105,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         solver_log=out,
         solution_time=_solution_time(out, result.cost),
         method_options=dict(solver_name='HGS-CVRP',
-                            'complete=A.number_of_edges() == 0,
+                            complete=A.number_of_edges() == 0,
                             fun_fingerprint=fun_fingerprint(),
                             scale=scale) | asdict(ap),
         #  solver_details=dict(
