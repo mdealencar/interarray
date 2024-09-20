@@ -300,19 +300,6 @@ def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
     return changes
 
 
-def G_with_contours_from_G_topology(G_topo: nx.Graph,
-                                    planar: nx.PlanarEmbedding):
-    '''
-    can we make G_topo's edges contain in its attributes the contour segments
-    lengths? (so that we do not need to recalculate distances, since distances
-    are only available in P_paths)
-
-    Takes a solution based on a modified A graph and introduces in the G output
-    the internal paths of contoured-edges (border touching).
-    '''
-    return
-
-
 def make_planar_embedding(
         S: nx.Graph,
         #  M: int, VertexC: np.ndarray,
