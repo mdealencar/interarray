@@ -166,7 +166,7 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
         G = nx.create_empty_copy(G, with_data=True)
     VertexC = G.graph['VertexC']
     M = G.graph['M']
-    N = G.graph['VertexC'].shape[0] - M
+    N = G.graph['N']
     if clone2prime:
         D = len(clone2prime)
         G.graph['D'] = D
