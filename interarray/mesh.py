@@ -388,7 +388,7 @@ def make_planar_embedding(
         for fwd in chain(vertices[1:], (cur,)):
             Z = border_vertice_from_point[fwd]
             Z_is_hull = fwd in border_convex_hull.border.vertices
-            if cur in points[:N]:
+            if cur in points[:N] or cur in points[-M:]:
                 # Concavity border vertex coincides with node.
                 # Therefore, create a stunt vertex for the border.
                 XY = VertexC[Y] - VertexC[X]
