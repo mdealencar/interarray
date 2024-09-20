@@ -351,6 +351,37 @@ def make_planar_embedding(
     border_convex_hull = borderPoly.convex_hull
     concavityMPoly = border_convex_hull - borderPoly
 
+    # TODO: convert all this function to use gonb.Contour instead of Polygon
+    #  for concavityPoly in getattr(concavityMPoly, 'polygons',
+    #                               (concavityMPoly,)):
+    # join together polygons with a common vertex
+    if hasattr(concavityMPoly, 'polygons'):
+        contours = [p.border.vertices for p in concavityMPoly.polygons]
+        for c1, c2 in combinations(contours, 2):
+            common = set(c1) & set(c2)
+            if common:
+                common, = common
+                i1 = c1.index(common)
+                i2 = c2.index(common)
+                joined = gonb.Contour(c1[:i1] + c2[i1:] + c2[:i1] + c1[i1:])
+                print('common vertex:', common, '-> new contour:', joined)
+    else:
+        contours = [concavityMPoly.border]
+    # tackling the transitivity problem
+    sets = [set(), set()]
+    stable = False
+    while not stable:
+        stable = True
+        # iterate over pairs of distinct sets
+        for s, t in combinations(sets, 2):
+            if s & t:
+                # TODO: replace this block with the "if common:" above
+                s |= t
+                t ^= t
+                stable = False
+        # remove empty sets
+        sets = list(filter(None, sets))
+
     hull_border_vertices = []
     for hullpt in border_convex_hull.border.vertices:
         if hullpt in border_vertice_from_point:
@@ -793,6 +824,9 @@ def make_planar_embedding(
     debug('PART H')
     corner_to_A_edges = defaultdict(list)
     A_edges_to_revisit = []
+    for k, v in concavityVertex2concavity.items():
+        print(F[k], v, end=' ')
+    print('')
     for u, v in in_A_not_in_P:
         # For the edges in A that are not in P, we find their corresponding
         # shortest path in P_path and update the length attribute in A.
@@ -813,6 +847,7 @@ def make_planar_embedding(
                 s, b, t = path[i:i + 3]
                 trace('s: {}; b: {}; t: {}', s, b, t)
                 b_conc_idx = concavityVertex2concavity[b]
+                print([F[n] for n in P.neighbors(b)])
                 a, c = (n for n in P[b]
                         if (b_conc_idx == concavityVertex2concavity.get(n, -1)
                             or n in supertriangle))
