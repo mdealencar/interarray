@@ -704,7 +704,7 @@ def make_planar_embedding(
             while P[cur][fwd]['ccw'] != rev:
                 P.remove_edge(cur, P[cur][fwd]['ccw'])
             trace('{}: {}–{}', concavity_idx, cur, fwd)
-            P[cur][fwd]['kind'] = P[fwd][cur]['kind'] = 'concavity'
+            #  P[cur][fwd]['kind'] = P[fwd][cur]['kind'] = 'concavity'
 
     # adjust flat triangles around concavities
     #  changes_super = _flip_triangles_exclusions_super(
@@ -757,9 +757,10 @@ def make_planar_embedding(
 
     # this adds diagonals to P_paths
     # we don't want diagonals where P_paths[u][v]['kind'] is set ('concavity')
-    for u, v in [(u, v) for u, v, kind in P_paths.edges(data='kind')
+    for u, v in [(u, v) for u, v in P_paths.edges
                  if (((u, v) if u < v else (v, u)) not in hull_prunned_edges
-                     and kind != 'concavity')]:
+                     and not (u in concavityVertex2concavity
+                              and v in concavityVertex2concavity))]:
         uvD = P[u][v]
         s, t = uvD['cw'], uvD['ccw']
         if s >= N + B or t >= N + B:
@@ -805,7 +806,7 @@ def make_planar_embedding(
         # shortest path in P_path and update the length attribute in A.
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        debug('A_edge: {}–{} length: {}; path: {}', length, path)
+        debug('A_edge: {}–{} length: {}; path: {}', u, v, length, path)
         if all(n >= N for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
@@ -819,8 +820,9 @@ def make_planar_embedding(
                 # point to the same side. Otherwise, remove the vertice.
                 s, b, t = path[i:i + 3]
                 trace('s: {}; b: {}; t: {}', s, b, t)
+                b_conc_idx = concavityVertex2concavity[b]
                 a, c = (n for n in P[b]
-                        if (P[b][n].get('kind') == 'concavity'
+                        if (b_conc_idx == concavityVertex2concavity.get(n, -1)
                             or n in supertriangle))
                 a, c = (a, c) if P[a][b]['ccw'] == c else (c, a)
                 test = ccw if cw(a, b, s) else cw
