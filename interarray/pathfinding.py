@@ -139,11 +139,14 @@ class PathFinder():
                                  VertexC[-M:]))
             d2roots = cdist(VertexC[:-M], VertexC[-M:])
             Rank = None
+            diagonals = None
         else:
             VertexC = A.graph['VertexC']
             d2roots = A.graph['d2roots']
             Rank = A.graph.get('d2rootsRank')
-        P = planar_flipped_by_routeset(G, planar=planar, VertexC=VertexC)
+            diagonals = A.graph['diagonals']
+        P = planar_flipped_by_routeset(G, planar=planar, VertexC=VertexC,
+                                       diagonals=diagonals)
         self.d2roots = d2roots
         self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
         creator = G.graph.get('creator')

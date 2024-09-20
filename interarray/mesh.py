@@ -1094,15 +1094,14 @@ def _deprecated_planar_flipped_by_routeset(
 
 
 def planar_flipped_by_routeset(
-        G: nx.Graph, *, planar: nx.PlanarEmbedding, VertexC: np.ndarray) \
-        -> nx.PlanarEmbedding:
-    '''
-    Copies `planar` and flips some of its edges so that the returned
-    PlanarEmbedding includes all edges present in `G`.
+        G: nx.Graph, *, planar: nx.PlanarEmbedding, VertexC: np.ndarray,
+        diagonals: bidict | None = None) -> nx.PlanarEmbedding:
+    '''Ajust `planar` to include the edges actually used by reouteset `G`.
 
-    For this to work, all non-gate edges of `G` must be either edges of
-    `planar` or one of `G`'s graph attribute 'diagonals'. In addition, `G`
-    must be free of edge×edge crossings.
+    Copies `planar` and flips the edges to their diagonal if the latter is an
+    edge of `G`. Ideally, the returned PlanarEmbedding includes all `G` edges
+    (an expected discrepancy are `G`'s gates).
+
     '''
     M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
     border, exclusions, fnT = (
@@ -1112,10 +1111,20 @@ def planar_flipped_by_routeset(
         fnT[-M:] = range(-M, 0)
 
     P = planar.copy()
+    if diagonals is not None:
+        diags = diagonals.copy()
+    else:
+        diags = False
     seen_endpoints = set()
     debug('differences between G and P:')
-    for u, v in G.edges - planar.edges:
+    stack = [((u, v) if u < v else (v, u)) for u, v in G.edges - planar.edges]
+    # gates to the bottom of the stack
+    stack.sort()
+    while stack:
+        u, v = stack.pop()
         u_, v_ = fnT[u], fnT[v]
+        if u_ < 0 and (u_, v_) not in diags:
+            continue
         if (u_, v_) in planar.edges:
             continue
         debug('{}–{} ({}–{})', u, v, u_, v_)
@@ -1165,8 +1174,13 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
-        #  print(f'flipping {F[s_]}–{F[t_]} to {F[u_]}–{F[v_]}')
+        debug('flipping {}–{} to {}–{}', s_, t_, u_, v_)
         P.remove_edge(s_, t_)
+        if diags:
+            # diagonal (u_, v_) is added to P -> forbid diagonals that cross it
+            for (w, y) in ((u_, s_), (s_, v_), (v_, t_), (t_, u_)):
+                wy = (w, y) if w < y else (y, w)
+                diags.inv.pop(wy, None)
         P.add_half_edge(u_, v_, cw=s_)
         P.add_half_edge(v_, u_, cw=t_)
     return P
