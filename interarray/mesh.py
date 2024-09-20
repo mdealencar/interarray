@@ -616,6 +616,7 @@ def make_planar_embedding(
     if not hull_concave:
         hull_concave = hull_prunned
     info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
+    hull_concave_method1 = hull_concave
 
     # ######################################################################
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
@@ -765,6 +766,8 @@ def make_planar_embedding(
     # #######################
     # X) Create hull_concave.
     # #######################
+    # TODO: this is redundant with section D.1 (hull_concave is needed earlier)
+
     in_A_not_in_P = A.edges - P_paths.edges
     cw, ccw = rotation_checkers_factory(VertexC)
 
@@ -781,6 +784,8 @@ def make_planar_embedding(
         hull_concave.append(u)
     info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
     A.graph['hull_concave'] = hull_concave
+
+    assert hull_concave_method1 == hull_concave
 
     # ######################################################################
     # H) Revisit A to update edges crossing borders by with P_path contours.
@@ -1102,6 +1107,10 @@ def planar_flipped_by_routeset(
     edge of `G`. Ideally, the returned PlanarEmbedding includes all `G` edges
     (an expected discrepancy are `G`'s gates).
 
+    If `diagonals` is provided, some diagonal gates may become `planar`'s edges
+    if they are not crossing any edge in `G`. Otherwise gates are ignored.
+
+    Important: `G` must be free of edge×edge crossings.
     '''
     M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
     border, exclusions, fnT = (
