@@ -321,7 +321,8 @@ def make_planar_embedding(
     # ######
     # Steps:
     # ######
-    # A) Transform border concavities in polygons.
+    # A) Scale the coordinates to avoid CDT errors.
+    # A.1) Transform border concavities in polygons.
     # B) Check if concavities' vertices coincide with wtg. Where they do,
     #    create stunt concavity vertices to the inside of the concavity.
     # C) Get Delaynay triangulation of the wtg+oss nodes only.
@@ -336,13 +337,29 @@ def make_planar_embedding(
 
     M, N, B, VertexC = (S.graph[k] for k in 'M N B VertexC'.split())
     border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
+
+    # #############################################
+    # A) Scale the coordinates to avoid CDT errors.
+    # #############################################
+    # Since the initialization of the Triangulation class is made with only
+    # the wtg coordinates, there are cases where the later addition of border
+    # coordinates generate an error. (e.g. Horns Rev 3)
+    # This is caused by the supertriangle being calculated from the first
+    # batch of vertices (wtg only), which turns out to be too small to fit the
+    # border polygon.
+    # CDT's supertriangle calculation has a fallback reference value of 1.0 for
+    # vertex sets that fall within a small area. The way to circunvent the
+    # error described above is to scale all coordinates down so that CDT will
+    # use the fallback and this fallback is enough to cover the scaled borders.
+    scale = 2.*max(VertexC.max(axis=0) - VertexC.min(axis=0))
+    VertexC *= 1./scale
     points = np.fromiter((gonb.Point(*xy) for xy in VertexC),
                          dtype=object,
                          count=N + B + M)
 
-    # ############################################
-    # A) Transform border concavities in polygons.
-    # ############################################
+    # ##############################################
+    # A.1) Transform border concavities in polygons.
+    # ##############################################
     debug('PART A')
     border_vertice_from_point = {
             point: i for i, point in enumerate(points[N:-M], start=N)}
@@ -450,7 +467,7 @@ def make_planar_embedding(
         if changed:
             debug('Concavities changed!')
             concavities[i] = gonb.Contour(conc_points)
-            stuntC.append(np.array(stunt_coords))
+            stuntC.append(scale*np.array(stunt_coords))
     # Stunts are added to the B range and they should be saved with routesets.
     # Alternatively, one could convert stunts to clones of their primes, but
     # this could create some small interferences between edges.
@@ -605,13 +622,6 @@ def make_planar_embedding(
             s, t = (s, t) if s < t else (t, s)
             diagonals[(s, t)] = (u, v)
             A.add_edge(s, t, kind='extended')
-    # Add length attribute to A's edges.
-    A_edges = tuple(A.edges)
-    source, target = zip(*A_edges)
-    # TODO: ¿use d2roots for root-incident edges? probably not worth it
-    A_edge_length = dict(
-            zip(A_edges, np.hypot(*(VertexC[source,] - VertexC[target,]).T)))
-    nx.set_edge_attributes(A, A_edge_length, name='length')
 
     # D.1) get hull_concave
 
@@ -710,13 +720,26 @@ def make_planar_embedding(
     #  mesh.remove_triangles(
     #          set(np.flatnonzero(mesh.calculate_triangle_depths())))
 
+    # ##########################################
+    # Z) Scale coordinates back.
+    # ##########################################
+    VertexC *= scale
     # add any newly created plus the supertriangle's vertices to VertexC
     # note: B has already been increased by all stuntC lengths within the loop
-    supertriangleC = np.array([(v.x, v.y) for v in mesh.vertices[:3]])
+    supertriangleC = scale*np.array([(v.x, v.y) for v in mesh.vertices[:3]])
+    # NOTE: stuntC was scaled back upon its creation
     VertexC = np.vstack((VertexC[:-M],
                          *stuntC,
                          supertriangleC,
                          VertexC[-M:]))
+
+    # Add length attribute to A's edges.
+    A_edges = tuple(A.edges)
+    source, target = zip(*A_edges)
+    # TODO: ¿use d2roots for root-incident edges? probably not worth it
+    A_edge_length = dict(
+            zip(A_edges, np.hypot(*(VertexC[source,] - VertexC[target,]).T)))
+    nx.set_edge_attributes(A, A_edge_length, name='length')
 
     # ###############################################################
     # F) Build the planar embedding of the constrained triangulation.
@@ -854,12 +877,21 @@ def make_planar_embedding(
                 trace('s: {}; b: {}; t: {}', s, b, t)
                 b_conc_id = vertex2conc_id_map[b]
                 trace([F[n] for n in P.neighbors(b)])
-                a, c = (n for n in P[b]
-                        if (b_conc_id == vertex2conc_id_map.get(n, -1)
-                            or n in supertriangle))
-                a, c = (a, c) if P[a][b]['ccw'] == c else (c, a)
-                test = ccw if cw(a, b, s) else cw
-                if test(s, b, t):
+                same_conc_b_nbs = tuple(
+                    n for n in P[b]
+                    if (b_conc_id == vertex2conc_id_map.get(n, -1)
+                        or n in supertriangle))
+                if len(same_conc_b_nbs) == 2:
+                    a, c = same_conc_b_nbs
+                    #  a, c = (n for n in P[b]
+                    #          if (b_conc_id == vertex2conc_id_map.get(n, -1)
+                    #              or n in supertriangle))
+                    a, c = (a, c) if P[a][b]['ccw'] == c else (c, a)
+                    test = ccw if cw(a, b, s) else cw
+                    shortcut = not test(s, b, t)
+                else:
+                    shortcut = True
+                if not shortcut:
                     i += 1
                     trace('({}) {} {} {} passed', i, s, b, t)
                 else:
@@ -957,7 +989,9 @@ def make_planar_embedding(
 
     # Set A's graph attributes.
     A.graph.update(
-        VertexC=VertexC, border=border, N=N, M=M, B=B,
+        N=N, M=M, B=B,
+        VertexC=VertexC,
+        border=border,
         name=S.name,
         handle=S.graph['handle'],
         landscape_angle=S.graph['landscape_angle'],
@@ -1006,7 +1040,7 @@ def delaunay(G: nx.Graph):
 
 
 def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
-    # TODO: refator to be compatible with interarray.mesh's delaunay()
+    # TODO: refactor to be compatible with interarray.mesh's delaunay()
     '''
     Return the "available edges" graph that is the base for edge search in
     Esau-Williams. If `delaunay_based` is True, the edges are the expanded
