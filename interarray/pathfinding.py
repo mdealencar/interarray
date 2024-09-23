@@ -412,7 +412,7 @@ class PathFinder():
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.prime_from_id[r] = r
             paths.ids_from_prime_sector[r, r] = [r]
-            for left in P.neighbors(r):
+            for left in set(P.neighbors(r)) & set(G.neighbors(r)):
                 right = P[r][left]['cw']
                 portal = (left, right)
                 portal_sorted = (right, left) if right < left else portal
