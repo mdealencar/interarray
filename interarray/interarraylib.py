@@ -290,6 +290,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             lengths = np.hypot(*(VertexC[[s] + path] - VertexC[path + [t]]).T)
             for prime, length in zip(path, lengths):
                 clone2prime.append(prime)
+                if prime not in G.nodes:
+                    G.add_node(prime)
                 v = iC
                 iC += 1
                 clones = G.nodes[prime].get('clones')
