@@ -386,6 +386,34 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     return G
 
 
+def T_from_G(G: nx.Graph):
+    M, N, B = (G.graph[k] for k in 'MNB')
+    fnT, capacity = (G.graph.get(k) for k in ('fnT', 'capacity'))
+    T = nx.Graph(
+        N=N, M=M,
+        capacity=capacity,
+    )
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    if C + D == 0:
+        T.add_edges_from(G.edges)
+        return T
+    # create a topology graph T from the results
+    for r in range(-M, 0):
+        T.add_node(r, kind='oss')
+        in_hold = None
+        for edge in nx.dfs_edges(G, r):
+            u, v = edge
+            if v >= N:
+                in_hold = in_hold or u
+                continue
+            u = in_hold or u
+            T.add_node(v, kind='wtg')
+            T.add_edge(u, v)
+            in_hold = None
+    calcload(T)
+    return T
+
+
 def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
         -> nx.Graph:
     '''
