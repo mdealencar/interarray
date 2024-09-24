@@ -12,7 +12,10 @@ from collections import defaultdict
 from itertools import chain, tee, combinations
 
 from bidict import bidict
-from gon import base as gonb
+from ground import base as ground_base
+from orient import planar as orient_planar
+from gon import base as gon_base
+#  from orient.planar import point_in_region
 
 import PythonCDT as cdt
 
@@ -338,6 +341,13 @@ def make_planar_embedding(
     M, N, B, VertexC = (S.graph[k] for k in 'M N B VertexC'.split())
     border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
 
+    context = ground_base.get_context()
+    Contour = context.contour_cls
+    Point = context.point_cls
+    Polygon = context.polygon_cls
+    Multipolygon = context.multipolygon_cls
+    Segment = context.segment_cls
+
     # #############################################
     # A) Scale the coordinates to avoid CDT errors.
     # #############################################
@@ -351,9 +361,11 @@ def make_planar_embedding(
     # vertex sets that fall within a small area. The way to circunvent the
     # error described above is to scale all coordinates down so that CDT will
     # use the fallback and this fallback is enough to cover the scaled borders.
+    mean = VertexC.mean(axis=0)
     scale = 2.*max(VertexC.max(axis=0) - VertexC.min(axis=0))
-    VertexC *= 1./scale
-    points = np.fromiter((gonb.Point(*xy) for xy in VertexC),
+
+    VertexC = (VertexC - mean)/scale
+    points = np.fromiter((Point(float(x), float(y)) for x, y in VertexC),
                          dtype=object,
                          count=N + B + M)
 
@@ -361,28 +373,46 @@ def make_planar_embedding(
     # A.1) Transform border concavities in polygons.
     # ##############################################
     debug('PART A')
+    border_poly = Polygon(border=Contour(points[border]))
+
+    # Check if roots are outside the border. If so, extend the border to them.
+    roots_outside = [
+        r_pt for r_pt in points[-M:]
+        if (orient_planar.point_in_polygon(r_pt, border_poly)
+            is ground_base.Location.EXTERIOR)
+    ]
+    #  print('roots_outside', len(roots_outside), roots_outside, border_poly)
+    hull = context.points_convex_hull(roots_outside
+                                      + border_poly.border.vertices)
+    hull_poly = Polygon(border=Contour(hull))
+
     border_vertice_from_point = {
             point: i for i, point in enumerate(points[N:-M], start=N)}
 
-    borderPoly = gonb.Polygon(border=gonb.Contour(points[border]))
-    border_convex_hull = borderPoly.convex_hull
     hull_border_vertices = [border_vertice_from_point[hullpt]
-                            for hullpt in border_convex_hull.border.vertices
+                            for hullpt in hull
                             if hullpt in border_vertice_from_point]
 
     # Turn the main border's concave zones into exclusion polygons.
-    hull_minus_border = border_convex_hull - borderPoly
+    hull_minus_border = hull_poly - border_poly
 
-    # TODO: convert make_planar_embeding use gonb.Contour instead of Polygon
-    if hull_minus_border is gonb.EMPTY:
-        concavities = []
+    concavities = []
+    if hull_minus_border is gon_base.EMPTY:
+        assert len(roots_outside) == 0
     elif hasattr(hull_minus_border, 'polygons'):
         # MultiPolygon
-        concavities = [p.border
-                       for p in hull_minus_border.polygons
-                       if p is not gonb.EMPTY]
+        for p in hull_minus_border.polygons:
+            if all((orient_planar.point_in_polygon(r_pt, p)
+                    is ground_base.Location.EXTERIOR)
+                   for r_pt in roots_outside):
+                concavities.append(p.border)
+            else:
+                border_poly += p
+    elif roots_outside:
+        # single Polygon in hull_minus_border includes a root
+        border_poly = hull_poly
     else:
-        # single concavity polygon
+        # single Polygon is a concavity
         concavities = [hull_minus_border.border]
 
     # ###################################################################
@@ -413,7 +443,7 @@ def make_planar_embedding(
         # X->Y->Z is in ccw direction
         for fwd in chain(vertices[1:], (cur,)):
             Z = border_vertice_from_point[fwd]
-            Z_is_hull = fwd in border_convex_hull.border.vertices
+            Z_is_hull = fwd in hull_poly.border.vertices
             if cur in points[:N] or cur in points[-M:]:
                 # Concavity border vertex coincides with node.
                 # Therefore, create a stunt vertex for the border.
@@ -454,7 +484,7 @@ def make_planar_embedding(
                 # stuntsC = VertexC[N + B - len(border_stunts): N + B]
                 border_stunts.append(Y)
                 stunt_coord = VertexC[Y] + T
-                stunt_point = gonb.Point(*stunt_coord)
+                stunt_point = Point(*stunt_coord)
                 stunt_coords.append(stunt_coord)
                 conc_points.append(stunt_point)
                 remove_from_border_pt_map.append(cur)
@@ -465,11 +495,11 @@ def make_planar_embedding(
                 conc_points.append(cur)
             X, X_is_hull = Y, Y_is_hull
             Y, Y_is_hull = Z, Z_is_hull
-            Y_is_hull = fwd in border_convex_hull.border.vertices
+            Y_is_hull = fwd in hull_poly.border.vertices
             cur = fwd
         if changed:
             debug('Concavities changed!')
-            concavities[i] = gonb.Contour(conc_points)
+            concavities[i] = Contour(conc_points)
             stuntC.append(scale*np.array(stunt_coords))
     # Stunts are added to the B range and they should be saved with routesets.
     # Alternatively, one could convert stunts to clones of their primes, but
@@ -492,9 +522,12 @@ def make_planar_embedding(
         | {point: i for i, point in zip(range(-M, 0), points[-M:])}
     )
 
+    if roots_outside:
+        border = [vertice_from_point[pt] for pt in hull]
+
     if exclusions is not None:
-        exclusionsMPoly = gonb.Multipolygon(
-            (gonb.Polygon(border=gonb.Contour(points[exc]))
+        exclusionsMPoly = Multipolygon(
+            (Polygon(border=Contour(points[exc]))
              for exc in exclusions))
 
     # assemble all points actually used in concavityPoly
@@ -540,7 +573,7 @@ def make_planar_embedding(
                     break
             if stable:
                 ready.append(reflst)
-        concavities = [gonb.Contour(vertex_list) for vertex_list in ready]
+        concavities = [Contour(vertex_list) for vertex_list in ready]
     elif len(concavities) == 1:
         concavityVertexSeqs = [tuple(vertice_from_point[v]
                                      for v in concavities[0].vertices)]
@@ -630,7 +663,7 @@ def make_planar_embedding(
 
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
-    # TODO: rewrite this loop using gonb instead of shp
+    # TODO: rewrite this loop using lycantropos' `gon` et al instead of shp
     hull_concave = []
     if border is not None:
         singled_nodes = {}
