@@ -412,12 +412,17 @@ class PathFinder():
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.prime_from_id[r] = r
             paths.ids_from_prime_sector[r, r] = [r]
-            for left in set(P.neighbors(r)) & set(G.neighbors(r)):
+            #  for left in set(P.neighbors(r)) & set(G.neighbors(r)):
+            for left in P.neighbors(r):
                 right = P[r][left]['cw']
                 portal = (left, right)
                 portal_sorted = (right, left) if right < left else portal
-                if not (right in P[r] and portal_sorted in portal_set):
+                if (right not in P[r]
+                        or portal_sorted not in portal_set
+                        or left not in G.nodes
+                        or G.neighbors(left) == 0):
                     # (u, v, r) not a triangle or (u, v) is in G
+                    # or `left` is either absent or unconnected in G
                     continue
                 # flag initial portals as visited
                 self.uncharted[portal] = 0
