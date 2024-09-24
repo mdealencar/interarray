@@ -401,10 +401,11 @@ class PathFinder():
             # remove from portal_set the contour edges of G
             fnT = G.graph['fnT']
             for c in range(N + B, N + B + C):
+                c_ = fnT[c]
                 for n in G.neighbors(c):
-                    n, c = fnT[n], fnT[c]
-                    if n < N or n < c:
-                        portal_set.remove((n, c))
+                    n_ = fnT[n]
+                    non_portal = (n_, c_) if n_ < c_ else (c_, n_)
+                    portal_set.remove(non_portal)
         self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
