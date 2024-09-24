@@ -410,6 +410,7 @@ def make_planar_embedding(
         cur = vertices[0]
         Y = border_vertice_from_point[cur]
         Y_is_hull = Y in hull_border_vertices
+        # X->Y->Z is in ccw direction
         for fwd in chain(vertices[1:], (cur,)):
             Z = border_vertice_from_point[fwd]
             Z_is_hull = fwd in border_convex_hull.border.vertices
@@ -422,7 +423,9 @@ def make_planar_embedding(
                 _YZ_ = np.hypot(*YZ)
                 nXY = XY[::-1].copy()/_XY_
                 nYZ = YZ[::-1].copy()/_YZ_
+                # normal to XY, pointing inward
                 nXY[0] = -nXY[0]
+                # normal to YZ, pointing inward
                 nYZ[0] = -nYZ[0]
                 angle = np.arccos(np.dot(-XY, YZ)/_XY_/_YZ_)
                 if abs(angle) < np.pi/2:
@@ -439,10 +442,10 @@ def make_planar_embedding(
                     if X_is_hull:
                         trace('XY hull')
                         # project nYZ on XY
-                        T = offset*(-XY/_XY_/max(0.5, np.sin(angle)))
+                        T = offset*(-XY/_XY_/max(0.5, np.sin(angle)) - nXY)
                     elif Z_is_hull:
                         # project nXY on YZ
-                        T = offset*(YZ/_YZ_/max(0.5, np.sin(angle)))
+                        T = offset*(YZ/_YZ_/max(0.5, np.sin(angle)) - nYZ)
                         trace('YZ hull')
                 else:
                     T = offset*(nYZ+proj)
