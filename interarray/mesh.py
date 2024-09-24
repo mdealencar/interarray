@@ -706,7 +706,6 @@ def make_planar_embedding(
     if not hull_concave:
         hull_concave = hull_prunned
     info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
-    hull_concave_method1 = hull_concave
 
     # ######################################################################
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
@@ -862,29 +861,13 @@ def make_planar_embedding(
     # #######################
     # X) Create hull_concave.
     # #######################
-    # TODO: this is redundant with section D.1 (hull_concave is needed earlier)
+    # TODO: adjust comments, since this is done in section D.1
+    #       (hull_concave is needed earlier)
 
     in_A_not_in_P = A.edges - P_paths.edges
     cw, ccw = rotation_checkers_factory(VertexC)
 
-    # Use `in_A_not_in_P` for obtaining the hull_concave from hull_prunned
-    queue = list(zip(hull_prunned[::-1], chain((hull_prunned[0],),
-                                               hull_prunned[:0:-1]),))
-    hull_concave = []
-    while queue:
-        u, v = queue.pop()
-        if (u, v) in in_A_not_in_P or (v, u) in in_A_not_in_P:
-            n = P_A[u][v]['ccw']
-            queue.extend(((n, v), (u, n)))
-            continue
-        hull_concave.append(u)
-    info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
     A.graph['hull_concave'] = hull_concave
-
-    # assert hull_concave_method1 == hull_concave
-    if hull_concave_method1 != hull_concave:
-        print('\nhcA:', '–'.join(F[n] for n in hull_concave_method1))
-        print('hcB:', '–'.join(F[n] for n in hull_concave), '\n')
 
     # ######################################################################
     # H) Revisit A to update edges crossing borders by with P_path contours.
