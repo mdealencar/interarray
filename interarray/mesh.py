@@ -1243,14 +1243,14 @@ def planar_flipped_by_routeset(
         if not diagonal_found:
             warn('Failed to find flippable for non-planar {}–{}', u_, v_)
             continue
-        if s_ >= N:
+        if s_ >= N and s_ in G.nodes:
             s_clones = G.nodes[s_].get('clones', [s_])
             if len(s_clones) > 1:
                 warn('s_clones > 1: {} -> {}', s_, s_clones)
             s = s_clones[0]
         else:
             s = s_
-        if t_ >= N:
+        if t_ >= N and t_ in G.nodes:
             t_clones = G.nodes[t_].get('clones', [t_])
             if len(t_clones) > 1:
                 warn('t_clones > 1: {} -> {}', t_, t_clones)
