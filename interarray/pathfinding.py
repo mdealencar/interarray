@@ -566,6 +566,7 @@ class PathFinder():
             for r, n in tentative:
                 # remove the 'tentative' kind
                 del G[r][n]['kind']
+            del G.graph['tentative']
             return None if in_place else G
 
         M, N, B, C = self.M, self.N, self.B, self.C
