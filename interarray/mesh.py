@@ -685,9 +685,7 @@ def make_planar_embedding(
                     if t == u:
                         # degenerate case 1
                         hull_concave.append(v)
-                        t = v
-                        v = u
-                        u = t
+                        t, v, u = v, u, t
                         continue
                     if t in hull_prunned:
                         # degenerate case 2
