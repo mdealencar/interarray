@@ -24,15 +24,15 @@ PackType = Mapping[str, Any]
 # Set of not-to-store keys commonly found in G routesets (they are either
 # already stored in database fields or are cheap to regenerate or too big.
 _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
-             'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity',
+             'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity', 'B',
              'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
-             'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
+             'landscape_angle', 'Root', 'creation_options', 'G_nodeset', 'N',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
              'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
              'diagonals_used', 'crossings_map', 'tentative', 'creator',
-             'is_normalized'}
+             'is_normalized', 'norm_scale', 'norm_offset', 'detextra'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
@@ -115,7 +115,7 @@ def packnodes(G: nx.Graph) -> PackType:
     constraint_vertices = list(chain((G.graph.get('border', ()),),
                                      G.graph.get('exclusions', ())))
     pack = dict(
-        N=N, M=M,
+        N=N, M=M, B=B,
         name=name,
         VertexC=VertexCpkl,
         constraint_groups=[len(p) for p in constraint_vertices],
@@ -257,13 +257,13 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         misc[k] = oddtypes_to_serializable(v)
     length = G.size(weight='length')
     packed_G = dict(
-        M=M, N=N, B=B, C=C, D=D,
+        M=M, N=N, C=C, D=D,
         handle=G.graph.get('handle',
                            G.graph['name'].strip().replace(' ', '_')),
         capacity=G.graph['capacity'],
         length=length,
         creator=G.graph['creator'],
-        is_normalized=G.graph['is_normalized'],
+        is_normalized=G.graph.get('is_normalized', False),
         runtime=G.graph['runtime'],
         num_gates=[len(G[root]) for root in range(-M, 0)],
         misc=misc,
