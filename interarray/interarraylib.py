@@ -461,3 +461,38 @@ def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
                 f'({total_parent_load}) != expected load ({ref_load})'
         tentative.append(new_hook)
     G.graph['tentative'] = tentative
+
+
+def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
+    '''Count the number of Delaunay diagonals (extended edges) of `A` in `T`.
+
+    Args:
+        T: solution topology
+        A: available edges used in creating `T`
+
+    Returns:
+        number of non-gate edges of `T` that are of kind 'extended' or
+            'contour_extended' (kind is read from `A`).
+
+    Raises:
+        ValueError: if an edge of unknown kind is found.
+    '''
+    delaunay = 0
+    extended = 0
+    gates = 0
+    other = 0
+    for u, v in T.edges:
+        if u < 0 or v < 0:
+            gates += 1
+            continue
+        kind = A[u][v]['kind']
+        if kind is not None:
+            if kind.endswith('delaunay'):
+                delaunay += 1
+            elif kind.endswith('extended'):
+                extended += 1
+            else:
+                other += 1
+                raise ValueError('Unknown edge kind: ' + kind)
+    assert T.number_of_edges() == delaunay + extended + gates + other
+    return extended
