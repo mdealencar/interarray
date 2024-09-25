@@ -106,7 +106,6 @@ class PathFinder():
                             if G[r][n].get('kind') == 'tentative')
                 tentative.extend((r, n) for n in gates)
                 hooks2check.append(gates)
-                print(gates)
         else:
             hooks2check.extend(set() for _ in range(M))
             for r, n in tentative:
@@ -564,7 +563,8 @@ class PathFinder():
             for r, n in tentative:
                 # remove the 'tentative' kind
                 del G[r][n]['kind']
-            del G.graph['tentative']
+            if 'tentative' in G.graph:
+                del G.graph['tentative']
             return None if in_place else G
 
         M, N, B, C = self.M, self.N, self.B, self.C
