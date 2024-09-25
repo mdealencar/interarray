@@ -311,14 +311,18 @@ def make_planar_embedding(
         offset_scale: float = 1e-4,
         max_tri_AR: float = 30) -> \
         tuple[nx.PlanarEmbedding, nx.Graph]:
-    '''
-    This does more than the planar embedding. A name change is in order.
+    ''' This does more than the planar embedding. A name change is in order.
 
-    The available edges graph A is arguably the main product.
+    The available edges graph `A` is arguably the main product.
 
-    `offset_scale`:
-        Fraction of the diagonal of the site's bbox to use as spacing between
-        border and nodes in concavities (only where nodes are the border).
+    Args:
+        S: site graph
+        offset_scale: Fraction of the diagonal of the site's bbox to use as
+            spacing between border and nodes in concavities (only where nodes
+            are the border).
+
+    Returns:
+        P - the planar embedding graph - and A - the available edges graph.
     '''
 
     # ######
