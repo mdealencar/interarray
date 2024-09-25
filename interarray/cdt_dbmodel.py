@@ -48,6 +48,7 @@ def define_entities(db):
     class RouteSet(db.Entity):
         id = PrimaryKey(int, auto=True)
         handle = Required(str)
+        valid = Optional(bool)
         capacity = Required(int)
         length = Required(float)
         is_normalized = Required(bool)
