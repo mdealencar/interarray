@@ -394,28 +394,36 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
 def T_from_G(G: nx.Graph):
     M, N, B = (G.graph[k] for k in 'MNB')
     fnT, capacity = (G.graph.get(k) for k in ('fnT', 'capacity'))
+    has_loads = G.graph.get('has_loads', False)
     T = nx.Graph(
         N=N, M=M,
         capacity=capacity,
     )
-    C, D = (G.graph.get(k, 0) for k in 'CD')
-    if C + D == 0:
-        T.add_edges_from(G.edges)
-        return T
     # create a topology graph T from the results
     for r in range(-M, 0):
-        T.add_node(r, kind='oss')
-        in_hold = None
+        T.add_node(r, kind='oss', **({'load': G.nodes[r]['load']}
+                                     if has_loads else {}))
+        on_hold = None
         for edge in nx.dfs_edges(G, r):
             u, v = edge
             if v >= N:
-                in_hold = in_hold or u
+                on_hold = on_hold or u
                 continue
-            u = in_hold or u
-            T.add_node(v, kind='wtg')
-            T.add_edge(u, v)
-            in_hold = None
-    calcload(T)
+            u = on_hold or u
+            if has_loads:
+                v_load = G.nodes[v]['load']
+                T.add_node(v, kind='wtg', load=v_load,
+                           subtree=G.nodes[v]['subtree'])
+                T.add_edge(u, v, load=G.edges[edge]['load'],
+                           reverse=(G.nodes[u]['load'] < v_load) == (u < v))
+            else:
+                T.add_node(v, kind='wtg')
+                T.add_edge(u, v)
+            on_hold = None
+    if has_loads:
+        T.graph['has_loads'] = True
+    else:
+        calcload(T)
     return T
 
 
