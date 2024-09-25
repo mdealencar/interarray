@@ -377,7 +377,6 @@ class PathFinder():
     def _find_paths(self):
         #  print('[exp] starting _explore()')
         G, P, M, N, B, C = self.G, self.P, self.M, self.N, self.B, self.C
-        ST = N + B + C
         d2roots = self.d2roots
         d2rootsRank = self.d2rootsRank
         prioqueue = []
@@ -391,21 +390,16 @@ class PathFinder():
         self.I_path = I_path
 
         # set of portals (i.e. edges of P that are not used in G)
-        portal_set = set()
-        for u, v in (P.to_undirected(as_view=True).edges - G.edges):
-            # TODO: also check here for constraint edges (never portals)
-            if u < ST or v < ST:
-                # ⟨u, v⟩ is not a supertriangle side
-                portal_set.add((u, v) if u < v else (v, u))
-        if C > 0:
-            # remove from portal_set the contour edges of G
-            fnT = G.graph['fnT']
-            for c in range(N + B, N + B + C):
-                c_ = fnT[c]
-                for n in G.neighbors(c):
-                    n_ = fnT[n]
-                    non_portal = (n_, c_) if n_ < c_ else (c_, n_)
-                    portal_set.remove(non_portal)
+        fnT = G.graph.get('fnT')
+        if fnT is not None:
+            edges_G = {((u, v) if u < v else (v, u))
+                       for u, v in (fnT[edge,] for edge in G.edges)}
+        else:
+            edges_G = {((u, v) if u < v else (v, u)) for u, v in G.edges}
+        ST = N + B
+        edges_P = {((u, v) if u < v else (v, u))
+                   for u, v in P.edges if u < ST or v < ST}
+        portal_set = edges_P - edges_G
         self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
