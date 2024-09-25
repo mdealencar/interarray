@@ -668,9 +668,9 @@ def make_planar_embedding(
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
     # TODO: rewrite this loop using lycantropos' `gon` et al instead of shp
+    #       USE: (Point(x.item(), y.item()) for x, y in VertexC[hull_prunned])
     hull_concave = []
     if border is not None:
-        singled_nodes = {}
         hull_prunned_poly = shp.Polygon(VertexC[hull_prunned])
         shp.prepare(hull_prunned_poly)
         border_poly = shp.Polygon(VertexC[border])
@@ -680,13 +680,10 @@ def make_planar_embedding(
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
                 edge_line = shp.LineString(VertexC[[u, v]])
-                #  if (u >= 0 and v >= 0
-                #          and not border_poly.covers(edge_line)):
                 if not border_poly.covers(edge_line):
                     t = P_A[u][v]['ccw']
                     if t == u:
                         # degenerate case 1
-                        singled_nodes[v] = u
                         hull_concave.append(v)
                         t = v
                         v = u
@@ -694,10 +691,6 @@ def make_planar_embedding(
                         continue
                     if t in hull_prunned:
                         # degenerate case 2
-                        if t == hull_concave[-2]:
-                            singled_nodes[u] = t
-                        else:
-                            singled_nodes[v] = t
                         hull_concave.append(t)
                         u = t
                         continue
