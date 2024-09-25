@@ -4,7 +4,6 @@
 import math
 import numpy as np
 import networkx as nx
-import shapely as shp
 from scipy.spatial.distance import cdist
 from loguru import logger
 
@@ -12,10 +11,13 @@ from collections import defaultdict
 from itertools import chain, tee, combinations
 
 from bidict import bidict
-from ground import base as ground_base
-from orient import planar as orient_planar
-from gon import base as gon_base
-#  from orient.planar import point_in_region
+from ground.base import get_context
+from gon.base import (
+    Point, Segment, Contour, Polygon, Multipolygon, Relation, Location, EMPTY
+)
+from orient.planar import (
+    point_in_polygon, contour_in_region, segment_in_region
+)
 
 import PythonCDT as cdt
 
@@ -345,13 +347,6 @@ def make_planar_embedding(
     M, N, B, VertexC = (S.graph[k] for k in 'M N B VertexC'.split())
     border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
 
-    context = ground_base.get_context()
-    Contour = context.contour_cls
-    Point = context.point_cls
-    Polygon = context.polygon_cls
-    Multipolygon = context.multipolygon_cls
-    Segment = context.segment_cls
-
     # #############################################
     # A) Scale the coordinates to avoid CDT errors.
     # #############################################
@@ -369,6 +364,8 @@ def make_planar_embedding(
     scale = 2.*max(VertexC.max(axis=0) - VertexC.min(axis=0))
 
     VertexC = (VertexC - mean)/scale
+    # geometric context init (packages ground, gon)
+    context = get_context()
     points = np.fromiter((Point(float(x), float(y)) for x, y in VertexC),
                          dtype=object,
                          count=N + B + M)
@@ -382,9 +379,7 @@ def make_planar_embedding(
     # Check if roots are outside the border. If so, extend the border to them.
     roots_outside = [
         r_pt for r_pt in points[-M:]
-        if (orient_planar.point_in_polygon(r_pt, border_poly)
-            is ground_base.Location.EXTERIOR)
-    ]
+        if point_in_polygon(r_pt, border_poly) is Location.EXTERIOR]
     #  print('roots_outside', len(roots_outside), roots_outside, border_poly)
     hull = context.points_convex_hull(roots_outside
                                       + border_poly.border.vertices)
@@ -401,13 +396,12 @@ def make_planar_embedding(
     hull_minus_border = hull_poly - border_poly
 
     concavities = []
-    if hull_minus_border is gon_base.EMPTY:
+    if hull_minus_border is EMPTY:
         assert len(roots_outside) == 0
     elif hasattr(hull_minus_border, 'polygons'):
         # MultiPolygon
         for p in hull_minus_border.polygons:
-            if all((orient_planar.point_in_polygon(r_pt, p)
-                    is ground_base.Location.EXTERIOR)
+            if all((point_in_polygon(r_pt, p) is Location.EXTERIOR)
                    for r_pt in roots_outside):
                 concavities.append(p.border)
             else:
@@ -667,20 +661,20 @@ def make_planar_embedding(
 
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
-    # TODO: rewrite this loop using lycantropos' `gon` et al instead of shp
-    #       USE: (Point(x.item(), y.item()) for x, y in VertexC[hull_prunned])
     hull_concave = []
     if border is not None:
-        hull_prunned_poly = shp.Polygon(VertexC[hull_prunned])
-        shp.prepare(hull_prunned_poly)
-        border_poly = shp.Polygon(VertexC[border])
-        shp.prepare(border_poly)
-        if not border_poly.covers(hull_prunned_poly):
+        hull_prunned_cont = Contour(points[hull_prunned])
+        border_cont = border_poly.border
+        hull_to_border = contour_in_region(hull_prunned_cont, border_cont)
+        if (hull_to_border is Relation.CROSS
+                or hull_to_border is Relation.OVERLAP):
             hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
-                edge_line = shp.LineString(VertexC[[u, v]])
-                if not border_poly.covers(edge_line):
+                edge_seg = Segment(points[u], points[v])
+                edge_to_border = segment_in_region(edge_seg, border_cont)
+                if (edge_to_border is Relation.CROSS
+                        or edge_to_border is Relation.TOUCH):
                     t = P_A[u][v]['ccw']
                     if t == u:
                         # degenerate case 1
