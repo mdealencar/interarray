@@ -15,25 +15,28 @@ from .geometric import make_graph_metrics
 F = NodeTagger()
 
 
-def G_base_from_G(G: nx.Graph) -> nx.Graph:
-    '''
-    Return new graph with nodes (including label and type) and boundary of G.
-    In addition, output graph has metrics.
+def S_from_G(G: nx.Graph) -> nx.Graph:
+    '''Return new graph with nodes and site attributes from G.
 
-    Similar to `nx.create_empty_copy()`, but works with layout solutions that
-    carry a lot of extra info (which it discards).
+    The returned site graph `S` retains only roots, nodes and site graph
+    attributes. All edges and remaining data are not carried from `G`.
+
+    Args:
+        G: routeset graph to extract site data from.
+
+    Returns:
+        Site graph (no edges) with lean attributes.
     '''
     M, N, B = (G.graph[k] for k in 'MNB')
     transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
                        'exclusions', 'landscape_angle')
-    G_base = nx.Graph(**{k: G.graph[k] for k in transfer_fields})
-    G_base.add_nodes_from(((n, {'label': label})
-                           for n, label in G.nodes(data='label')
-                           if 0 <= n < N), kind='wtg')
+    S = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
+    S.add_nodes_from(((n, {'label': label})
+                      for n, label in G.nodes(data='label')
+                      if 0 <= n < N), kind='wtg')
     for r in range(-M, 0):
-        G_base.add_node(r, label=G.nodes[r]['label'], kind='oss')
-    make_graph_metrics(G_base)
-    return G_base
+        S.add_node(r, label=G.nodes[r]['label'], kind='oss')
+    return S
 
 
 def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
