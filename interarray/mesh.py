@@ -1212,58 +1212,48 @@ def planar_flipped_by_routeset(
     if diagonals is not None:
         diags = diagonals.copy()
     else:
-        diags = False
-    seen_endpoints = set()
+        diags = ()
     debug('differences between G and P:')
-    stack = [((u, v) if u < v else (v, u)) for u, v in G.edges - planar.edges]
+    # get G's edges in terms of node range -M : N + B
+    edges_G = {((u, v) if u < v else (v, u))
+               for u, v in (fnT[edge,] for edge in G.edges)}
+    ST = N + B
+    edges_P = {((u, v) if u < v else (v, u))
+               for u, v in P.edges if u < ST and v < ST}
+    stack = list(edges_G - edges_P)
     # gates to the bottom of the stack
     stack.sort()
     while stack:
         u, v = stack.pop()
-        u_, v_ = fnT[u], fnT[v]
-        if u_ < 0 and (u_, v_) not in diags:
+        if u < 0 and (u, v) not in diags:
             continue
-        if (u_, v_) in planar.edges:
-            continue
-        debug('{}–{} ({}–{})', u, v, u_, v_)
-        intersection = set(planar[u_]) & set(planar[v_])
+        debug('{}–{}', u, v)
+        intersection = set(planar[u]) & set(planar[v])
         if len(intersection) < 2:
             debug('share {} neighbors.', len(intersection))
             continue
         diagonal_found = False
-        for s_, t_ in combinations(intersection, 2):
-            if ((s_, t_) in planar.edges
+        for s, t in combinations(intersection, 2):
+            s, t = (s, t) if s < t else (t, s)
+            if ((s, t) in edges_P
                 and is_triangle_pair_a_convex_quadrilateral(
-                    *VertexC[[s_, t_, u_, v_]])):
+                    *VertexC[[s, t, u, v]])):
                 diagonal_found = True
                 break
         if not diagonal_found:
-            warn('Failed to find flippable for non-planar {}–{}', u_, v_)
+            warn('Failed to find flippable for non-planar {}–{}', u, v)
             continue
-        if s_ >= N and s_ in G.nodes:
-            s_clones = G.nodes[s_].get('clones', [s_])
-            if len(s_clones) > 1:
-                warn('s_clones > 1: {} -> {}', s_, s_clones)
-            s = s_clones[0]
-        else:
-            s = s_
-        if t_ >= N and t_ in G.nodes:
-            t_clones = G.nodes[t_].get('clones', [t_])
-            if len(t_clones) > 1:
-                warn('t_clones > 1: {} -> {}', t_, t_clones)
-            t = t_clones[0]
-        else:
-            t = t_
-
-        if (s, t) in G.edges and (u < 0 or v < 0):
+        if (s, t) in edges_G and u < 0:
             # not replacing edge with gate
             continue
-        if planar[u_][s_]['ccw'] == t_ and planar[v_][t_]['ccw'] == s_:
+        if planar[u][s]['ccw'] == t and planar[v][t]['ccw'] == s:
+            # u-s-v-t already in ccw orientation
             pass
-        elif planar[u_][s_]['cw'] == t_ and planar[v_][t_]['cw'] == s_:
-            s_, t_ = t_, s_
+        elif planar[u][s]['cw'] == t and planar[v][t]['cw'] == s:
+            # reassign so that u-s-v-t is in ccw orientation
+            s, t = t, s
         else:
-            warn('{}–{}–{}–{} is not in two triangles.', u_, s_, v_, t_)
+            debug('{}–{}–{}–{} is not in two triangles.', u, s, v, t)
             continue
         #  if not (s == planar[v][u]['ccw']
         #          and t == planar[v][u]['cw']):
@@ -1272,13 +1262,13 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
-        debug('flipping {}–{} to {}–{}', s_, t_, u_, v_)
-        P.remove_edge(s_, t_)
+        debug('flipping {}–{} to {}–{}', s, t, u, v)
+        P.remove_edge(s, t)
         if diags:
             # diagonal (u_, v_) is added to P -> forbid diagonals that cross it
-            for (w, y) in ((u_, s_), (s_, v_), (v_, t_), (t_, u_)):
+            for (w, y) in ((u, s), (s, v), (v, t), (t, u)):
                 wy = (w, y) if w < y else (y, w)
                 diags.inv.pop(wy, None)
-        P.add_half_edge(u_, v_, cw=s_)
-        P.add_half_edge(v_, u_, cw=t_)
+        P.add_half_edge(u, v, cw=s)
+        P.add_half_edge(v, u, cw=t)
     return P
