@@ -518,10 +518,14 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
 
             ref_load = G.nodes[r]['load']
             G.nodes[r]['load'] = ref_load - subtree_load
-            total_parent_load = bfs_subtree_loads(G, r, [new_hook], subtree_id)
+            total_parent_load = bfs_subtree_loads(G, r, [new_hook],
+                                                  G.nodes[new_hook]['subtree'])
             assert total_parent_load == ref_load, \
                 f'detour {F[n]}–{F[path[0]]}: load calculated ' \
                 f'({total_parent_load}) != expected load ({ref_load})'
-        tentative.append(new_hook)
+        else:
+            # only necessary if using hook_getter (e.g. Gʹ is a T)
+            G[r][new_hook]['kind'] = 'tentative'
+        tentative.append((r, new_hook))
     G.graph['tentative'] = tentative
     return G
