@@ -311,7 +311,7 @@ def make_planar_embedding(
         #  M: int, VertexC: np.ndarray,
         #  boundaries: list[np.ndarray] | None = None,
         offset_scale: float = 1e-4,
-        max_tri_AR: float = 30) -> \
+        max_tri_AR: float = MAX_TRIANGLE_ASPECT_RATIO) -> \
         tuple[nx.PlanarEmbedding, nx.Graph]:
     ''' This does more than the planar embedding. A name change is in order.
 
