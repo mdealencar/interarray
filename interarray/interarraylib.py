@@ -288,9 +288,12 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         diagonals_used += AedgeD['kind'] == 'extended' and s >= 0
         path = AedgeD.get('path')
         load = T[s][t]['load']
+        s_load = T.nodes[s]['load']
+        t_load = T.nodes[t]['load']
+        st_reverse = s_load < t_load
         if path is not None:
             # contour edge
-            u = s
+            u, u_load = s, s_load
             lengths = np.hypot(*(VertexC[[s] + path] - VertexC[path + [t]]).T)
             for prime, length in zip(path, lengths):
                 clone2prime.append(prime)
@@ -304,13 +307,16 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                 else:
                     clones.append(v)
                 G.add_node(v, kind='contour', load=load, subtree=subtree_id)
+                reverse = st_reverse == (u < v)
                 G.add_edge(u, v, length=length, load=load, kind='contour',
-                           A_edge=(s, t))
+                           reverse=reverse, A_edge=(s, t))
                 u = v
+            reverse = st_reverse == (u < t)
             G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
-                       A_edge=(s, t))
+                       reverse=reverse, A_edge=(s, t))
         else:
-            G.add_edge(s, t, length=AedgeD['length'], load=load)
+            G.add_edge(s, t, length=AedgeD['length'], load=load,
+                       reverse=st_reverse)
     if clone2prime:
         fnT = np.arange(iC + M)
         fnT[N + B:-M] = clone2prime
@@ -326,15 +332,16 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         if s < 0:
             # far-reaching gate
             G.add_edge(s, t, length=d2roots[t, s], kind='tentative',
-                       load=T.nodes[t]['load'])
+                       load=T.nodes[t]['load'], reverse=False)
             tentative.append((s, t))
         else:
             # rogue edge (not supposed to be on the routeset, poor solver)
+            st_reverse = T.edges[s, t]['reverse']
             load = (T.nodes[s]['load']
-                    if T.edges[s, t]['reverse'] else
+                    if st_reverse else
                     T.nodes[t]['load'])
             G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
-                       kind='rogue', load=load)
+                       kind='rogue', load=load, reverse=st_reverse)
             rogue.append((s, t))
     if rogue:
         G.graph['rogue'] = rogue
