@@ -871,7 +871,7 @@ def make_planar_embedding(
         # shortest path in P_path and update the length attribute in A.
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        debug('A_edge: {}–{} length: {}; path: {}', u, v, length, path)
+        warn('A_edge: {}–{} length: {}; path: {}', u, v, length, path)
         if all(n >= N for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
@@ -884,9 +884,9 @@ def make_planar_embedding(
                 # The vertice is kept if the border angle and the path angle
                 # point to the same side. Otherwise, remove the vertice.
                 s, b, t = path[i:i + 3]
-                trace('s: {}; b: {}; t: {}', s, b, t)
+                warn('s: {}; b: {}; t: {}', s, b, t)
                 b_conc_id = vertex2conc_id_map[b]
-                trace([F[n] for n in P.neighbors(b)])
+                warn([F[n] for n in P.neighbors(b)])
                 same_conc_b_nbs = tuple(
                     n for n in P[b]
                     if (b_conc_id == vertex2conc_id_map.get(n, -1)
@@ -896,14 +896,17 @@ def make_planar_embedding(
                     #  a, c = (n for n in P[b]
                     #          if (b_conc_id == vertex2conc_id_map.get(n, -1)
                     #              or n in supertriangle))
-                    a, c = (a, c) if P[a][b]['ccw'] == c else (c, a)
-                    test = ccw if cw(a, b, s) else cw
-                    shortcut = not test(s, b, t)
+                    a, c = (a, c) if P[b][a]['ccw'] == c else (c, a)
+                    if ccw(a, b, c):
+                        shortcut = True
+                    else:
+                        test = cw if cw(a, b, s) else ccw
+                        shortcut = test(s, b, t)
                 else:
                     shortcut = True
                 if not shortcut:
                     i += 1
-                    trace('({}) {} {} {} passed', i, s, b, t)
+                    warn('({}) {} {} {} passed', i, s, b, t)
                 else:
                     # TODO: Bomb-proof this shortcut test. (not robust as-is)
                     # TODO: The entire new path should go for a 2nd pass if it
@@ -920,7 +923,7 @@ def make_planar_embedding(
                         edgeD['shortcut'] = [b]
                     else:
                         shortcut.append(b)
-                    trace('({}) {} {} {} shortcut', i, s, b, t)
+                    warn('({}) {} {} {} shortcut', i, s, b, t)
             if len(path) > 2:
                 edgeD.update(length=length,
                              # path-> P edges used to calculate A edge's length
