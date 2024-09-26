@@ -4,6 +4,7 @@
 import json
 import pickle
 from collections.abc import Sequence
+from functools import partial
 from itertools import pairwise
 from hashlib import sha256
 import base64
@@ -32,7 +33,8 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
              'diagonals_used', 'crossings_map', 'tentative', 'creator',
-             'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue'}
+             'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
+             'clone2prime', 'valid'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
@@ -46,7 +48,6 @@ def S_from_nodeset(nodeset: object) -> nx.Graph:
          name=nodeset.name,
          border=border,
          VertexC=pickle.loads(nodeset.VertexC),
-         boundary=pickle.loads(nodeset.boundary),
          landscape_angle=nodeset.landscape_angle,
     )
     if exclusion_groups:
@@ -66,6 +67,7 @@ def G_from_routeset(routeset: object) -> nx.Graph:
     G = S_from_nodeset(nodeset)
     G.graph.update(
         M=M, N=N, B=B,
+        C=routeset.C, D=routeset.D,
         handle=routeset.handle,
         capacity=routeset.capacity,
         funhash=routeset.method.funhash,
@@ -81,7 +83,7 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         VertexC = G.graph['VertexC']
         G.graph['VertexC'] = np.vstack((VertexC[:-M], stuntC,
                                         VertexC[-M:]))
-    add_edges_to(G, edges=routeset.edges, clone2prime=routeset.clone2prime)
+    untersify_to_G(G, terse=routeset.edges, clone2prime=routeset.clone2prime)
     G.graph['overfed'] = [len(G[root])/np.ceil(N/routeset.capacity)*M
                           for root in range(-M, 0)]
     calc_length = G.size(weight='length')
@@ -101,7 +103,6 @@ def G_from_routeset(routeset: object) -> nx.Graph:
 
 def packnodes(G: nx.Graph) -> PackType:
     M, N, B = (G.graph[k] for k in 'MNB')
-    C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
     # border_stunts, stuntC
     border_stunts = G.graph.get('border_stunts')
@@ -167,7 +168,7 @@ def nodeset_from_G(G: nx.Graph, db: orm.Database) -> bytes:
     return add_if_absent(db.NodeSet, pack)
 
 
-def terse_graph_from_G(G: nx.Graph) -> PackType:
+def terse_pack_from_G(G: nx.Graph) -> PackType:
     '''Convert `G`'s edges to a format suitable for storing in the database.
 
     Although graph `G` in undirected, the edge attribute `'reverse'` and its
@@ -181,24 +182,27 @@ def terse_graph_from_G(G: nx.Graph) -> PackType:
     '''
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    edges = np.empty((N + C + D,), dtype=int)
+    #  terse = np.empty((N + C + D,), dtype=int)
+    terse = np.full((N + C + D,), -11, dtype=int)
     if not G.graph.get('has_loads'):
         calcload(G)
     for u, v, reverse in G.edges(data='reverse'):
+        if reverse is None:
+            raise ValueError('reverse must not be None')
         u, v = (u, v) if u < v else (v, u)
         i, target = (u, v) if reverse else (v, u)
         if i < N:
-            edges[i] = target
+            terse[i] = target
         else:
-            edges[i - B] = target
-    terse_graph = dict(edges=edges)
+            terse[i - B] = target
+    terse_pack = dict(edges=terse)
     if C > 0 or D > 0:
-        terse_graph['clone2prime'] = G.graph['fnT'][N + B: -M]
-    return terse_graph
+        terse_pack['clone2prime'] = G.graph['fnT'][N + B: -M]
+    return terse_pack
 
 
-def add_edges_to(G: nx.Graph, edges: np.ndarray,
-                 clone2prime: np.ndarray | None = None) -> None:
+def untersify_to_G(G: nx.Graph, terse: np.ndarray,
+                   clone2prime: np.ndarray | None = None) -> None:
     '''
     Changes G in place if it has no edges, else copies G nodes and graph
     attributes.
@@ -208,22 +212,21 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
-    source = np.arange(len(edges))
-    target = edges.copy()
+    source = np.arange(len(terse))
     if clone2prime:
         source[N:] += B
         contournodes = range(N + B, N + B + C)
         detournodes = range(N + B + C, N + B + C + D)
-        G.add_nodes_from(((s, {'kind': 'contour'})
-                          for s in detournodes))
-        G.add_nodes_from(((s, {'kind': 'detour'})
-                          for s in detournodes))
+        G.add_nodes_from(contournodes, kind='contour')
+        G.add_nodes_from(detournodes, kind='detour')
         fnT = np.arange(M + N + B + C + D)
         fnT[N + B: N + B + C + D] = clone2prime
         fnT[-M:] = range(-M, 0)
         G.graph['fnT'] = fnT
-    Length = np.hypot(*(AllnodesC[target] - AllnodesC[source]).T)
-    G.add_weighted_edges_from(zip(source, target, Length),
+        Length = np.hypot(*(VertexC[fnT[terse]] - VertexC[fnT[source]]).T)
+    else:
+        Length = np.hypot(*(VertexC[terse] - VertexC[source]).T)
+    G.add_weighted_edges_from(zip(source, terse, Length),
                               weight='length')
     if clone2prime:
         for _, _, edgeD in G.edges(contournodes, data=True):
@@ -245,6 +248,8 @@ def oddtypes_to_serializable(obj):
         return obj.tolist()
     elif isinstance(obj, np.int64):
         return int(obj)
+    elif isinstance(obj, np.int32):
+        return int(obj)
     else:
         return obj
 
@@ -252,7 +257,7 @@ def oddtypes_to_serializable(obj):
 def pack_G(G: nx.Graph) -> dict[str, Any]:
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    terse_graph = terse_graph_from_G(G)
+    terse_pack = terse_pack_from_G(G)
     misc = {key: G.graph[key]
             for key in G.graph.keys() - _misc_not}
     #  print('Storing in `misc`:', *misc.keys())
@@ -270,9 +275,9 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         runtime=G.graph['runtime'],
         num_gates=[len(G[root]) for root in range(-M, 0)],
         misc=misc,
-        **terse_graph,
+        **terse_pack,
     )
-    # border_stunts, stuntC
+    # Optional fields
     border_stunts = G.graph.get('border_stunts')
     if border_stunts:
         stuntC = VertexC[N + B - len(border_stunts): N + B].copy()
@@ -280,17 +285,15 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     objective = G.graph.get('objective')
     if D > 0 and objective is not None:
         packed_G['detextra'] = length/objective - 1
-    diagonals_used = G.graph.get('diagonals_used')
-    if diagonals_used is not None:
-        packed_G['diagonals_used'] = diagonals_used
-    tentative = G.graph.get('tentative')
-    if tentative is not None:
-        # edges are concatenated in a single array of nodes
-        packed_G['tentative'] = sum(tentative, ())
-    rogue = G.graph.get('rogue')
-    if rogue is not None:
-        # edges are concatenated in a single array of nodes
-        packed_G['rogue'] = sum(rogue, ())
+    concatenate_tuples = partial(sum, start=())
+    pack_if_given = (  # key, function to prepare data
+        ('diagonals_used', None),
+        ('valid', None),
+        ('tentative', concatenate_tuples),
+        ('rogue', concatenate_tuples),
+    )
+    packed_G.update({k: (fun(G.graph[k]) if fun else G.graph[k])
+                     for k, fun in pack_if_given if k in G.graph})
     return packed_G
 
 
