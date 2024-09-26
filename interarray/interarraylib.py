@@ -267,7 +267,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     G = nx.create_empty_copy(T)
     G.graph.update({key: A.graph[key] for key in 'B border name handle '
                     'norm_scale norm_offset landscape_angle'.split()})
-    if A.graph.get('is_normalized'):
+    if 'is_normalized' in A.graph:
         G.graph['is_normalized'] = True
     # remove supertriangle coordinates from VertexC
     G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
