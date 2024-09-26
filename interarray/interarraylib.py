@@ -284,7 +284,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         s, t = edge if edge[0] < edge[1] else edge[::-1]
         AedgeD = A[s][t]
         subtree_id = T.nodes[t]['subtree']
-        diagonals_used += AedgeD['kind'] == 'extended'
+        # only count diagonals that are not gates
+        diagonals_used += AedgeD['kind'] == 'extended' and s >= 0
         path = AedgeD.get('path')
         load = T[s][t]['load']
         if path is not None:
