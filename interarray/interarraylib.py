@@ -15,107 +15,6 @@ from .geometric import make_graph_metrics
 F = NodeTagger()
 
 
-def S_from_G(G: nx.Graph) -> nx.Graph:
-    '''Return new graph with nodes and site attributes from G.
-
-    The returned site graph `S` retains only roots, nodes and site graph
-    attributes. All edges and remaining data are not carried from `G`.
-
-    Args:
-        G: routeset graph to extract site data from.
-
-    Returns:
-        Site graph (no edges) with lean attributes.
-    '''
-    M, N, B = (G.graph[k] for k in 'MNB')
-    transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
-                       'exclusions', 'landscape_angle')
-    S = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
-    S.add_nodes_from(((n, {'label': label})
-                      for n, label in G.nodes(data='label')
-                      if 0 <= n < N), kind='wtg')
-    for r in range(-M, 0):
-        S.add_node(r, label=G.nodes[r]['label'], kind='oss')
-    return S
-
-
-def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
-    '''
-    Args:
-        VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
-        N: int number of wtg
-        M: int number of oss
-
-    Additional relevant arguments:
-    - 'name': str site name
-    - 'handle': str site identifier
-    - 'B': int number of border and exclusion zones' vertices
-    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
-    - 'exclusions': sequence of numpy.ndarray of VertexC indices
-
-    Returns:
-        Graph containing V nodes and no edges. All keyword arguments are made
-        available as graph attributes.
-    '''
-    if 'handle' not in kwargs:
-        kwargs['handle'] = 'G_from_site'
-    if 'name' not in kwargs:
-        kwargs['name'] = kwargs['handle']
-    if 'B' not in kwargs:
-        kwargs['B'] = 0
-    G = nx.Graph(N=N, M=M,
-                 VertexC=VertexC,
-                 **kwargs)
-
-    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
-    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
-    return G
-
-
-def as_single_oss(G: nx.Graph) -> nx.Graph:
-    '''
-    This is redundant with clusterlib.unify_roots().
-    '''
-    #  But keep this one.
-    Gʹ = G.copy()
-    M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
-    Gʹ.remove_nodes_from(range(-M, -1))
-    VertexCʹ = VertexC[:-M + 1].copy()
-    VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
-    Gʹ.graph.update(VertexC=VertexCʹ, M=1)
-    Gʹ.graph['name'] += '.1_OSS'
-    Gʹ.graph['handle'] += '_1'
-    return Gʹ
-
-
-def as_normalized(A: nx.Graph) -> nx.Graph:
-    '''Make a shallow copy of an instance and shift and scale its geometry.
-
-    Coordinates are subtracted by graph attribute 'norm_offset'.
-    All lengths and coordinates are multiplied by graph attribute 'norm_scale'.
-    Graph attribute 'is_normalized' is set to `True`.
-    Affected linear attributes: 'VertexC', 'd2roots' (graph); 'length' (edge).
-
-    Args:
-        A: any instance that has inherited 'norm_scale' from an edgeset `A`.
-
-    Returns:
-        A copy of the instance with changed coordinates and linear metrics.
-    '''
-    norm_factor = A.graph['norm_scale']
-    Aʹ = A.copy()
-    Aʹ.graph['is_normalized'] = True
-    for u, v, eData in Aʹ.edges(data=True):
-        eData['length'] *= norm_factor
-    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['norm_offset'])
-    Aʹ.graph['VertexC'] = VertexC
-    d2roots = norm_factor*A.graph['d2roots']
-    Aʹ.graph['d2roots'] = d2roots
-    return Aʹ
-
-
 def update_lengths(G):
     '''Adds missing edge lengths.
     Changes G in place.'''
@@ -123,6 +22,55 @@ def update_lengths(G):
     for u, v, dataE in G.edges(data=True):
         if 'length' not in dataE:
             dataE['length'] = np.hypot(*(VertexC[u] - VertexC[v]).T)
+
+
+def pathdist(G, path):
+    '''
+    Return the total length (distance) of a `path` of nodes in `G` from nodes'
+    coordinates (does not rely on edge attributes).
+    '''
+    VertexC = G.graph['VertexC']
+    dist = 0.
+    p = path[0]
+    for n in path[1:]:
+        dist += np.hypot(*(VertexC[p] - VertexC[n]).T)
+        p = n
+    return dist
+
+
+def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
+    '''Count the number of Delaunay diagonals (extended edges) of `A` in `T`.
+
+    Args:
+        T: solution topology
+        A: available edges used in creating `T`
+
+    Returns:
+        number of non-gate edges of `T` that are of kind 'extended' or
+            'contour_extended' (kind is read from `A`).
+
+    Raises:
+        ValueError: if an edge of unknown kind is found.
+    '''
+    delaunay = 0
+    extended = 0
+    gates = 0
+    other = 0
+    for u, v in T.edges:
+        if u < 0 or v < 0:
+            gates += 1
+            continue
+        kind = A[u][v]['kind']
+        if kind is not None:
+            if kind.endswith('delaunay'):
+                delaunay += 1
+            elif kind.endswith('extended'):
+                extended += 1
+            else:
+                other += 1
+                raise ValueError('Unknown edge kind: ' + kind)
+    assert T.number_of_edges() == delaunay + extended + gates + other
+    return extended
 
 
 def bfs_subtree_loads(G, parent, children, subtree):
@@ -178,60 +126,6 @@ def calcload(G):
     G.graph['max_load'] = max_load
 
 
-def pathdist(G, path):
-    '''
-    Return the total length (distance) of a `path` of nodes in `G` from nodes'
-    coordinates (does not rely on edge attributes).
-    '''
-    VertexC = G.graph['VertexC']
-    dist = 0.
-    p = path[0]
-    for n in path[1:]:
-        dist += np.hypot(*(VertexC[p] - VertexC[n]).T)
-        p = n
-    return dist
-
-
-def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
-    '''
-    Create a shallow copy of `Gʹ` without detour nodes (and possibly *with*
-    the resulting crossings).
-
-    This is to be applyed to a routeset that already has detours. It serves to
-    re-run PathFinder on a detoured routeset, but it is not the best solution
-    to prepare a routeset to be used as warmstart (re-hooking is missing).
-    '''
-    G = Gʹ.copy()
-    C, D = (G.graph.get(k, 0) for k in 'CD')
-    if not D:
-        return G
-    M, N, B = (G.graph[k] for k in 'MNB')
-    VertexC = G.graph['VertexC']
-    tentative = []
-    for r in range(-M, 0):
-        for n in [n for n in G.neighbors(r) if n >= N + B + C]:
-            rev = r
-            G.remove_edge(n, r)
-            while n >= N:
-                rev = n
-                n, = G.neighbors(rev)
-                G.remove_node(rev)
-            G.add_edge(r, n,
-                       load=G.nodes[n]['load'],
-                       kind='tentative',
-                       reverse=False,
-                       length=np.hypot(*(VertexC[n] - VertexC[r]).T))
-            tentative.append((r, n))
-    del G.graph['D']
-    if C:
-        fnT = G.graph['fnT']
-        G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
-    else:
-        del G.graph['fnT']
-    G.graph['tentative'] = tentative
-    return G
-
-
 def site_fingerprint(VertexC: np.ndarray, boundary: np.ndarray) \
         -> tuple[bytes, dict[str, bytes]]:
     #  VertexCpkl = pickle.dumps(np.round(VertexC, 2))
@@ -252,6 +146,41 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             funfile=fcode.co_filename,
             funname=fcode.co_name,
             )
+
+
+def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
+    '''
+    Args:
+        VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
+        N: int number of wtg
+        M: int number of oss
+
+    Additional relevant arguments:
+    - 'name': str site name
+    - 'handle': str site identifier
+    - 'B': int number of border and exclusion zones' vertices
+    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
+    - 'exclusions': sequence of numpy.ndarray of VertexC indices
+
+    Returns:
+        Graph containing V nodes and no edges. All keyword arguments are made
+        available as graph attributes.
+    '''
+    if 'handle' not in kwargs:
+        kwargs['handle'] = 'G_from_site'
+    if 'name' not in kwargs:
+        kwargs['name'] = kwargs['handle']
+    if 'B' not in kwargs:
+        kwargs['B'] = 0
+    G = nx.Graph(N=N, M=M,
+                 VertexC=VertexC,
+                 **kwargs)
+
+    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
+                      for n in range(N)))
+    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
+                      for r in range(-M, 0)))
+    return G
 
 
 def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
@@ -435,17 +364,130 @@ def T_from_G(G: nx.Graph):
     return T
 
 
-def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
-        -> nx.Graph:
+def S_from_G(G: nx.Graph) -> nx.Graph:
+    '''Return new graph with nodes and site attributes from G.
+
+    The returned site graph `S` retains only roots, nodes and site graph
+    attributes. All edges and remaining data are not carried from `G`.
+
+    Args:
+        G: routeset graph to extract site data from.
+
+    Returns:
+        Site graph (no edges) with lean attributes.
     '''
-    Changes G in place! Implemented only for branched routesets.
+    M, N, B = (G.graph[k] for k in 'MNB')
+    transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
+                       'exclusions', 'landscape_angle')
+    S = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
+    S.add_nodes_from(((n, {'label': label})
+                      for n, label in G.nodes(data='label')
+                      if 0 <= n < N), kind='wtg')
+    for r in range(-M, 0):
+        S.add_node(r, label=G.nodes[r]['label'], kind='oss')
+    return S
+
+
+def as_single_oss(G: nx.Graph) -> nx.Graph:
+    '''
+    This is redundant with clusterlib.unify_roots().
+    '''
+    #  But keep this one.
+    Gʹ = G.copy()
+    M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
+    Gʹ.remove_nodes_from(range(-M, -1))
+    VertexCʹ = VertexC[:-M + 1].copy()
+    VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
+    Gʹ.graph.update(VertexC=VertexCʹ, M=1)
+    Gʹ.graph['name'] += '.1_OSS'
+    Gʹ.graph['handle'] += '_1'
+    return Gʹ
+
+
+def as_normalized(A: nx.Graph) -> nx.Graph:
+    '''Make a shallow copy of an instance and shift and scale its geometry.
+
+    Coordinates are subtracted by graph attribute 'norm_offset'.
+    All lengths and coordinates are multiplied by graph attribute 'norm_scale'.
+    Graph attribute 'is_normalized' is set to `True`.
+    Affected linear attributes: 'VertexC', 'd2roots' (graph); 'length' (edge).
+
+    Args:
+        A: any instance that has inherited 'norm_scale' from an edgeset `A`.
+
+    Returns:
+        A copy of the instance with changed coordinates and linear metrics.
+    '''
+    norm_factor = A.graph['norm_scale']
+    Aʹ = A.copy()
+    Aʹ.graph['is_normalized'] = True
+    for u, v, eData in Aʹ.edges(data=True):
+        eData['length'] *= norm_factor
+    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['norm_offset'])
+    Aʹ.graph['VertexC'] = VertexC
+    d2roots = norm_factor*A.graph['d2roots']
+    Aʹ.graph['d2roots'] = d2roots
+    return Aʹ
+
+
+
+
+def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
+    '''
+    Create a shallow copy of `Gʹ` without detour nodes (and possibly *with*
+    the resulting crossings).
+
+    This is to be applyed to a routeset that already has detours. It serves to
+    re-run PathFinder on a detoured routeset, but it is not the best solution
+    to prepare a routeset to be used as warmstart (re-hooking is missing).
+    '''
+    G = Gʹ.copy()
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    if not D:
+        return G
+    M, N, B = (G.graph[k] for k in 'MNB')
+    VertexC = G.graph['VertexC']
+    tentative = []
+    for r in range(-M, 0):
+        for n in [n for n in G.neighbors(r) if n >= N + B + C]:
+            rev = r
+            G.remove_edge(n, r)
+            while n >= N:
+                rev = n
+                n, = G.neighbors(rev)
+                G.remove_node(rev)
+            G.add_edge(r, n,
+                       load=G.nodes[n]['load'],
+                       kind='tentative',
+                       reverse=False,
+                       length=np.hypot(*(VertexC[n] - VertexC[r]).T))
+            tentative.append((r, n))
+    del G.graph['D']
+    if C:
+        fnT = G.graph['fnT']
+        G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
+    else:
+        del G.graph['fnT']
+    G.graph['tentative'] = tentative
+    return G
+
+
+def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
+    '''
+    Output may be branched (use with care with path routesets).
 
     Sifts through all 'tentative' gates' subtrees and choose the hook closest
     to the respective root according to `d2roots`.
 
     Should be called after `as_undetoured()` if the goal is to use G as a
     warmstart for MILP models.
+
+    Args:
+        G: routeset or topology T
+        d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
     '''
+    G = Gʹ.copy()
+    M, N = G.graph['M'], G.graph['N']
     # mappings to quickly obtain all nodes on a subtree
     num_subtree = sum(G.degree[r] for r in range(-M, 0))
     nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
@@ -461,7 +503,9 @@ def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
     # TODO: rehook should take into account the other roots
     #       see PathFinder.create_detours()
     tentative = []
-    for r, hook in G.graph.pop('tentative'):
+    hook_getter = ((r, nb) for r in range(-M, 0)
+                   for nb in tuple(G.neighbors(r)))
+    for r, hook in G.graph.pop('tentative', hook_getter):
         subtree = subtree_from_node[hook]
         new_hook = subtree[np.argmin(d2roots[subtree, r])]
         if new_hook != hook:
@@ -480,38 +524,4 @@ def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
                 f'({total_parent_load}) != expected load ({ref_load})'
         tentative.append(new_hook)
     G.graph['tentative'] = tentative
-
-
-def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
-    '''Count the number of Delaunay diagonals (extended edges) of `A` in `T`.
-
-    Args:
-        T: solution topology
-        A: available edges used in creating `T`
-
-    Returns:
-        number of non-gate edges of `T` that are of kind 'extended' or
-            'contour_extended' (kind is read from `A`).
-
-    Raises:
-        ValueError: if an edge of unknown kind is found.
-    '''
-    delaunay = 0
-    extended = 0
-    gates = 0
-    other = 0
-    for u, v in T.edges:
-        if u < 0 or v < 0:
-            gates += 1
-            continue
-        kind = A[u][v]['kind']
-        if kind is not None:
-            if kind.endswith('delaunay'):
-                delaunay += 1
-            elif kind.endswith('extended'):
-                extended += 1
-            else:
-                other += 1
-                raise ValueError('Unknown edge kind: ' + kind)
-    assert T.number_of_edges() == delaunay + extended + gates + other
-    return extended
+    return G
