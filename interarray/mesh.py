@@ -620,7 +620,9 @@ def make_planar_embedding(
     while queue:
         u, v = queue.pop()
         n = P_A[u][v]['ccw']
-        if triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR:
+        # P_A is a DiGraph, so there are 2 degrees per undirected edge 
+        if (P_A.degree[u] > 6 and P_A.degree[v] > 6
+                and triangle_AR(*VertexC[[u, v, n]]) > max_tri_AR):
             P_A.remove_edge(u, v)
             queue.extend(((n, v), (u, n)))
             continue
