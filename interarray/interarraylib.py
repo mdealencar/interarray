@@ -207,6 +207,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     common_TA = T.edges - non_A_edges
     iC = N + B
     clone2prime = []
+    contour_paths = {}
     diagonals_used = 0
     # add to G the T edges that are in A
     for edge in common_TA:
@@ -215,14 +216,19 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         subtree_id = T.nodes[t]['subtree']
         # only count diagonals that are not gates
         diagonals_used += AedgeD['kind'] == 'extended' and s >= 0
-        path = AedgeD.get('path')
+        path_in_P = AedgeD.get('path')
         load = T[s][t]['load']
         s_load = T.nodes[s]['load']
         t_load = T.nodes[t]['load']
         st_reverse = s_load < t_load
         if path is not None:
+            path = path_in_P.copy()
             # contour edge
             u, u_load = s, s_load
+            shortcut = AedgeD.get('shortcut')
+            if shortcut is not None:
+                for short in shortcut:
+                    path.remove(short)
             lengths = np.hypot(*(VertexC[[s] + path] - VertexC[path + [t]]).T)
             for prime, length in zip(path, lengths):
                 clone2prime.append(prime)
@@ -243,9 +249,12 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             reverse = st_reverse == (u < t)
             G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
                        reverse=reverse, A_edge=(s, t))
+            contour_paths[(s, t)] = path_in_P
         else:
             G.add_edge(s, t, length=AedgeD['length'], load=load,
                        reverse=st_reverse)
+    if contour_paths:
+        G.graph['contour_paths'] = contour_paths
     if clone2prime:
         fnT = np.arange(iC + M)
         fnT[N + B:-M] = clone2prime
@@ -279,7 +288,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     diagonals = A.graph['diagonals']
     P = A.graph['planar']
     for r in range(-M, 0):
-        for n in set(G.neighbors(r)) & set(A.neighbors(r)):
+        for n in set(T.neighbors(r)) & set(A.neighbors(r)):
+            #  TODO: if ⟨r, n⟩ is a contour in A, G[r][n] might fail. FIXIT
             st = diagonals.get((r, n))
             if st is not None:
                 # st is a Delaunay edge
