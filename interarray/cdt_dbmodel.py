@@ -70,6 +70,7 @@ def define_entities(db):
         detextra = Optional(float)
         diagonals_used = Optional(int)
         tentative = Optional(IntArray)
+        rogue = Optional(IntArray)
         timestamp = Optional(datetime.datetime,
                              default=datetime.datetime.utcnow)
         misc = Optional(Json)

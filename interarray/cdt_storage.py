@@ -32,7 +32,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
              'diagonals_used', 'crossings_map', 'tentative', 'creator',
-             'is_normalized', 'norm_scale', 'norm_offset', 'detextra'}
+             'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
@@ -90,6 +90,9 @@ def G_from_routeset(routeset: object) -> nx.Graph:
     #      f"stored total length ({routeset.length:.0f})")
     if abs(calc_length/routeset.length - 1) > 1e-5:
         G.graph['length_mismatch_on_db_read'] = calc_length - routeset.length
+    if routeset.rogue:
+        for u, v in pairwise(routeset.rogue):
+            G[u][v]['kind'] = 'rogue'
     if routeset.tentative:
         for r, n in pairwise(routeset.tentative):
             G[r][n]['kind'] = 'tentative'
@@ -284,6 +287,10 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     if tentative is not None:
         # edges are concatenated in a single array of nodes
         packed_G['tentative'] = sum(tentative, ())
+    rogue = G.graph.get('rogue')
+    if rogue is not None:
+        # edges are concatenated in a single array of nodes
+        packed_G['rogue'] = sum(rogue, ())
     return packed_G
 
 
