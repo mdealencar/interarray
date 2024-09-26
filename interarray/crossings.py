@@ -459,8 +459,12 @@ def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
     `T` must only use extended Delaunay edges. It will not detect crossings
     of non-extDelaunay gates or detours.
 
+    Args:
+        T: solution topology
+        A: available edges used in creating `T`
+
     Returns:
-    list of 2-tuple (crossing) of 2-tuple (edge)
+        list of 2-tuple (crossing) of 2-tuple (edge)
     '''
     eeXings = []
     checked = set()
@@ -472,34 +476,15 @@ def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
         if st is not None:
             # ⟨u, v⟩ is a diagonal of Delanay edge ⟨s, t⟩
             if st in T.edges:
-                # eeXing found
                 # crossing with Delaunay edge ⟨s, t⟩
                 eeXings.append((st, (u, v)))
             s, t = st
-            # ensure u–s–v–t is ccw
-            u, v = ((u, v)
-                    if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
-                    (v, u))
-            # examine the two triangles ⟨s, t⟩ belongs to
-            for a, b, c in ((s, t, u), (t, s, v)):
-                # this is for diagonals crossing diagonals
-                triangle = tuple(sorted((a, b, c)))
-                if triangle in checked:
-                    continue
-                checked.add(triangle)
-                conflicting = [(u, v)]
-                d = P[c][b]['ccw']
-                diag_da = (a, d) if a < d else (d, a)
-                if d == P[b][c]['cw'] and diag_da in T.edges:
-                    conflicting.append(diag_da)
-                e = P[a][c]['ccw']
-                diag_eb = (e, b) if e < b else (b, e)
-                if e == P[c][a]['cw'] and diag_eb in T.edges:
-                    conflicting.append(diag_eb)
-                if len(conflicting) > 1:
-                    if len(conflicting) < 3:
-                        eeXings.append(conflicting)
-                    else:
-                        print('ERROR: cannot handle triple edge crossing.',
-                              conflicting)
+            # ⟨s, t⟩ may be part of up to two triangles, check their 4 sides
+            sides = (((w, y) if w < y else (y, w))
+                     for w, y in ((u, s), (s, v), (v, t), (t, u)))
+            for side in sides:
+                diag = diagonals.inv.get(side, False)
+                if diag and diag in T.edges and diag not in checked:
+                    checked.add((u, v))
+                    eeXings.append((diag, (u, v)))
     return eeXings
