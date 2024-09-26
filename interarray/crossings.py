@@ -412,7 +412,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
         if p is None:
             Xings.append(uvst)
             continue
-        if G.degree(p) == 1:
+        if G.degree[p] == 1:
             # trivial case: no way to break a branch apart
             continue
         # make u be the touch-point within ⟨s, t⟩
@@ -435,7 +435,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
 
     # check detour nodes for branch-splitting
     for d, d_ in zip(range(N, N + D), fnT[N:N + D]):
-        if G.degree(d_) == 1:
+        if G.degree[d_] == 1:
             # trivial case: no way to break a branch apart
             continue
         dA, dB = (fnT[nb] for nb in G[d])

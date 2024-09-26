@@ -440,7 +440,7 @@ def rehook(G: nx.Graph, d2roots: np.ndarray, *, in_place: bool = True) \
     warmstart for MILP models.
     '''
     # mappings to quickly obtain all nodes on a subtree
-    num_subtree = sum(G.degree(r) for r in range(-M, 0))
+    num_subtree = sum(G.degree[r] for r in range(-M, 0))
     nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
                                         count=num_subtree, dtype=object)
     subtree_from_node = np.empty((N,), dtype=object)

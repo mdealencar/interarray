@@ -199,7 +199,7 @@ class PathFinder():
             # one side, so that sector becomes irrelevant)
             return NULL
         is_gate = any(_node in Gate for Gate in self.hooks2check)
-        _node_degree = self.G.degree(_node)
+        _node_degree = self.G.degree[_node]
         if is_gate and _node_degree == 1:
             # special case where a branch with 1 node uses a non_embed gate
             root = self.G.nodes[_node]['root']
@@ -416,7 +416,7 @@ class PathFinder():
                 portal_sorted = (right, left) if right < left else portal
                 if (right not in P[r]
                         or portal_sorted not in portal_set
-                        or G.degree(left) == 0):
+                        or G.degree[left] == 0):
                     # (u, v, r) not a triangle or (u, v) is in G
                     # or `left` is unconnected in G
                     continue
@@ -588,7 +588,7 @@ class PathFinder():
             # set of nodes to examine is different depending on `branching`
             hookchoices = ([n for n in subtree if n < N]
                            if self.branching else
-                           [n, next(h for h in subtree if G.degree(h) == 1)])
+                           [n, next(h for h in subtree if G.degree[h] == 1)])
             debug('hookchoices: {}', self.n2s(*hookchoices))
 
             path_options = list(chain.from_iterable(

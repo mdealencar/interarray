@@ -18,7 +18,7 @@ def gate_and_leaf_path(T: nx.Graph, n: int) -> tuple[int, int]:
     `T` has loads, is a rootless subgraph_view and non-branching
     '''
     # non-branching graphs only, gates and detours removed
-    if T.degree(n) == 2:
+    if T.degree[n] == 2:
         u, v = T[n]
         head, tail = ((u, v)
                       if T.nodes[u]['load'] > T.nodes[v]['load'] else
@@ -26,7 +26,7 @@ def gate_and_leaf_path(T: nx.Graph, n: int) -> tuple[int, int]:
         # go towards the gate
         gate_leaf = []
         for fwd, back in ((head, tail), (tail, head)):
-            while T.degree(fwd) == 2:
+            while T.degree[fwd] == 2:
                 s, t = T[fwd]
                 fwd, back = (s, fwd) if t == back else (t, fwd)
             gate_leaf.append(fwd)
@@ -38,7 +38,7 @@ def gate_and_leaf_path(T: nx.Graph, n: int) -> tuple[int, int]:
         else:
             gate = back = n
         fwd, = T[n]
-        while T.degree(fwd) == 2:
+        while T.degree[fwd] == 2:
             s, t = T[fwd]
             fwd, back = (s, fwd) if t == back else (t, fwd)
         if gate is None:
@@ -56,7 +56,7 @@ def list_path(T: nx.graph, n: int) -> list[int]:
     '''
     path = [n]
     far, = T[n]
-    while T.degree(far) == 2:
+    while T.degree[far] == 2:
         s, t = T[far]
         far, n = (s, far) if t == n else (t, far)
         path.append(n)
