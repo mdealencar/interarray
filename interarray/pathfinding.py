@@ -562,7 +562,8 @@ class PathFinder():
         if not Xings:
             for r, n in tentative:
                 # remove the 'tentative' kind
-                del G[r][n]['kind']
+                if 'kind' in G[r][n]:
+                    del G[r][n]['kind']
             if 'tentative' in G.graph:
                 del G.graph['tentative']
             return None if in_place else G
