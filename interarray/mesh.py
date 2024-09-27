@@ -871,72 +871,80 @@ def make_planar_embedding(
         # shortest path in P_path and update the length attribute in A.
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        warn('A_edge: {}–{} length: {}; path: {}', u, v, length, path)
+        warn('A_edge: {}–{} length: {}; path: {}', F[u], F[v], length, path)
         if all(n >= N for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
-            original_path = (path[1:-1].copy()
-                             if u < v else
-                             path[-2:0:-1].copy())
+            midpath = (path[1:-1].copy()
+                       if u < v else
+                       path[-2:0:-1].copy())
             i = 0
             while i <= len(path) - 3:
                 # Check if each vertice at the border is necessary.
                 # The vertice is kept if the border angle and the path angle
                 # point to the same side. Otherwise, remove the vertice.
                 s, b, t = path[i:i + 3]
-                warn('s: {}; b: {}; t: {}', s, b, t)
-                b_conc_id = vertex2conc_id_map[b]
-                warn([F[n] for n in P.neighbors(b)])
-                same_conc_b_nbs = tuple(
-                    n for n in P[b]
-                    if (b_conc_id == vertex2conc_id_map.get(n, -1)
-                        or n in supertriangle))
-                if len(same_conc_b_nbs) == 2:
-                    a, c = same_conc_b_nbs
-                    #  a, c = (n for n in P[b]
-                    #          if (b_conc_id == vertex2conc_id_map.get(n, -1)
-                    #              or n in supertriangle))
-                    a, c = (a, c) if P[b][a]['ccw'] == c else (c, a)
-                    if ccw(a, b, c):
-                        shortcut = True
-                    else:
-                        test = cw if cw(a, b, s) else ccw
-                        shortcut = test(s, b, t)
+                # skip to shortcut if b is a neighbor of the supertriangle
+                if all(n not in P[b] for n in supertriangle):
+                    b_conc_id = vertex2conc_id_map[b]
+                    warn('s: {}; b: {}; t: {}; b_conc_id: {}', F[s], F[b], F[t], b_conc_id)
+                    warn([(F[n], vertex2conc_id_map.get(n)) for n in P.neighbors(b)])
+                    nbs = P.neighbors_cw_order(b)
+                    skip_test = True
+                    for a in nbs:
+                        if vertex2conc_id_map.get(a, -1) == b_conc_id:
+                            skip_test = False
+                            break
+                    if skip_test:
+                        i += 1
+                        warn('Took the 1st continue.')
+                        continue
+                    skip_test = True
+                    for c in nbs:
+                        if (vertex2conc_id_map.get(c, -1) == b_conc_id
+                                and c not in P[a]):
+                            if P[b][a]['cw'] == c:
+                                skip_test = False
+                                break
+                            a = c
+                    warn('a: {} {}; c: {} {}; s: {} {}, t: {} {}; {}',
+                         a, F[a], c, F[c], s, F[s], t, F[t], skip_test)
+                    if (skip_test or not (cw(a, b, c)
+                                          or ((a == s or cw(a, b, s))
+                                              == cw(s, b, t)))):
+                        i += 1
+                        warn('Took the 2nd continue.')
+                        continue
+                # PERFORM SHORTCUT
+                # TODO: The entire new path should go for a 2nd pass if it
+                #       changed here. Unlikely to change in the 2nd pass.
+                #       Reason: a shortcut may change the geometry in such
+                #       way as to make additional shortcuts possible.
+                del path[i + 1]
+                length -= P_paths[s][b]['length'] + P_paths[b][t]['length']
+                shortcut_length = np.hypot(*(VertexC[s] - VertexC[t]).T)
+                length += shortcut_length
+                # changing P_paths for the case of revisiting this block
+                P_paths.add_edge(s, t, length=shortcut_length)
+                shortcuts = edgeD.get('shortcuts')
+                if shortcuts is None:
+                    edgeD['shortcuts'] = [b]
                 else:
-                    shortcut = True
-                if not shortcut:
-                    i += 1
-                    warn('({}) {} {} {} passed', i, s, b, t)
-                else:
-                    # TODO: Bomb-proof this shortcut test. (not robust as-is)
-                    # TODO: The entire new path should go for a 2nd pass if it
-                    #       changed here. Unlikely to change in the 2nd pass.
-                    #       Reason: a shortcut may change the geometry in such
-                    #       way as to make additional shortcuts possible.
-                    del path[i + 1]
-                    length -= P_paths[s][b]['length'] + P_paths[b][t]['length']
-                    shortcut_length = np.hypot(*(VertexC[s] - VertexC[t]).T)
-                    length += shortcut_length
-                    P_paths.add_edge(s, t, length=shortcut_length)
-                    shortcut = edgeD.get('shortcut')
-                    if shortcut is None:
-                        edgeD['shortcut'] = [b]
-                    else:
-                        shortcut.append(b)
-                    warn('({}) {} {} {} shortcut', i, s, b, t)
+                    shortcuts.append(b)
+                warn('({}) {} {} {} shortcut', i, F[s], F[b], F[t])
             if len(path) > 2:
                 edgeD.update(length=length,
                              # path-> P edges used to calculate A edge's length
                              # path=path[1:-1],
-                             # original_path-> which P edges the A edge maps to
+                             # midpath-> which P edges the A edge maps to
                              # (so that PathFinder works)
-                             path=original_path,
+                             midpath=midpath,
                              kind='contour_'+edgeD['kind'])
                 u, v = (u, v) if u < v else (v, u)
                 for p in path[1:-1]:
                     corner_to_A_edges[p].append((u, v))
             else:
-                edgeD['path'] = original_path
+                edgeD['midpath'] = midpath
         else:
             # remove edge because the path goes through some wtg node
             u, v = (u, v) if u < v else (v, u)
@@ -958,7 +966,7 @@ def make_planar_embedding(
         if (s, t) in diagonals:
             edgeD = A[s][t]
             edgeD['kind'] = ('contour_delaunay'
-                             if 'path' in edgeD else
+                             if 'midpath' in edgeD else
                              'delaunay')
             del diagonals[(s, t)]
 
