@@ -81,10 +81,11 @@ class PathFinder():
     H = PathFinder(G, planar=P, A=A).create_detours()
     '''
 
-    def __init__(self, G: nx.Graph, *,
+    def __init__(self, Gʹ: nx.Graph, *,
                  planar: nx.PlanarEmbedding,
                  A: nx.Graph | None = None,
                  branching: bool = True) -> None:
+        G = Gʹ.copy()
         M, N, B = (G.graph[k] for k in 'MNB')
         C = G.graph.get('C', 0)
 
@@ -96,6 +97,7 @@ class PathFinder():
         info('BEGIN pathfinding on "{}" (#wtg = {})',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
 
+        # tentative will be copied later, by initializing a set from it.
         tentative = G.graph.get('tentative')
         hooks2check = []
         if tentative is None:
@@ -120,11 +122,10 @@ class PathFinder():
         self.G, self.Xings, self.tentative = G, Xings, set(tentative)
         if not Xings:
             # no crossings, there is no point in pathfinding
-            info('Graph has no crossings, skipping path-finding '
-                 '(pass `only_if_crossings=False` to force path-finding).')
+            info('Graph has no crossings, skipping path-finding.')
             return
 
-        # clone2prime must be a copy of the one from G (for in_place=False)
+        # clone2prime must be a copy of the one from Gʹ
         clone2prime = list(G.graph.get('clone2prime', ()))
         # TODO: work around PathFinder getting metrics for the supertriangle
         #       nodes -> do away with A metrics, eliminate A from args
@@ -144,6 +145,35 @@ class PathFinder():
             d2roots = A.graph['d2roots']
             Rank = A.graph.get('d2rootsRank')
             diagonals = A.graph['diagonals']
+        self.saved_shortened_contours = saved_shortened_contours = []
+        shortened_contours = G.graph.get('shortened_contours')
+        if shortened_contours is not None:
+            # G has edges that shortcut some longer paths along P edges.
+            # We need to put these paths back in G to do P edge flips.
+            # The changes made here are undone in `create_detours()`.
+            fnT = G.graph['fnT']
+            for (s, t), (midpath, shortpath) in shortened_contours.items():
+                # G follows shortpath, but we want it to follow midpath
+                subtree_id = G.nodes[t]['subtree']
+                stored_edges = []
+                path = [s] + shortpath + [t]
+                for u_, v_ in zip(path[:-1], path[1:]):
+                    u = np.flatnonzero(fnT == u_)[-1]
+                    v = np.flatnonzero(fnT == v_)[-1]
+                    stored_edges.append((u, v, G[u][v]))
+                    # the nodes are left for later reuse
+                    G.remove_edge(u, v)
+                helper_edges = []
+                u = s
+                for v in midpath:
+                    # this will use border nodes, watchout!
+                    helper_edges.append((u, v))
+                    G.add_edge(u, v, kind='contour')
+                    G.nodes[v]['subtree'] = subtree_id
+                    u = v
+                helper_edges.append((u, t))
+                G.add_edge(u, t, kind='contour')
+                saved_shortened_contours.append((stored_edges, helper_edges))
         P = planar_flipped_by_routeset(G, planar=planar, VertexC=VertexC,
                                        diagonals=diagonals)
         self.d2roots = d2roots
@@ -549,15 +579,14 @@ class PathFinder():
         '''
         return gplot(scaffolded(self.G, P=self.P), ax=ax, infobox=False)
 
-    def create_detours(self, in_place: bool = False):
-        '''
-        Replace all gate edges in G that cross other edges with detour paths.
-        If `in_place`, change the G given to PathFinder and return None,
-        else return new nx.Graph (G with detours).
-        '''
-        G = self.G if in_place else self.G.copy()
+    def create_detours(self):
+        '''Reroute all gate edges in G with crossings using detour paths.
 
-        Xings, tentative = self.Xings, self.tentative.copy()
+        Returns:
+            New networkx.Graph (shallow copy of G, with detours).
+        '''
+        # TODO: create_detours() cannot be called twice. Enforce that!
+        G, Xings, tentative = self.G, self.Xings, self.tentative.copy()
 
         if not Xings:
             for r, n in tentative:
@@ -566,7 +595,13 @@ class PathFinder():
                     del G[r][n]['kind']
             if 'tentative' in G.graph:
                 del G.graph['tentative']
-            return None if in_place else G
+            return G
+
+        if self.saved_shortened_contours is not None:
+            # Restore shortcut contours as they were before finding paths.
+            for stored_edges, helper_edges in self.saved_shortened_contours:
+                G.remove_edges_from(helper_edges)
+                G.add_edges_from(stored_edges)
 
         M, N, B, C = self.M, self.N, self.B, self.C
         clone2prime = self.clone2prime.copy()
@@ -690,4 +725,4 @@ class PathFinder():
         fnT[-M:] = range(-M, 0)
         G.graph.update(D=clone_idx - N - B - C, fnT=fnT)
         # TODO: there might be some lost contour clones that could be prunned
-        return None if in_place else G
+        return G

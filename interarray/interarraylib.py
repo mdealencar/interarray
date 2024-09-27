@@ -207,7 +207,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     common_TA = T.edges - non_A_edges
     iC = N + B
     clone2prime = []
-    contour_paths = {}
+    tentative = []
+    shortened_contours = {}
     diagonals_used = 0
     # add to G the T edges that are in A
     for edge in common_TA:
@@ -216,45 +217,64 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         subtree_id = T.nodes[t]['subtree']
         # only count diagonals that are not gates
         diagonals_used += AedgeD['kind'] == 'extended' and s >= 0
-        path_in_P = AedgeD.get('path')
         load = T[s][t]['load']
         s_load = T.nodes[s]['load']
         t_load = T.nodes[t]['load']
         st_reverse = s_load < t_load
-        if path is not None:
-            path = path_in_P.copy()
-            # contour edge
-            u, u_load = s, s_load
-            shortcut = AedgeD.get('shortcut')
-            if shortcut is not None:
-                for short in shortcut:
-                    path.remove(short)
-            lengths = np.hypot(*(VertexC[[s] + path] - VertexC[path + [t]]).T)
-            for prime, length in zip(path, lengths):
-                clone2prime.append(prime)
-                if prime not in G.nodes:
-                    G.add_node(prime)
-                v = iC
-                iC += 1
-                clones = G.nodes[prime].get('clones')
-                if clones is None:
-                    clones = [v]
-                else:
-                    clones.append(v)
-                G.add_node(v, kind='contour', load=load, subtree=subtree_id)
-                reverse = st_reverse == (u < v)
-                G.add_edge(u, v, length=length, load=load, kind='contour',
-                           reverse=reverse, A_edge=(s, t))
-                u = v
-            reverse = st_reverse == (u < t)
-            G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
-                       reverse=reverse, A_edge=(s, t))
-            contour_paths[(s, t)] = path_in_P
-        else:
+        midpath = AedgeD.get('midpath')
+        if midpath is None:
+            # no contour in A's ⟨s, t⟩ -> straightforward
             G.add_edge(s, t, length=AedgeD['length'], load=load,
                        reverse=st_reverse)
-    if contour_paths:
-        G.graph['contour_paths'] = contour_paths
+            continue
+        # contour edge
+        u, u_load = s, s_load
+        shortcuts = AedgeD.get('shortcuts')
+        if shortcuts is not None:
+            if len(shortcuts) == len(midpath):
+                # contour is a glitch of make_planar_embedding's P_paths
+                if s < 0:
+                    # ⟨s, t⟩ is a gate -> make it tentative
+                    # This is a hack. It will force PathFinder to check for
+                    # crossings and the edge will be confirmed a non-A gate.
+                    G.add_edge(s, t,
+                               kind='tentative', reverse=False, load=load,
+                               length=np.hypot(*(VertexC[s] - VertexC[t]).T))
+                    tentative.append((s, t))
+                    continue
+                G.add_edge(s, t,
+                           kind='contour', reverse=st_reverse, load=load,
+                           length=AedgeD['length'])
+                shortened_contours[(s, t)] = midpath, []
+                continue
+            shortpath = midpath.copy()
+            for short in shortcuts:
+                shortpath.remove(short)
+            shortened_contours[(s, t)] = midpath, shortpath
+            midpath = shortpath
+        path = [s] + midpath + [t]
+        lengths = np.hypot(*(VertexC[path[1:]] - VertexC[path[:-1]]).T)
+        for prime, length in zip(path[1:-1], lengths):
+            clone2prime.append(prime)
+            if prime not in G.nodes:
+                G.add_node(prime)
+            v = iC
+            iC += 1
+            clones = G.nodes[prime].get('clones')
+            if clones is None:
+                clones = [v]
+            else:
+                clones.append(v)
+            G.add_node(v, kind='contour', load=load, subtree=subtree_id)
+            reverse = st_reverse == (u < v)
+            G.add_edge(u, v, length=length, load=load, kind='contour',
+                       reverse=reverse, A_edge=(s, t))
+            u = v
+        reverse = st_reverse == (u < t)
+        G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
+                   reverse=reverse, A_edge=(s, t))
+    if shortened_contours:
+        G.graph['shortened_contours'] = shortened_contours
     if clone2prime:
         fnT = np.arange(iC + M)
         fnT[N + B:-M] = clone2prime
@@ -263,7 +283,6 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                        clone2prime=clone2prime,
                        C=len(clone2prime))
     # add to G the T edges that are not in A
-    tentative = []
     rogue = []
     for s, t in non_A_edges:
         s, t = (s, t) if s < t else (t, s)
