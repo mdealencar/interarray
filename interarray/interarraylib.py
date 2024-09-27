@@ -531,11 +531,75 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
             total_parent_load = bfs_subtree_loads(G, r, [new_hook],
                                                   G.nodes[new_hook]['subtree'])
             assert total_parent_load == ref_load, \
-                f'detour {F[n]}–{F[path[0]]}: load calculated ' \
-                f'({total_parent_load}) != expected load ({ref_load})'
+                f'parent ({total_parent_load}) != expected load ({ref_load})'
         else:
             # only necessary if using hook_getter (e.g. Gʹ is a T)
             G[r][new_hook]['kind'] = 'tentative'
         tentative.append((r, new_hook))
     G.graph['tentative'] = tentative
     return G
+
+
+def as_hooked_to_head(Tʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
+    '''Only works with solutions where branches are paths.
+
+    Sifts through all 'tentative' gates' subtrees and re-hook that path to
+    the one of its end-nodes that is neares to the respective root according
+    to `d2roots`.
+
+    Should be called after `as_undetoured()` if the goal is to use T as a
+    warmstart for MILP models.
+
+    Args:
+        T: solution topology
+        d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
+    '''
+    T = Tʹ.copy()
+    M, N = T.graph['M'], T.graph['N']
+    # mappings to quickly obtain all nodes on a subtree
+    T_branches = nx.subgraph_view(Tʹ, filter_node=lambda n: n >= 0)
+    num_subtree = sum(T.degree[r] for r in range(-M, 0))
+    nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
+                                        count=num_subtree, dtype=object)
+    subtree_from_node = np.empty((N,), dtype=object)
+    headtail_from_subtree_id = np.fromiter(
+        (list() for _ in range(num_subtree)), count=num_subtree, dtype=object)
+    headtail_from_node = np.empty((N,), dtype=object)
+    for n, subtree_id in T.nodes(data='subtree'):
+        if 0 <= n < N:
+            subtree = nodes_from_subtree_id[subtree_id]
+            subtree.append(n)
+            subtree_from_node[n] = subtree
+            headtail = headtail_from_subtree_id[subtree_id]
+            headtail_from_node[n] = headtail
+            if T_branches.degree[n] <= 1:
+                headtail.append(n)
+
+    # do the actual rehooking
+    # TODO: rehook should take into account the other roots
+    #       see PathFinder.create_detours()
+    tentative = []
+    hook_getter = ((r, nb) for r in range(-M, 0)
+                   for nb in tuple(T.neighbors(r)))
+    for r, hook in T.graph.pop('tentative', hook_getter):
+        headtail = headtail_from_node[hook]
+        new_hook = headtail[np.argmin(d2roots[headtail, r])]
+        if new_hook != hook:
+            subtree_load = T.nodes[hook]['load']
+            T.remove_edge(r, hook)
+            T.add_edge(r, new_hook, kind='tentative', load=subtree_load)
+            for node in subtree_from_node[hook]:
+                del T.nodes[node]['load']
+
+            ref_load = T.nodes[r]['load']
+            T.nodes[r]['load'] = ref_load - subtree_load
+            total_parent_load = bfs_subtree_loads(T, r, [new_hook],
+                                                  T.nodes[new_hook]['subtree'])
+            assert total_parent_load == ref_load, \
+                f'parent ({total_parent_load}) != expected load ({ref_load})'
+        else:
+            # only necessary if using hook_getter (e.g. Gʹ is a T)
+            T[r][new_hook]['kind'] = 'tentative'
+        tentative.append((r, new_hook))
+    T.graph['tentative'] = tentative
+    return T
