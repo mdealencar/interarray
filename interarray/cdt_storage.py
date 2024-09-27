@@ -34,7 +34,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
              'diagonals_used', 'crossings_map', 'tentative', 'creator',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
-             'clone2prime', 'valid'}
+             'clone2prime', 'valid', 'path_in_P'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
