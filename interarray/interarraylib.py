@@ -194,8 +194,9 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     VertexC, d2roots = (A.graph[k] for k in ('VertexC', 'd2roots'))
     # TODO: rethink whether to copy from T or from A
     G = nx.create_empty_copy(T)
-    G.graph.update({key: A.graph[key] for key in 'B border name handle '
-                    'norm_scale norm_offset landscape_angle'.split()})
+    G.graph.update(
+        {key: A.graph[key] for key in 'B border name handle norm_scale '
+         'norm_offset landscape_angle border_stunts'.split()})
     if 'is_normalized' in A.graph:
         G.graph['is_normalized'] = True
     # remove supertriangle coordinates from VertexC
