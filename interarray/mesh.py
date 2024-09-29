@@ -727,6 +727,7 @@ def make_planar_embedding(
             s, t = vertice_from_point[seg.start], vertice_from_point[seg.end]
             st = (s, t) if s < t else (t, s)
             if st in constraint_edges:
+                print('here')
                 continue
             constraint_edges.add(st)
             edgesCDT.append(cdt.Edge(verticeCDT_from_point[seg.start],
