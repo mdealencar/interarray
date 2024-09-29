@@ -3,11 +3,16 @@
 
 import networkx as nx
 from scipy.spatial.distance import cdist
+from loguru import logger
 
 from .pathfinding import PathFinder
 from .mesh import make_planar_embedding
 from .crossings import list_edge_crossings
 from .interarraylib import calcload, NodeTagger
+
+trace, debug, info, success, warn, error, critical = (
+    logger.trace, logger.debug, logger.info, logger.success,
+    logger.warning, logger.error, logger.critical)
 
 
 F = NodeTagger()
@@ -230,34 +235,34 @@ def _apply_choice(
     return T
 
 
-def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
-    # naming: suffix _path as opposed to _tree -> T is non-branching
+def repair_routeset_path(Tʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
+    # naming: suffix _path as opposed to _tree -> Tʹ is non-branching
     '''
 
     This is only able to repair crossings where one of the paths is split in
     either a leaf and a path or a hook and a path.
 
     Args:
-        T: solution topology that contains non-branching rooted tree(s)
-        A: available edges used in creating `T`
+        Tʹ: solution topology that contains non-branching rooted tree(s)
+        A: available edges used in creating `Tʹ`
 
     Returns:
-        Topology without the crossing in a shallow copy of `T`.
+        Topology without the crossing in a shallow copy of `Tʹ`.
     '''
 
-    if 'C' in T.graph or 'D' in T.graph:
-        print('ERROR: `repair_routeset_path()` requires `T` as a topology.')
+    if 'C' in Tʹ.graph or 'D' in Tʹ.graph:
+        print('ERROR: `repair_routeset_path()` requires `Tʹ` as a topology.')
         return
-    M, N = (T.graph[k] for k in 'MN')
+    M, N = (Tʹ.graph[k] for k in 'MN')
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
-    T2fix = T.copy()
+    T = Tʹ.copy()
 
     # make a subgraph without gates and detours
-    T_branches = nx.subgraph_view(T2fix, filter_node=lambda n: n >= 0)
+    T_branches = nx.subgraph_view(T, filter_node=lambda n: n >= 0)
     eeXings = list_edge_crossings(T_branches, A)
     if eeXings:
-        T2fix.graph['num_crossings'] = len(eeXings)
+        T.graph['num_crossings'] = len(eeXings)
         # check if crossings are potentially repairable by this algorithm
         for (u, v), (s, t) in eeXings:
             if all(T_branches.degree[n] > 1 for n in (u, v, s, t)):
@@ -283,7 +288,7 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                 if s < 0 or t < 0:
                     # diagonal of ⟨u, v⟩ is a gate
                     continue
-                if (((s, t) in T2fix.edges
+                if (((s, t) in T.edges
                         or (s, t) in edges_add)
                         and (s, t) not in edges_del):
                     # crossing with diagonal
@@ -291,7 +296,7 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             else:
                 # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
                 s, t = st
-                if (((s, t) in T2fix.edges
+                if (((s, t) in T.edges
                         or (s, t) in edges_add)
                         and (s, t) not in edges_del):
                     # crossing with Delaunay edge
@@ -307,21 +312,21 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                     d = P[c][b]['ccw']
                     diag_da = (a, d) if a < d else (d, a)
                     if (d == P[b][c]['cw']
-                            and (diag_da in T2fix.edges
+                            and (diag_da in T.edges
                                  or diag_da in edges_add)
                             and diag_da not in edges_del):
                         return False
                     e = P[a][c]['ccw']
                     diag_eb = (e, b) if e < b else (b, e)
                     if (e == P[c][a]['cw']
-                            and (diag_eb in T2fix.edges
+                            and (diag_eb in T.edges
                                  or diag_eb in edges_add)
                             and diag_eb not in edges_del):
                         return False
         return True
 
     while eeXings:
-        calcload(T2fix)
+        calcload(T)
         (u, v), (s, t) = eeXings[0]
         gateV, leafV = gate_and_leaf_path(T_branches, v)
         gateT, leafT = gate_and_leaf_path(T_branches, t)
@@ -336,8 +341,8 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             src_dst_swap.append((gateT, gateV, t))
 
         if not src_dst_swap:
-            print('ERROR: unable to fix crossing that has more than one '
-                  'node in both components.')
+            warn('Crossing repair is only implemented for the cases where the '
+                 'split results in at least one single-noded branch fragment.')
             return T
         quant_choices = []
         for gateS, gateD, swapS in src_dst_swap:
@@ -348,10 +353,11 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             choices = _find_fix_choices_path(A, swapS, src_path, dst_path)
             choices = filter(not_crossing, choices)
             quant_choices.extend(
-                _quantify_choices(T2fix, A, swapS, src_path, dst_path, choices)
+                _quantify_choices(T, A, swapS, src_path, dst_path, choices)
             )
         if not quant_choices:
-            print('ERROR: unable to find fix.')
+            warn('Unrepairable: no suitable node swap found. {} crossings '
+                 'remaining.', T.graph['num_crossings'])
             return T
         quant_choices.sort()
         # TODO: remove this
@@ -366,13 +372,13 @@ def repair_routeset_path(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         #          in quant_choices]:
         #      print(line)
         _, choice = quant_choices[0]
-        # apply_choice works on a copy of T
-        T2fix = _apply_choice(T2fix, A, swapS, *choice)
-        T2fix.graph['num_crossings'] -= 1
-        del T2fix.graph['has_loads']
-        T_branches = nx.subgraph_view(T2fix, filter_node=lambda n: 0 <= n < N)
+        # apply_choice works on a copy of Tʹ
+        T = _apply_choice(T, A, swapS, *choice)
+        T.graph['num_crossings'] -= 1
+        del T.graph['has_loads']
+        T_branches = nx.subgraph_view(T, filter_node=lambda n: 0 <= n < N)
         eeXings = list_edge_crossings(T_branches, A)
-
-    #  PathFinder(T2fix, branching=False).create_detours(in_place=True)
-
-    return T2fix
+    num_crossings = T.graph.get('num_crossings')
+    if num_crossings is not None and num_crossings == 0:
+        del T.graph['num_crossings']
+    return T
