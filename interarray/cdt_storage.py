@@ -5,7 +5,7 @@ import json
 import pickle
 from collections.abc import Sequence
 from functools import partial
-from itertools import pairwise
+from itertools import pairwise, chain
 from hashlib import sha256
 import base64
 from socket import getfqdn, gethostname
@@ -32,9 +32,10 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
-             'diagonals_used', 'crossings_map', 'tentative', 'creator',
+             'num_diagonals', 'crossings_map', 'tentative', 'creator',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
-             'clone2prime', 'valid', 'path_in_P'}
+             'clone2prime', 'valid', 'path_in_P', 'shortened_contours',
+             'nonAedges', 'method'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
@@ -70,11 +71,16 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         C=routeset.C, D=routeset.D,
         handle=routeset.handle,
         capacity=routeset.capacity,
-        funhash=routeset.method.funhash,
-        funfile=routeset.method.funfile,
-        funname=routeset.method.funname,
+        creator=routeset.creator,
+        method=dict(
+            solver_name=routeset.method.solver_name,
+            timestamp=routeset.method.timestamp,
+            funname=routeset.method.funname,
+            funfile=routeset.method.funfile,
+            funhash=routeset.method.funhash,
+        ),
         runtime=routeset.runtime,
-        creation_options=routeset.method.options,
+        method_options=routeset.method.options,
         **routeset.misc)
 
     if routeset.stuntC:
@@ -110,7 +116,7 @@ def packnodes(G: nx.Graph) -> PackType:
         VertexC = np.vstack((VertexC[:N + B - len(border_stunts)],
                              VertexC[-M:]))
     VertexCpkl = pickle.dumps(VertexC)
-    digest = sha256(VertexCpkl).digest(),
+    digest = sha256(VertexCpkl).digest()
 
     if G.name[0] == '!':
         name = G.name + base64.b64encode(digest).decode('ascii')
@@ -182,8 +188,7 @@ def terse_pack_from_G(G: nx.Graph) -> PackType:
     '''
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    #  terse = np.empty((N + C + D,), dtype=int)
-    terse = np.full((N + C + D,), -11, dtype=int)
+    terse = np.empty((N + C + D,), dtype=int)
     if not G.graph.get('has_loads'):
         calcload(G)
     for u, v, reverse in G.edges(data='reverse'):
@@ -287,7 +292,7 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         packed_G['detextra'] = length/objective - 1
     concatenate_tuples = partial(sum, start=())
     pack_if_given = (  # key, function to prepare data
-        ('diagonals_used', None),
+        ('num_diagonals', None),
         ('valid', None),
         ('tentative', concatenate_tuples),
         ('rogue', concatenate_tuples),
