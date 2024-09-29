@@ -49,16 +49,14 @@ def define_entities(db):
         id = PrimaryKey(int, auto=True)
         handle = Required(str)
         valid = Optional(bool)
+        N = Required(int)  # num_nodes
+        M = Required(int)  # num_roots
         capacity = Required(int)
         length = Required(float)
         is_normalized = Required(bool)
         # runtime always in [s]
         runtime = Optional(float)
-        machine = Optional(lambda: Machine)
         num_gates = Required(IntArray)
-        M = Required(int)  # num_roots
-        N = Required(int)  # num_nodes
-        stuntC = Optional(bytes)  # coords of border stunts
         # number of contour nodes
         C = Optional(int, default=0)
         # number of detour nodes
@@ -68,17 +66,19 @@ def define_entities(db):
         # relative increase from undetoured routeset to the detoured one
         # detoured_length = (1 + detextra)*undetoured_length
         detextra = Optional(float)
-        diagonals_used = Optional(int)
+        num_diagonals = Optional(int)
         tentative = Optional(IntArray)
         rogue = Optional(IntArray)
         timestamp = Optional(datetime.datetime,
                              default=datetime.datetime.utcnow)
         misc = Optional(Json)
+        stuntC = Optional(bytes)  # coords of border stunts
         # len(clone2prime) == C + D
         clone2prime = Optional(IntArray)
         edges = Required(IntArray)
         nodes = Required(NodeSet)
         method = Required(lambda: Method)
+        machine = Optional(lambda: Machine)
 
     class Method(db.Entity):
         solver_name = Required(str)
