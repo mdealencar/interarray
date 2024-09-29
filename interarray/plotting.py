@@ -356,8 +356,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                    NODESIZE_DETOUR)
     node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
-    type2color = {}
-    type2style = dict(
+    kind2color = {}
+    kind2style = dict(
         detour='dashed',
         scaffold='dotted',
         extended='dashed',
@@ -371,7 +371,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     )
     if dark:
         scalebar = False
-        type2color.update(
+        kind2color.update(
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
@@ -390,7 +390,7 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         polygon_face = '#111111'
     else:
         scalebar = True
-        type2color.update(
+        kind2color.update(
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
@@ -408,58 +408,33 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         polygon_edge = '#444444'
         polygon_face = 'whitesmoke'
 
-    M, N, B, C, D, VertexC, border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'C', 'D', 'VertexC', 'border',
-                                 'exclusions', 'landscape_angle'))
+    M, N, B = (G.graph[k] for k in 'MNB')
+    VertexC = G.graph['VertexC']
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in 'border exclusions landscape_angle'.split())
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)
 
-    lims = None
     # draw farm boundary
-    if border is not None:
-        BoundaryC = VertexC[border]
-        if ax is None and not dark:
-            limX, limY = figlims
-            r = limX/limY
-            XYrange = np.abs(np.amax(BoundaryC, axis=0)
-                             - np.amin(BoundaryC, axis=0))
-            d = XYrange[0]/XYrange[1]
-            if d < r:
-                figsize = (limY*d, limY)
-            else:
-                figsize = (limX, limX/d)
-
-        area_polygon = Polygon(BoundaryC, zorder=0, linestyle='--',
-                               facecolor=polygon_face, edgecolor=polygon_edge,
-                               linewidth=0.3)
-        if ax is None:
-            fig, ax = plt.subplots(figsize=figsize)
-        ax.add_patch(area_polygon)
-        ax.update_datalim(area_polygon.get_xy())
-        ax.autoscale()
-        lims = ax.get_xlim(), ax.get_ylim()
-    elif ax is None:
+    if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
+    if border is not None:
+        ax.fill(*VertexC[border].T, polygon_face, edgecolor=polygon_edge)
     ax.axis('off')
-
     ax.set_aspect('equal')
+
     # setup
     roots = range(-M, 0)
     pos = (dict(enumerate(VertexC[:-M]))
            | dict(enumerate(VertexC[-M:], start=-M)))
-    if C is not None or D is not None:
-        C = C or 0
-        D = D or 0
-        fnT = G.graph.get('fnT')
+    if C > 0 or D > 0:
+        fnT = G.graph['fnT']
         contour = range(N + B, N + B + C)
         detour = range(N + B + C, N + B + C + D)
         pos |= dict(zip(detour, VertexC[fnT[detour]]))
         pos |= dict(zip(contour, VertexC[fnT[contour]]))
-    #  if D is not None:
-    #      fnT = G.graph.get('fnT')
-    #      detour = range(N + B, N + B + D)
-    #      pos |= dict(zip(detour, VertexC[fnT[detour]]))
     RootL = {r: G.nodes[r].get('label', F[r]) for r in roots[::-1]}
 
     colors = plt.get_cmap('tab20', 20).colors
@@ -471,21 +446,21 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
     # draw edges
     base_layer = ('scaffold',)
     for edge_kind in base_layer:
-        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_kind],
-                               style=type2style[edge_kind], label=edge_kind,
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color[edge_kind],
+                               style=kind2style[edge_kind], label=edge_kind,
                                edgelist=[(u, v)
                                          for u, v, kind in G.edges.data('kind')
                                          if kind == edge_kind])
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color['unspecified'],
-                           style=type2style['unspecified'], label='direct',
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color['unspecified'],
+                           style=kind2style['unspecified'], label='direct',
                            edgelist=[(u, v)
                                      for u, v, kind in G.edges.data('kind')
                                      if kind is None])
-    for edge_kind in type2style:
+    for edge_kind in kind2style:
         if edge_kind in base_layer:
             continue
-        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=type2color[edge_kind],
-                               style=type2style[edge_kind], label=edge_kind,
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color[edge_kind],
+                               style=kind2style[edge_kind], label=edge_kind,
                                edgelist=[(u, v)
                                          for u, v, kind in G.edges.data('kind')
                                          if kind == edge_kind])
@@ -580,9 +555,6 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
                   columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph and infobox:
             ax.add_artist(infobox)
-    if lims is not None:
-        ax.set_xlim(*lims[0])
-        ax.set_ylim(*lims[1])
     return ax
 
 
