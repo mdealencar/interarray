@@ -34,10 +34,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     margin = 30
     root_side = round(1.77*node_size)
     # TODO: ¿use SVG's attr overflow="visible" instead of margin?
-    M, N, VertexC, border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in ('M', 'N', 'VertexC', 'border',
-                                 'exclusions', 'landscape_angle'))
-    B, C, D = (G.graph.get(k, 0) for k in ('B', 'C', 'D'))
+    M, N, B = (G.graph[k] for k in 'MNB')
+    VertexC = G.graph['VertexC']
+    C, D = (G.graph.get(k, 0) for k in 'CD')
+    border, exclusions, landscape_angle = (
+        G.graph.get(k) for k in 'border exclusions landscape_angle'.split())
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)
@@ -76,8 +77,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     BoundaryS = BoundaryS.round().astype(int)
 
     # color settings
-    type2color = {}
-    type2style = dict(
+    kind2color = {}
+    kind2style = dict(
         detour='dashed',
         scaffold='dotted',
         extended='dashed',
@@ -90,7 +91,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         unspecified='solid',
     )
     if dark:
-        type2color.update(
+        kind2color.update(
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
@@ -108,7 +109,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         polygon_edge = '#333'
         polygon_face = '#111111'
     else:
-        type2color.update(
+        kind2color.update(
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
@@ -235,22 +236,22 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     defs = svg.Defs(elements=def_elements)
 
     # Style
-    # TODO: use type2style below
+    # TODO: use kind2style below
     style = svg.Style(text=(
         f'polyline {{stroke-width: 4}} '
         f'line {{stroke-width: 4}} '
-        f'.std {{stroke: {type2color["unspecified"]}}} '
-        f'.del {{stroke: {type2color["delaunay"]}}} '
-        f'.con {{stroke: {type2color["contour"]}}} '
-        f'.cod {{stroke: {type2color["contour_delaunay"]}}} '
-        f'.coe {{stroke: {type2color["contour_extended"]}; '
+        f'.std {{stroke: {kind2color["unspecified"]}}} '
+        f'.del {{stroke: {kind2color["delaunay"]}}} '
+        f'.con {{stroke: {kind2color["contour"]}}} '
+        f'.cod {{stroke: {kind2color["contour_delaunay"]}}} '
+        f'.coe {{stroke: {kind2color["contour_extended"]}; '
         f'stroke-dasharray: 18 15}} '
-        f'.ttt {{stroke: {type2color["tentative"]}; stroke-dasharray: 18 15}} '
-        f'.rog {{stroke: {type2color["rogue"]}; stroke-dasharray: 25 5}} '
-        f'.ext {{stroke: {type2color["extended"]}; stroke-dasharray: 18 15}} '
-        f'.scf {{stroke: {type2color["scaffold"]}; stroke-dasharray: 10 10}} '
+        f'.ttt {{stroke: {kind2color["tentative"]}; stroke-dasharray: 18 15}} '
+        f'.rog {{stroke: {kind2color["rogue"]}; stroke-dasharray: 25 5}} '
+        f'.ext {{stroke: {kind2color["extended"]}; stroke-dasharray: 18 15}} '
+        f'.scf {{stroke: {kind2color["scaffold"]}; stroke-dasharray: 10 10}} '
         f'.dt {{stroke-dasharray: 18 15; fill: none; '
-        f'stroke: {type2color["detour"]}}}'))
+        f'stroke: {kind2color["detour"]}}}'))
 
     # Aggregate all elements in the SVG figure.
     out = svg.SVG(
