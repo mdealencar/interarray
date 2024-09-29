@@ -907,6 +907,11 @@ def make_planar_embedding(
                                 skip_test = False
                                 break
                             a = c
+                    if c == a:
+                        # no nb remaining after making a = c, c <- first nb
+                        c = next(P.neighbors_cw_order(b))
+                        if P[b][a]['cw'] == c:
+                            skip_test = False
                     warn('a: {} {}; c: {} {}; s: {} {}, t: {} {}; {}',
                          a, F[a], c, F[c], s, F[s], t, F[t], skip_test)
                     if (skip_test or not (cw(a, b, c)
