@@ -210,14 +210,14 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     clone2prime = []
     tentative = []
     shortened_contours = {}
-    diagonals_used = 0
+    num_diagonals = 0
     # add to G the T edges that are in A
     for edge in common_TA:
         s, t = edge if edge[0] < edge[1] else edge[::-1]
         AedgeD = A[s][t]
         subtree_id = T.nodes[t]['subtree']
         # only count diagonals that are not gates
-        diagonals_used += AedgeD['kind'] == 'extended' and s >= 0
+        num_diagonals += AedgeD['kind'] == 'extended' and s >= 0
         load = T[s][t]['load']
         s_load = T.nodes[s]['load']
         t_load = T.nodes[t]['load']
@@ -351,7 +351,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         G.graph['tentative'] = tentative
 
     G.graph.update(
-        diagonals_used=diagonals_used,
+        num_diagonals=num_diagonals,
         overfed=[len(G[r])/math.ceil(N/T.graph['capacity'])*M
                  for r in range(-M, 0)],
     )
