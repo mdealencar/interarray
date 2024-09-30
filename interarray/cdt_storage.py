@@ -99,10 +99,10 @@ def G_from_routeset(routeset: object) -> nx.Graph:
     if abs(calc_length/routeset.length - 1) > 1e-5:
         G.graph['length_mismatch_on_db_read'] = calc_length - routeset.length
     if routeset.rogue:
-        for u, v in pairwise(routeset.rogue):
+        for u, v in zip(routeset.rogue[::2], routeset.rogue[1::2]):
             G[u][v]['kind'] = 'rogue'
     if routeset.tentative:
-        for r, n in pairwise(routeset.tentative):
+        for r, n in zip(routeset.tentative[::2], routeset.tentative[1::2]):
             G[r][n]['kind'] = 'tentative'
     return G
 
