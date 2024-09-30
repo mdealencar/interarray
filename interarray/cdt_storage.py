@@ -285,6 +285,7 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     # Optional fields
     border_stunts = G.graph.get('border_stunts')
     if border_stunts:
+        VertexC = G.graph['VertexC']
         stuntC = VertexC[N + B - len(border_stunts): N + B].copy()
         packed_G['stuntC'] = pickle.dumps(stuntC)
     objective = G.graph.get('objective')
