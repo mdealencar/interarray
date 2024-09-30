@@ -708,7 +708,6 @@ def make_planar_embedding(
 
     # Add A's hull as constraint edges to ensure A's edges remain in P.
     for s, t in zip(hull_concave, hull_concave[1:] + [hull_concave[0]]):
-        constraint_edges.add((s, t) if s < t else (t, s))
         edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else N + M + s,
                                      t if t >= 0 else N + M + t))
 
@@ -726,9 +725,6 @@ def make_planar_embedding(
         for seg in concavity.segments:
             s, t = vertice_from_point[seg.start], vertice_from_point[seg.end]
             st = (s, t) if s < t else (t, s)
-            if st in constraint_edges:
-                print('here')
-                continue
             constraint_edges.add(st)
             edgesCDT.append(cdt.Edge(verticeCDT_from_point[seg.start],
                                      verticeCDT_from_point[seg.end]))
