@@ -433,33 +433,38 @@ class PathFinder():
                    for u, v in P.edges if u < ST or v < ST}
         portal_set = edges_P - edges_G_primed
         self.portal_set = portal_set
+        constraint_edges = P.graph['constraint_edges']
 
         # launch channel traversers around the roots to the prioqueue
         for r in range(-M, 0):
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.prime_from_id[r] = r
             paths.ids_from_prime_sector[r, r] = [r]
-            #  for left in set(P.neighbors(r)) & set(G.neighbors(r)):
-            for left in set(P.neighbors(r)) & nodes_G_primed:
+            for left in P.neighbors(r):
                 right = P[r][left]['cw']
                 portal = (left, right)
                 portal_sorted = (right, left) if right < left else portal
-                if (right not in P[r]
-                        or portal_sorted not in portal_set
-                        or G.degree[left] == 0):
-                    # (u, v, r) not a triangle or (u, v) is in G
-                    # or `left` is unconnected in G
+                if (right not in P[r] or portal_sorted not in portal_set):
+                    # (left, right, root) not a triangle
+                    # or (left, right) is not a portal
                     continue
                 # flag initial portals as visited
                 self.uncharted[portal] = 0
                 self.uncharted[right, left] = 0
 
-                sec_left = P[left][right]['ccw']
-                while ((left, sec_left) not in edges_G_primed
-                       and (sec_left, left) not in edges_G_primed):
-                    sec_left = P[left][sec_left]['ccw']
-                if sec_left == r or left >= ST:
+                if left >= ST or (left in G.nodes and G.degree[left] == 0):
                     sec_left = NULL
+                else:
+                    sec_left = right
+                    while True:
+                        sec_left = P[left][sec_left]['ccw']
+                        incr_edge = ((sec_left, left) if sec_left < left
+                                     else (left, sec_left))
+                        if (incr_edge in edges_G_primed
+                                or incr_edge in constraint_edges):
+                            break
+                    if sec_left == r:
+                        sec_left = NULL
 
                 d_left, d_right = d2roots[left, r], d2roots[right, r]
                 # add the first pseudo-nodes to paths
