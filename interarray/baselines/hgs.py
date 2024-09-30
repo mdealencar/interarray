@@ -128,8 +128,8 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     return T
 
 
-def _solution_time(log, undetoured_length) -> float:
-    sol_repr = f'{undetoured_length:.2f}'
+def _solution_time(log, objective) -> float:
+    sol_repr = f'{objective:.2f}'
     for line in log.splitlines():
         if line[0] == '-':
             continue
@@ -143,10 +143,3 @@ def _solution_time(log, undetoured_length) -> float:
             return float(time)
     # if sol_repr was not found, return total runtime
     return float(line.split(' ')[-1])
-
-
-def get_sol_time(G: nx.Graph) -> float:
-    """Graph must have graph attribute 'solver_log'"""
-    log = G.graph['solver_log']
-    sol = G.graph['undetoured_length']*G.graph['creation_options']['scale']
-    return _solution_time(log, sol)
