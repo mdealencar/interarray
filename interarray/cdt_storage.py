@@ -35,7 +35,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'num_diagonals', 'crossings_map', 'tentative', 'creator',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
              'clone2prime', 'valid', 'path_in_P', 'shortened_contours',
-             'nonAedges', 'method'}
+             'nonAedges', 'method', 'border_stunts'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
@@ -288,11 +288,9 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         VertexC = G.graph['VertexC']
         stuntC = VertexC[N + B - len(border_stunts): N + B].copy()
         packed_G['stuntC'] = pickle.dumps(stuntC)
-    objective = G.graph.get('objective')
-    if D > 0 and objective is not None:
-        packed_G['detextra'] = length/objective - 1
     concatenate_tuples = partial(sum, start=())
     pack_if_given = (  # key, function to prepare data
+        ('detextra', None),
         ('num_diagonals', None),
         ('valid', None),
         ('tentative', concatenate_tuples),

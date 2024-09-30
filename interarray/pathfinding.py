@@ -88,6 +88,7 @@ class PathFinder():
         G = Gʹ.copy()
         M, N, B = (G.graph[k] for k in 'MNB')
         C = G.graph.get('C', 0)
+        assert not G.graph.get('D'), 'Gʹ has already has detours.'
 
         # Block for facilitating the printing of debug messages.
         allnodes = np.arange(N + M + B + 3)
@@ -178,6 +179,7 @@ class PathFinder():
                                        diagonals=diagonals)
         self.d2roots = d2roots
         self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
+        self.predetour_length = Gʹ.size(weight='length')
         creator = G.graph.get('creator')
         if creator is not None and creator[:5] == 'MILP.':
             self.branching = G.graph['method_options']['branching']
@@ -729,5 +731,6 @@ class PathFinder():
         fnT[N + B: clone_idx] = clone2prime
         fnT[-M:] = range(-M, 0)
         G.graph.update(D=clone_idx - N - B - C, fnT=fnT)
+        G.graph['detextra'] = G.size(weight='length')/self.predetour_length - 1
         # TODO: there might be some lost contour clones that could be prunned
         return G
