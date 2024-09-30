@@ -209,11 +209,8 @@ def terse_pack_from_G(G: nx.Graph) -> PackType:
 def untersify_to_G(G: nx.Graph, terse: np.ndarray,
                    clone2prime: np.ndarray | None = None) -> None:
     '''
-    Changes G in place if it has no edges, else copies G nodes and graph
-    attributes.
+    Changes G in place!
     '''
-    if G.number_of_edges() > 0:
-        G = nx.create_empty_copy(G, with_data=True)
     M, N, B = (G.graph[k] for k in 'MNB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
@@ -239,7 +236,6 @@ def untersify_to_G(G: nx.Graph, terse: np.ndarray,
         for _, _, edgeD in G.edges(detournodes, data=True):
             edgeD['kind'] = 'detour'
     calcload(G)
-    return G
 
 
 def oddtypes_to_serializable(obj):
