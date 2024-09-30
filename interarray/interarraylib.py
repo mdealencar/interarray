@@ -388,6 +388,12 @@ def T_from_G(G: nx.Graph):
                 T.add_node(v, kind='wtg')
                 T.add_edge(u, v)
             on_hold = None
+    creator = G.graph.get('creator')
+    if creator is not None:
+        T.graph['creator'] = creator
+    method_options = G.graph.get('method_options')
+    if method_options is not None:
+        T.graph['method_options'] = method_options
     if has_loads:
         T.graph['has_loads'] = True
     else:
