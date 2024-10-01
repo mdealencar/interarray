@@ -351,7 +351,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
 
     Args:
         ax: Axes instance to plot into. If `None`, opens a new figure.
-        node_tag: text label inside each node `None`, 'load' or 'label' (or 
+        node_tag: text label inside each node `None`, 'load' or 'label' (or
             any of the nodes' attributes).
         landscape: True -> rotate the plot by G's attribute 'landscape_angle'.
         infobox: Draw text box with summary of G's main properties: capacity,
@@ -539,34 +539,21 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
                                for fi, overfed in
                                zip(feeder_info, G.graph['overfed'][::-1])]
             info.extend(feeder_info)
-            # legend.append(', '.join(feeder_info))
             Gʹ = nx.subgraph_view(G,
                                   filter_edge=lambda u, v: 'length' in G[u][v])
             length = Gʹ.size(weight="length")
             if length > 0:
                 intdigits = int(np.floor(np.log10(length))) + 1
                 info.append(f'Σl = {round(length, max(0, 5 - intdigits))} m')
-                #  assert Gʹ.number_of_edges() == G.number_of_nodes() - 1, \
-                #          f'{Gʹ.number_of_edges()} != {G.number_of_nodes()}'
-                # for field, sym in (('weight', 'w'), ('length', 'l')):
-                #  for field, sym in (('length', ''),):
-                #      weight = field if all([(field in data)
-                #                             for _, _, data in G.edges.data()]) else None
-                #      legend.append('Σ{} = {:.0f}'.format(sym, G.size(weight=weight)) +
-                #                    ' m' if field == 'length' else '')
         if ('has_costs' in G.graph):
             info.append('{:.0f} €'.format(G.size(weight='cost')))
         if 'capacity' in G.graph:
             infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX,
                                 title='\n'.join(info), labelspacing=0)
-                                # loc='upper right'
-                                # bbox_to_anchor=(-0.04, 0.80, 1.08, 0)
-                                # bbox_to_anchor=(-0.04, 1.03, 1.08, 0)
+            #                      loc='upper right'
+            #                      bbox_to_anchor=(-0.04, 0.80, 1.08, 0)
+            #                      bbox_to_anchor=(-0.04, 1.03, 1.08, 0)
             plt.setp(infobox.get_title(), multialignment='center')
-            # ax.legend(title='\n'.join(legend))
-            # legend1 = pyplot.legend(plot_lines[0], ["algo1", "algo2", "algo3"], loc=1)
-            # pyplot.legend([l[0] for l in plot_lines], parameters, loc=4)
-            # ax.add_artist(legstrip)
     if not dark:
         ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
                   frameon=False, bbox_to_anchor=(0.5, -0.07),
