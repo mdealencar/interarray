@@ -15,8 +15,8 @@ from .geometric import make_graph_metrics, rotate
 from .interarraylib import calcload, NodeTagger
 
 
-FONTSIZE_LABEL = 6
-FONTSIZE_LOAD = 8
+FONTSIZE_LABEL = 5
+FONTSIZE_LOAD = 7
 FONTSIZE_ROOT_LABEL = 6
 FONTSIZE_LEGEND_BOX = 7
 FONTSIZE_LEGEND_STRIP = 6
@@ -342,12 +342,28 @@ def animate(G, interval=250, blit=True, workpath='./tmp/', node_tag='label',
     return fname
 
 
-def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
-          landscape=True, infobox=True):
-    '''NetworkX graph plotting function.
-    `node_tag` in [None, 'load', 'label']
-    (or other key in nodes's dict)'''
-    figsize = plt.rcParams['figure.figsize']
+def gplot(G: nx.Graph, ax: plt.Axes | None = None,
+          node_tag: str | None = 'label',
+          landscape: bool = True, infobox: bool = True,
+          scalebar: tuple[float, str] | None = None,
+          min_dpi: int = 192) -> plt.Axes:
+    '''Plot site and routeset contained in G.
+
+    Args:
+        ax: Axes instance to plot into. If `None`, opens a new figure.
+        node_tag: text label inside each node `None`, 'load' or 'label' (or 
+            any of the nodes' attributes).
+        landscape: True -> rotate the plot by G's attribute 'landscape_angle'.
+        infobox: Draw text box with summary of G's main properties: capacity,
+            number of turbines, number of feeders, total cable length.
+        scalebar: (span_in_data_units, label) add a small bar to indicate the
+            plotted features' scale (lower right corner).
+        min_dpi: Minimum dots per inch to use. matplotlib's default is used if
+            it is greater than this value.
+
+    Returns:
+        Axes instance containing the plot.
+    '''
     dark = plt.rcParams['figure.facecolor'] != 'white'
 
     root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
@@ -370,7 +386,6 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         unspecified='solid',
     )
     if dark:
-        scalebar = False
         kind2color.update(
             detour='darkorange',
             scaffold='gray',
@@ -389,7 +404,6 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         polygon_edge = 'none'
         polygon_face = '#111111'
     else:
-        scalebar = True
         kind2color.update(
             detour='royalblue',
             scaffold='gray',
@@ -417,13 +431,17 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)
 
-    # draw farm boundary
     if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(
+            subplot_kw=dict(
+                aspect='equal', xmargin=0., ymargin=0.),
+            layout='constrained', dpi=max(min_dpi, plt.rcParams['figure.dpi']))
+    else:
+        ax.set(aspect='equal')
+    ax.axis(False)
+    # draw farm border
     if border is not None:
         ax.fill(*VertexC[border].T, polygon_face, edgecolor=polygon_edge)
-    ax.axis('off')
-    ax.set_aspect('equal')
 
     # setup
     roots = range(-M, 0)
@@ -505,8 +523,8 @@ def gplot(G, ax=None, node_tag='label', edge_exemption=False, figlims=(5, 6),
         nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
                                 labels=RootL)
 
-    if scalebar:
-        bar = AnchoredSizeBar(ax.transData, 1000, '1 km', 'lower right',
+    if scalebar is not None:
+        bar = AnchoredSizeBar(ax.transData, *scalebar, 'lower right',
                               frameon=False)
         ax.add_artist(bar)
 
