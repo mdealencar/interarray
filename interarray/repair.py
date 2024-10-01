@@ -380,5 +380,6 @@ def repair_routeset_path(Tʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
         eeXings = list_edge_crossings(T_branches, A)
     num_crossings = T.graph.get('num_crossings')
     if num_crossings is not None and num_crossings == 0:
+        T.graph['repaired'] = 'repair_routeset_path'
         del T.graph['num_crossings']
     return T
