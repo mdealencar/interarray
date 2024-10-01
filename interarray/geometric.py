@@ -813,6 +813,8 @@ def rotating_calipers(convex_hull: np.ndarray) \
 
 def normalize_area(G_base: nx.Graph, *, hull_nonroot: np.ndarray) -> nx.Graph:
     """
+    DEPRECATED: use interarraylib.as_normalized()
+
     Rescale graph's coordinates and distances such as to make the rootless
     concave hull of nodes enclose an area of 1.
     Graph is first rotated by attribute 'landscape_angle' and afterward it's
@@ -850,6 +852,8 @@ def normalize_area(G_base: nx.Graph, *, hull_nonroot: np.ndarray) -> nx.Graph:
 
 def denormalize(G_scaled, G_base):
     '''
+    DEPRECATED: use interarraylib.as_site_scale()
+
     note: d2roots will be created in G_base if absent.
     '''
     G = G_scaled.copy()
