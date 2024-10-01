@@ -441,7 +441,7 @@ def as_single_oss(G: nx.Graph) -> nx.Graph:
     return Gʹ
 
 
-def as_normalized(A: nx.Graph) -> nx.Graph:
+def as_normalized(Aʹ: nx.Graph) -> nx.Graph:
     '''Make a shallow copy of an instance and shift and scale its geometry.
 
     Coordinates are subtracted by graph attribute 'norm_offset'.
@@ -450,23 +450,52 @@ def as_normalized(A: nx.Graph) -> nx.Graph:
     Affected linear attributes: 'VertexC', 'd2roots' (graph); 'length' (edge).
 
     Args:
-        A: any instance that has inherited 'norm_scale' from an edgeset `A`.
+        Aʹ: (or Gʹ) any instance that has inherited 'norm_scale' from an
+            edgeset `Aʹ`.
 
     Returns:
         A copy of the instance with changed coordinates and linear metrics.
     '''
+    A = Aʹ.copy()
     norm_factor = A.graph['norm_scale']
-    Aʹ = A.copy()
-    Aʹ.graph['is_normalized'] = True
-    for u, v, eData in Aʹ.edges(data=True):
+    A.graph['is_normalized'] = True
+    for u, v, eData in A.edges(data=True):
         eData['length'] *= norm_factor
-    VertexC = norm_factor*(A.graph['VertexC'] - A.graph['norm_offset'])
-    Aʹ.graph['VertexC'] = VertexC
-    d2roots = norm_factor*A.graph['d2roots']
-    Aʹ.graph['d2roots'] = d2roots
-    return Aʹ
+    A.graph['VertexC'] = norm_factor*(Aʹ.graph['VertexC']
+                                      - Aʹ.graph['norm_offset'])
+    A.graph['d2roots'] = norm_factor*Aʹ.graph['d2roots']
+    return A
 
 
+def as_site_scale(Gʹ: nx.Graph, S: nx.Graph) -> nx.Graph:
+    '''Revert normalization done by `as_normalized()`.
+
+    Args:
+        Gʹ: routeset to rescale to pre-normalization size.
+        S: (or G or A) site/routeset to get 'VertexC' from (also 'd2roots', if
+            available).
+
+    Returns:
+        Routeset with coordinates and lengths at site scale.
+    '''
+    if not Gʹ.graph.get('is_normalized', False):
+        # Gʹ is not marked as normalized
+        return Gʹ
+    G = Gʹ.copy()
+    # alternatively, we could do the math, but this safeguards the coord's hash
+    G.graph['VertexC'] = S.graph['VertexC']
+    denorm_factor = 1/G.graph['norm_scale']
+    for u, v, eData in G.edges(data=True):
+        eData['length'] *= denorm_factor
+    d2roots = S.graph.get('d2roots')
+    if d2roots is not None:
+        G.graph['d2roots'] = d2roots
+    elif 'd2roots' in G.graph:
+        del G.graph['d2roots']
+    del G.graph['is_normalized']
+    # this factor can be used later to scale metadata (such as 'objective')
+    G.graph['denormalization'] = denorm_factor
+    return G
 
 
 def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
