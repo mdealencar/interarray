@@ -42,7 +42,7 @@ class NodeTagger():
                     break
             return ''.join(b50[::-1])
         else:
-            return chr(ord('α') - dec - 1)
+            return chr(ord('α') + (abs(dec) - 1) % 25)
 
 
 F = NodeTagger()
