@@ -152,15 +152,18 @@ class PathFinder():
             # G has edges that shortcut some longer paths along P edges.
             # We need to put these paths back in G to do P edge flips.
             # The changes made here are undone in `create_detours()`.
-            fnT = G.graph['fnT']
+            clone2prime = G.graph['clone2prime']
+            clone_offset = N + B
             for (s, t), (midpath, shortpath) in shortened_contours.items():
                 # G follows shortpath, but we want it to follow midpath
                 subtree_id = G.nodes[t]['subtree']
                 stored_edges = []
                 path = [s] + shortpath + [t]
                 for u_, v_ in zip(path[:-1], path[1:]):
-                    u = np.flatnonzero(fnT == u_)[-1]
-                    v = np.flatnonzero(fnT == v_)[-1]
+                    u = (u_ if u_ < N else
+                         clone_offset + np.flatnonzero(clone2prime == u_)[-1])
+                    v = (v_ if v_ < N else
+                         clone_offset + np.flatnonzero(clone2prime == v_)[-1])
                     stored_edges.append((u, v, G[u][v]))
                     # the nodes are left for later reuse
                     G.remove_edge(u, v)
