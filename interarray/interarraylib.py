@@ -191,7 +191,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     (possibly with contours, but not with detours – use PathFinder afterward).
     '''
     M, N, B = (A.graph[k] for k in 'MNB')
-    VertexC, d2roots = (A.graph[k] for k in ('VertexC', 'd2roots'))
+    VertexC, d2roots, diagonals = (A.graph[k] for k in
+                                   ('VertexC', 'd2roots', 'diagonals'))
     # TODO: rethink whether to copy from T or from A
     G = nx.create_empty_copy(T)
     G.graph.update(
@@ -219,11 +220,38 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         subtree_id = T.nodes[t]['subtree']
         # only count diagonals that are not gates
         num_diagonals += AedgeD['kind'] == 'extended' and s >= 0
+        st_is_tentative = False
+        if s < 0:
+            # ⟨s, t⟩ is a gate
+            if (s, t) in diagonals:
+                # ⟨s, t⟩ is a diagonal
+                u, v = diagonals[(s, t)]
+                if (u, v) in T.edges:
+                    # ⟨s, t⟩'s Delaunay is in T
+                    st_is_tentative = True
+                else:
+                    # check the other diagonals that cross ⟨s, t⟩ (in A)
+                    for wy in ((u, s), (s, v), (v, t), (t, u)):
+                        w, y = wy if wy[0] < wy[1] else wy[::-1]
+                        if ((w, y) in diagonals.inv
+                                and diagonals.inv[(w, y)] in T.edges):
+                            # ⟨s, t⟩'s Delaunay is in T
+                            st_is_tentative = True
+                            break
+            elif (s, t) in diagonals.inv and diagonals.inv[(s, t)] in T.edges:
+                # ⟨s, t⟩ is a Delanay edge and its diagonal is in T
+                st_is_tentative = True
         load = T[s][t]['load']
         s_load = T.nodes[s]['load']
         t_load = T.nodes[t]['load']
         st_reverse = s_load < t_load
         midpath = AedgeD.get('midpath')
+        if st_is_tentative:
+            # ⟨s, t⟩ is a gate with Xing -> mark it for PathFinder to check
+            G.add_edge(s, t, length=AedgeD['length'], load=load,
+                       reverse=st_reverse, kind='tentative')
+            tentative.append((s, t))
+            continue
         if midpath is None:
             # no contour in A's ⟨s, t⟩ -> straightforward
             G.add_edge(s, t, length=AedgeD['length'], load=load,
