@@ -346,6 +346,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
           node_tag: str | None = 'label',
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
+          hide_ST: bool = True,
           min_dpi: int = 192) -> plt.Axes:
     '''Plot site and routeset contained in G.
 
@@ -358,6 +359,8 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             number of turbines, number of feeders, total cable length.
         scalebar: (span_in_data_units, label) add a small bar to indicate the
             plotted features' scale (lower right corner).
+        hide_ST: if coordinates include a Delaunay supertriangle, adjust the
+            viewport to fit only the actual vertices (i.e. no ST vertices).
         min_dpi: Minimum dots per inch to use. matplotlib's default is used if
             it is greater than this value.
 
@@ -434,7 +437,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     if ax is None:
         fig, ax = plt.subplots(
             subplot_kw=dict(
-                aspect='equal', xmargin=0., ymargin=0.),
+                aspect='equal', xmargin=0.005, ymargin=0.005),
             layout='constrained', dpi=max(min_dpi, plt.rcParams['figure.dpi']))
     else:
         ax.set(aspect='equal')
@@ -560,7 +563,42 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
                   columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph and infobox:
             ax.add_artist(infobox)
+    if hide_ST and VertexC.shape[0] > M + N + B:
+        # coordinates include the supertriangle, adjust view limits to hide it
+        nonStC = np.r_[VertexC[:N + B], VertexC[-M:]]
+        minima = np.min(nonStC, axis=0)
+        maxima = np.max(nonStC, axis=0)
+        xmargin, ymargin = abs(maxima - minima)*0.05
+        (xlo, xhi), (ylo, yhi) = zip(minima, maxima)
+        ax.set_xlim(xlo - xmargin, xhi + xmargin)
+        ax.set_ylim(ylo - ymargin, yhi + ymargin)
     return ax
+
+
+def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> plt.Axes:
+    '''Plot PlanarEmbedding `P` using coordinates from `A`.
+
+    Wrapper for `interarray.plotting.gplot()`. Performs what one would expect
+    from `gplot(P, ...)` - which does not work because P lacks coordinates and
+    node 'kind' attribute. The source needs to be `A` (as opposed to `G` or
+    `S`) because only `A` has the supertriangle's vertices coordinates.
+
+    Args:
+        P: Planar embedding to plot.
+        A: source of vertex coordinates and 'kind'.
+
+    Returns:
+        Axes instance containing the plot.
+    '''
+    H = nx.create_empty_copy(A)
+    if 'has_loads' in H.graph:
+        del H.graph['has_loads']
+    M, N, B = (A.graph[k] for k in 'MNB')
+    H.add_edges_from(P.edges)
+    fnT = np.arange(M + N + B + 3)
+    fnT[-M:] = range(-M, 0)
+    H.graph['fnT'] = fnT
+    return gplot(H, **kwargs)
 
 
 def compare(positional=None, **title2G_dict):
