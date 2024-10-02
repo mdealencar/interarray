@@ -1,6 +1,7 @@
 import operator
 import math
 from collections.abc import Iterator, Iterable
+from bidict import bidict
 from itertools import chain
 import numpy as np
 import networkx as nx
@@ -147,13 +148,12 @@ def layout_edgeXing_iter(G, A):
         yield from edgeXing_iter(edge, G, A)
 
 
-def edgeset_edgeXing_iter(A):
+def edgeset_edgeXing_iter(diagonals: bidict) \
+        -> Iterator[list[tuple[int, int]]]:
     '''
     Iterator over all edge crossings in an expanded Delaunay edge set `A`.
     Each crossing is a 2 or 3-tuple of (u, v) edges. Does not include gates.
     '''
-    P = A.graph['planar']
-    diagonals = A.graph['diagonals']
     checked = set()
     for (u, v), (s, t) in diagonals.items():
         # ⟨u, v⟩ is a diagonal of Delaunay ⟨s, t⟩
@@ -161,28 +161,20 @@ def edgeset_edgeXing_iter(A):
             # diagonal is a gate
             continue
         uv = (u, v)
-        # crossing with Delaunay edge
-        yield ((s, t), uv)
-        # ensure u–s–v–t is ccw
-        u, v = (uv
-                if (P[u][t]['cw'] == s and P[v][s]['cw'] == t) else
-                uv[::-1])
-        # examine the two triangles ⟨s, t⟩ belongs to
-        for a, b, c in ((s, t, u), (t, s, v)):
-            triangle = tuple(sorted((a, b, c)))
+        if s >= 0:
+            # crossing with Delaunay edge
+            yield ((s, t), uv)
+        # two triangles may contain ⟨s, t⟩, each defined by their non-st vertex
+        for hat in uv:
+            triangle = tuple(sorted((s, t, hat)))
             if triangle in checked:
                 continue
             checked.add(triangle)
-            # this is for diagonals crossing diagonals
             conflicting = [uv]
-            d = P[c][b]['ccw']
-            diag_da = (a, d) if a < d else (d, a)
-            if d == P[b][c]['cw'] and diag_da in diagonals and diag_da[0] >= 0:
-                conflicting.append(diag_da)
-            e = P[a][c]['ccw']
-            diag_eb = (e, b) if e < b else (b, e)
-            if e == P[c][a]['cw'] and diag_eb in diagonals and diag_eb[0] >= 0:
-                conflicting.append(diag_eb)
+            for diag in (diagonals.inv.get((w, y) if w < y else (y, w))
+                         for w, y in ((s, hat), (hat, t))):
+                if diag is not None and diag[0] >= 0:
+                    conflicting.append(diag)
             if len(conflicting) > 1:
                 yield conflicting
 
