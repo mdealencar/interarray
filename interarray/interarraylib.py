@@ -220,34 +220,43 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         subtree_id = T.nodes[t]['subtree']
         # only count diagonals that are not gates
         num_diagonals += AedgeD['kind'] == 'extended' and s >= 0
+        midpath = AedgeD.get('midpath')
+
+        # This block checks for gate×edge crossings, which may be unnecessary
+        # depending on how T was generated. (e.g. creator == 'MILP...' and
+        # gateXings_constraint == True).
         st_is_tentative = False
         if s < 0:
             # ⟨s, t⟩ is a gate
-            if (s, t) in diagonals:
+            if midpath is not None:
+                # While we do not have magic portals, make all contoured gate
+                # of kind tentative, so that we do not block access to root
+                # around a contour node.
+                st_is_tentative = True
+            elif (s, t) in diagonals:
                 # ⟨s, t⟩ is a diagonal
                 u, v = diagonals[(s, t)]
                 if (u, v) in T.edges:
-                    # ⟨s, t⟩'s Delaunay is in T
+                    # ⟨s, t⟩'s Delaunay is in T -> Xing
                     st_is_tentative = True
                 else:
                     # check the other diagonals that cross ⟨s, t⟩ (in A)
-                    for wy in ((u, s), (s, v), (v, t), (t, u)):
-                        w, y = wy if wy[0] < wy[1] else wy[::-1]
-                        if ((w, y) in diagonals.inv
-                                and diagonals.inv[(w, y)] in T.edges):
-                            # ⟨s, t⟩'s Delaunay is in T
+                    for side in ((u, s), (s, v), (v, t), (t, u)):
+                        side = side if side[0] < side[1] else side[::-1]
+                        if (side in diagonals.inv
+                                and diagonals.inv[side] in T.edges):
+                            # side's diagonal is in T -> Xing
                             st_is_tentative = True
                             break
             elif (s, t) in diagonals.inv and diagonals.inv[(s, t)] in T.edges:
-                # ⟨s, t⟩ is a Delanay edge and its diagonal is in T
+                # ⟨s, t⟩ is a Delanay edge and its diagonal is in T -> Xing
                 st_is_tentative = True
+
         load = T[s][t]['load']
         s_load = T.nodes[s]['load']
         t_load = T.nodes[t]['load']
         st_reverse = s_load < t_load
-        midpath = AedgeD.get('midpath')
         if st_is_tentative:
-            # ⟨s, t⟩ is a gate with Xing -> mark it for PathFinder to check
             G.add_edge(s, t, length=AedgeD['length'], load=load,
                        reverse=st_reverse, kind='tentative')
             tentative.append((s, t))
