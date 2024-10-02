@@ -121,15 +121,13 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     # edge-edge crossings
     def edgeXedge_rule(m, *vertices):
-        lhs = sum(((m.Be[u, v] + m.Be[v, u])
-                   if u >= 0 else
-                   m.Bg[u, v])
+        lhs = sum((m.Be[u, v] + m.Be[v, u])
                   for u, v in zip(vertices[::2],
                                   vertices[1::2]))
         return lhs <= 1
     doubleXings = []
     tripleXings = []
-    for Xing in edgeset_edgeXing_iter(A):
+    for Xing in edgeset_edgeXing_iter(A.graph['diagonals']):
         if len(Xing) == 2:
             doubleXings.append(Xing)
         else:

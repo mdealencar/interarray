@@ -117,9 +117,8 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
             m.AddAtMostOne(Be[e], Bg[g])
 
     # edge-edge crossings
-    for Xing in edgeset_edgeXing_iter(A):
-        m.AddAtMostOne(Be[u, v] if u >= 0 else Bg[u, v]
-                       for u, v in Xing)
+    for Xing in edgeset_edgeXing_iter(A.graph['diagonals']):
+        m.AddAtMostOne(Be[u, v] for u, v in Xing)
 
     # flow consevation at each node
     for u in A_nodes.nodes.keys():
