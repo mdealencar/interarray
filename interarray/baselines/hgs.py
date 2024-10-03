@@ -19,7 +19,7 @@ from . import length_matrix_single_depot_from_G
 
 
 def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
-             scale: float = 1e4, vehicles: int | None = None, seed: int = 0) \
+             vehicles: int | None = None, seed: int = 0) \
                      -> nx.Graph:
     '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
     library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
@@ -31,7 +31,6 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         `A`: graph with allowed edges (if it has 0 edges, use complete graph)
         `capacity`: maximum vehicle capacity
         `time_limit`: [s] solver run time limit
-        `scale`: factor to scale lengths
         `vehicles`: number of vehicles (if None, use the minimum feasible)
     '''
     M, N, B, VertexC = (
@@ -62,7 +61,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         seed=seed,
     )
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    x_coordinates, y_coordinates = np.c_[VertexC[-M:].T, VertexC[:N].T]*scale
+    x_coordinates, y_coordinates = np.c_[VertexC[-M:].T, VertexC[:N].T]
     # data preparation
     # Distance_matrix may be provided instead of coordinates, or in addition to
     # coordinates. Distance_matrix is used for cost calculation if provided.
@@ -70,7 +69,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     demands = np.ones(N + M, dtype=float)
     demands[0] = 0.  # depot demand = 0
     d2roots = A.graph['d2roots']
-    weights, w_max = length_matrix_single_depot_from_G(A, scale=scale)
+    weights, w_max = length_matrix_single_depot_from_G(A, scale=1.)
     vehicles_min = math.ceil(N/capacity)
     if vehicles is None or vehicles <= vehicles_min:
         if vehicles is not None and vehicles < vehicles_min:
@@ -92,22 +91,22 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         depot=0,
     )
 
-    result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data)
+    result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data,
+                                         rounding=False)
 
     # create a topology graph T from the results
     T = nx.Graph(
         N=N, M=M,
         capacity=capacity,
         has_loads=True,
-        objective=result.cost/scale,
+        objective=result.cost,
         creator='baselines.hgs',
         runtime=result.time,
         solver_log=out,
         solution_time=_solution_time(out, result.cost),
         method_options=dict(solver_name='HGS-CVRP',
                             complete=A.number_of_edges() == 0,
-                            fun_fingerprint=fun_fingerprint(),
-                            scale=scale) | asdict(ap),
+                            fun_fingerprint=fun_fingerprint()) | asdict(ap),
         #  solver_details=dict(
         #  )
     )
