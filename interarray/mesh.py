@@ -1019,7 +1019,6 @@ def make_planar_embedding(
         border=border,
         name=S.name,
         handle=S.graph['handle'],
-        landscape_angle=S.graph['landscape_angle'],
         planar=P_A,
         diagonals=diagonals,
         d2roots=d2roots,
@@ -1033,7 +1032,9 @@ def make_planar_embedding(
     )
     if border_stunts:
         A.graph['border_stunts'] = border_stunts
-
+    landscape_angle = S.graph.get('landscape_angle')
+    if landscape_angle is not None:
+        A.graph['landscape_angle'] = landscape_angle
     # products:
     # P: PlanarEmbedding
     # A: Graph (carries the updated VertexC)
