@@ -19,4 +19,4 @@ from loguru import logger
 logger.disable("interarray")
 
 # global module constants
-MAX_TRIANGLE_ASPECT_RATIO = 70.
+MAX_TRIANGLE_ASPECT_RATIO = 50.
