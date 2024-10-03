@@ -344,7 +344,7 @@ def make_planar_embedding(
     # J) Calculate the area of the concave hull.
     # X) Create hull_concave.
 
-    M, N, B, VertexC = (S.graph[k] for k in 'M N B VertexC'.split())
+    M, N, B, VertexCʹ = (S.graph[k] for k in 'M N B VertexC'.split())
     border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
 
     # #############################################
@@ -360,10 +360,10 @@ def make_planar_embedding(
     # vertex sets that fall within a small area. The way to circunvent the
     # error described above is to scale all coordinates down so that CDT will
     # use the fallback and this fallback is enough to cover the scaled borders.
-    mean = VertexC.mean(axis=0)
-    scale = 2.*max(VertexC.max(axis=0) - VertexC.min(axis=0))
+    mean = VertexCʹ.mean(axis=0)
+    scale = 2.*max(VertexCʹ.max(axis=0) - VertexCʹ.min(axis=0))
 
-    VertexC = (VertexC - mean)/scale
+    VertexC = (VertexCʹ - mean)/scale
     # geometric context init (packages ground, gon)
     context = get_context()
     points = np.fromiter((Point(float(x), float(y)) for x, y in VertexC),
@@ -498,7 +498,7 @@ def make_planar_embedding(
         if changed:
             debug('Concavities changed!')
             concavities[i] = Contour(conc_points)
-            stuntC.append(scale*np.array(stunt_coords))
+            stuntC.append(mean + scale*np.array(stunt_coords))
     # Stunts are added to the B range and they should be saved with routesets.
     # Alternatively, one could convert stunts to clones of their primes, but
     # this could create some small interferences between edges.
@@ -746,15 +746,15 @@ def make_planar_embedding(
     # ##########################################
     # Z) Scale coordinates back.
     # ##########################################
-    VertexC *= scale
     # add any newly created plus the supertriangle's vertices to VertexC
     # note: B has already been increased by all stuntC lengths within the loop
-    supertriangleC = scale*np.array([(v.x, v.y) for v in mesh.vertices[:3]])
+    supertriangleC = (mean +
+                      scale*np.array([(v.x, v.y) for v in mesh.vertices[:3]]))
     # NOTE: stuntC was scaled back upon its creation
-    VertexC = np.vstack((VertexC[:-M],
+    VertexC = np.vstack((VertexCʹ[:-M],
                          *stuntC,
                          supertriangleC,
-                         VertexC[-M:]))
+                         VertexCʹ[-M:]))
 
     # Add length attribute to A's edges.
     A_edges = tuple(A.edges)
@@ -1001,14 +1001,16 @@ def make_planar_embedding(
     # ##########################################
     # J) Calculate the area of the concave hull.
     # ##########################################
-    bX, bY = VertexC[hull_concave].T
+    # for the bounding box, use border, roots and stunts
+    bX, bY = np.vstack((VertexC[border], VertexC[-M:], *stuntC)).T
     # assuming that coordinates are UTM -> min() as bbox's offset to origin
     norm_offset = np.array((bX.min(), bY.min()), dtype=np.float64)
     # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
     # Then take the sqrt() and invert for the linear factor such that area=1.
-    norm_scale = 1.0/math.sqrt(0.5*(bX[-1]*bY[0] - bY[-1]*bX[0]
-                               + np.dot(bX[:-1], bY[1:])
-                               - np.dot(bY[:-1], bX[1:])))
+    hcX, hcY = VertexC[hull_concave].T
+    norm_scale = 1.0/math.sqrt(0.5*(hcX[-1]*hcY[0] - hcY[-1]*hcX[0]
+                               + np.dot(hcX[:-1], hcY[1:])
+                               - np.dot(hcY[:-1], hcX[1:])))
 
     # Set A's graph attributes.
     A.graph.update(
