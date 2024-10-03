@@ -148,19 +148,18 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             )
 
 
-def G_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
+def S_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
     '''
     Args:
         VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
         N: int number of wtg
         M: int number of oss
-
-    Additional relevant arguments:
-    - 'name': str site name
-    - 'handle': str site identifier
-    - 'B': int number of border and exclusion zones' vertices
-    - 'border': numpy.ndarray (B,) of VertexC indices to border vertice coords
-    - 'exclusions': sequence of numpy.ndarray of VertexC indices
+        **kwargs: Additional relevant arguments, for example:
+            name: str site name
+            handle: str site identifier
+            B: int number of border and exclusion zones' vertices
+            border: numpy.ndarray (B,) of VertexC indices to border vertice coords
+            exclusions: sequence of numpy.ndarray of VertexC indices
 
     Returns:
         Graph containing V nodes and no edges. All keyword arguments are made
