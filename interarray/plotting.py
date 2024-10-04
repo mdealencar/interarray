@@ -176,17 +176,18 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     # draw nodes
     if D:
         # draw circunferences around nodes that have Detour clones
-        nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=detour, alpha=0.4,
-                               edgecolors=detour_ring, node_color='none',
-                               node_size=detour_size,
-                               label='corner')
-    nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=roots, linewidths=0.2,
-                           node_color=root_color, edgecolors=node_edge,
-                           node_size=root_size, node_shape='s',
-                           label='OSS')
-    nx.draw_networkx_nodes(G, pos, nodelist=range(N), edgecolors=node_edge,
-                           ax=ax, node_color=node_colors, node_size=node_size,
-                           linewidths=0.2, label='WTG')
+        arts = nx.draw_networkx_nodes(
+            G, pos, ax=ax, nodelist=detour, alpha=0.4, edgecolors=detour_ring,
+            node_color='none', node_size=detour_size, label='corner')
+        arts.set_clip_on(False)
+    arts = nx.draw_networkx_nodes(
+        G, pos, ax=ax, nodelist=roots, linewidths=0.2, node_color=root_color,
+        edgecolors=node_edge, node_size=root_size, node_shape='s', label='OSS')
+    arts.set_clip_on(False)
+    arts = nx.draw_networkx_nodes(
+        G, pos, nodelist=range(N), edgecolors=node_edge, ax=ax, label='WTG',
+        node_color=node_colors, node_size=node_size, linewidths=0.2)
+    arts.set_clip_on(False)
 
     # draw labels
     font_size = dict(load=FONTSIZE_LOAD,
@@ -206,12 +207,16 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
         for n in range(N):
             if n not in labels:
                 labels[n] = F[n]
-        nx.draw_networkx_labels(G, pos, ax=ax, font_size=font_size[node_tag],
-                                labels=labels)
+        arts = nx.draw_networkx_labels(G, pos, ax=ax, labels=labels,
+                                       font_size=font_size[node_tag])
+        for artist in arts.values():
+            artist.set_clip_on(False)
     # root nodes' labels
     if node_tag is not None:
-        nx.draw_networkx_labels(G, pos, ax=ax, font_size=FONTSIZE_ROOT_LABEL,
-                                labels=RootL)
+        arts = nx.draw_networkx_labels(G, pos, ax=ax, labels=RootL,
+                                       font_size=FONTSIZE_ROOT_LABEL)
+        for artist in arts.values():
+            artist.set_clip_on(False)
 
     if scalebar is not None:
         bar = AnchoredSizeBar(ax.transData, *scalebar, 'lower right',
