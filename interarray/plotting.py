@@ -33,7 +33,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
           node_tag: str | None = 'label',
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
-          hide_ST: bool = True,
+          hide_ST: bool = True, legend: bool = False,
           min_dpi: int = 192) -> plt.Axes:
     '''Plot site and routeset contained in G.
 
@@ -46,8 +46,9 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             number of turbines, number of feeders, total cable length.
         scalebar: (span_in_data_units, label) add a small bar to indicate the
             plotted features' scale (lower right corner).
-        hide_ST: if coordinates include a Delaunay supertriangle, adjust the
+        hide_ST: If coordinates include a Delaunay supertriangle, adjust the
             viewport to fit only the actual vertices (i.e. no ST vertices).
+        legend: Add description of linestyles and node shapes.
         min_dpi: Minimum dots per inch to use. matplotlib's default is used if
             it is greater than this value.
 
@@ -73,6 +74,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
         contour_delaunay='solid',
         contour_extended='dashed',
         contour='solid',
+        planar='dashdot',
         unspecified='solid',
     )
     if dark:
@@ -80,12 +82,13 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            extended='darkcyan',
             tentative='red',
             rogue='yellow',
             contour_delaunay='green',
             contour_extended='green',
             contour='red',
-            extended='darkcyan',
+            planar='brown',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
@@ -97,16 +100,18 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
         kind2color.update(
             detour='royalblue',
             scaffold='gray',
-            delaunay='black',
-            tentative='magenta',
-            rogue='darkorange',
-            contour_delaunay='darkgreen',
-            contour_extended='darkgreen',
-            contour='magenta',
-            extended='black',
-            unspecified='firebrick',
+            delaunay='darkgreen',
+            extended='darkgreen',
+            tentative='brown',
+            rogue='magenta',
+            contour_delaunay='firebrick',
+            contour_extended='firebrick',
+            contour='black',
+            planar='darkorchid',
+            unspecified='black',
         )
-        root_color = 'black' if node_tag is None else 'yellow'
+        #  root_color = 'black' if node_tag is None else 'yellow'
+        root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
         polygon_edge = '#444444'
@@ -131,7 +136,8 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     ax.axis(False)
     # draw farm border
     if border is not None:
-        ax.fill(*VertexC[border].T, polygon_face, edgecolor=polygon_edge)
+        ax.fill(*VertexC[border].T, polygon_face, edgecolor=polygon_edge,
+                linestyle='--', linewidth=0.2)
 
     # setup
     roots = range(-M, 0)
@@ -151,27 +157,35 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     subtrees = G.nodes(data='subtree', default=19)
     node_colors = [colors[subtrees[n] % len(colors)] for n in range(N)]
 
+    edges_width = 0.7
+    edges_capstyle = 'round'
     # draw edges
     base_layer = ('scaffold',)
     for edge_kind in base_layer:
-        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color[edge_kind],
-                               style=kind2style[edge_kind], label=edge_kind,
-                               edgelist=[(u, v)
-                                         for u, v, kind in G.edges.data('kind')
-                                         if kind == edge_kind])
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color['unspecified'],
-                           style=kind2style['unspecified'], label='direct',
-                           edgelist=[(u, v)
-                                     for u, v, kind in G.edges.data('kind')
-                                     if kind is None])
+        art = nx.draw_networkx_edges(
+            G, pos, ax=ax, edge_color=kind2color[edge_kind], label=edge_kind,
+            style=kind2style[edge_kind], width=edges_width,
+            edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
+                      if kind == edge_kind])
+        if art:
+            art.set_capstyle(edges_capstyle)
+    art = nx.draw_networkx_edges(
+        G, pos, ax=ax, edge_color=kind2color['unspecified'], label='direct',
+        style=kind2style['unspecified'], width=edges_width,
+        edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
+                  if kind is None])
+    if art:
+        art.set_capstyle(edges_capstyle)
     for edge_kind in kind2style:
         if edge_kind in base_layer:
             continue
-        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=kind2color[edge_kind],
-                               style=kind2style[edge_kind], label=edge_kind,
-                               edgelist=[(u, v)
-                                         for u, v, kind in G.edges.data('kind')
-                                         if kind == edge_kind])
+        art = nx.draw_networkx_edges(
+            G, pos, ax=ax, edge_color=kind2color[edge_kind], label=edge_kind,
+            style=kind2style[edge_kind], width=edges_width,
+            edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
+                      if kind == edge_kind])
+        if art:
+            art.set_capstyle(edges_capstyle)
 
     # draw nodes
     if D:
@@ -213,8 +227,9 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             artist.set_clip_on(False)
     # root nodes' labels
     if node_tag is not None:
-        arts = nx.draw_networkx_labels(G, pos, ax=ax, labels=RootL,
-                                       font_size=FONTSIZE_ROOT_LABEL)
+        arts = nx.draw_networkx_labels(
+            G, pos, ax=ax, labels=RootL, font_size=FONTSIZE_ROOT_LABEL,
+            font_color='black' if dark else 'yellow')
         for artist in arts.values():
             artist.set_clip_on(False)
 
@@ -249,7 +264,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             #                      bbox_to_anchor=(-0.04, 0.80, 1.08, 0)
             #                      bbox_to_anchor=(-0.04, 1.03, 1.08, 0)
             plt.setp(infobox.get_title(), multialignment='center')
-    if not dark:
+    if legend:
         ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
                   frameon=False, bbox_to_anchor=(0.5, -0.07),
                   columnspacing=1, handletextpad=0.3)
@@ -286,7 +301,7 @@ def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> plt.Axes:
     if 'has_loads' in H.graph:
         del H.graph['has_loads']
     M, N, B = (A.graph[k] for k in 'MNB')
-    H.add_edges_from(P.edges)
+    H.add_edges_from(P.edges, kind='planar')
     fnT = np.arange(M + N + B + 3)
     fnT[-M:] = range(-M, 0)
     H.graph['fnT'] = fnT
