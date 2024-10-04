@@ -32,10 +32,10 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
-             'num_diagonals', 'crossings_map', 'tentative', 'creator',
+             'num_diagonals', 'crossings_map', 'tentative', 'method_options',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
              'clone2prime', 'valid', 'path_in_P', 'shortened_contours',
-             'nonAedges', 'method', 'border_stunts', 'crossings'}
+             'nonAedges', 'method', 'border_stunts', 'crossings', 'creator'}
 
 
 def S_from_nodeset(nodeset: object) -> nx.Graph:
