@@ -558,8 +558,7 @@ class PathFinder():
             path, dists = get_best_path(n)
             nx.add_path(G, path, kind='virtual')
 
-    def plot_best_paths(self,
-                        ax: matplotlib.axes.Axes | None = None
+    def plot_best_paths(self, ax: matplotlib.axes.Axes | None = None, **kwargs,
                         ) -> matplotlib.axes.Axes:
         '''
         Plot the subtrees of G (without gate edges) overlaid by the shortest
@@ -567,7 +566,7 @@ class PathFinder():
         '''
         K = nx.subgraph_view(self.G,
                              filter_edge=lambda u, v: u >= 0 and v >= 0)
-        ax = gplot(K, ax=ax)
+        ax = gplot(K, ax=ax, **{'infobox': False, 'node_tag': None} | kwargs)
         J = nx.Graph()
         J.add_nodes_from(self.G.nodes)
         self._apply_all_best_paths(J)
@@ -577,17 +576,18 @@ class PathFinder():
         else:
             VertexC = self.VertexC
         nx.draw_networkx_edges(J, pos=VertexC, edge_color='y',
-                               alpha=0.3, ax=ax)
+                               alpha=0.5, ax=ax, label='path to root')
+
         return ax
 
-    def plot_scaffolded(self,
-                        ax: matplotlib.axes.Axes | None = None
+    def plot_scaffolded(self, ax: matplotlib.axes.Axes | None = None, **kwargs,
                         ) -> matplotlib.axes.Axes:
         '''
         Plot the PlanarEmbedding of G, overlaid by the edges of G that coincide
         with it.
         '''
-        return gplot(scaffolded(self.G, P=self.P), ax=ax, infobox=False)
+        return gplot(scaffolded(self.G, P=self.P), ax=ax,
+                     **{'infobox': False} | kwargs)
 
     def create_detours(self):
         '''Reroute all gate edges in G with crossings using detour paths.
