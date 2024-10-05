@@ -69,12 +69,13 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
-        tentative='dashed',
+        tentative='dashdot',
         rogue='dashed',
         contour_delaunay='solid',
         contour_extended='dashed',
         contour='solid',
         planar='dashdot',
+        constraint='solid',
         unspecified='solid',
     )
     if dark:
@@ -89,6 +90,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             contour_extended='green',
             contour='red',
             planar='brown',
+            constraint='purple',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
@@ -102,12 +104,13 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
             scaffold='gray',
             delaunay='darkgreen',
             extended='darkgreen',
-            tentative='brown',
+            tentative='darkorange',
             rogue='magenta',
             contour_delaunay='firebrick',
             contour_extended='firebrick',
             contour='black',
             planar='darkorchid',
+            constraint='darkcyan',
             unspecified='black',
         )
         #  root_color = 'black' if node_tag is None else 'yellow'
@@ -336,6 +339,9 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
             del scaff.graph[attr]
     M, N, B, C, D = (G.graph.get(k, 0) for k in 'M N B C D'.split())
     nx.set_edge_attributes(scaff, 'scaffold', 'kind')
+    constraints = P.graph.get('constraint_edges', [])
+    for edge in constraints:
+        scaff.edges[edge]['kind'] = 'constraint'
     for n, d in scaff.nodes(data=True):
         if n not in G.nodes:
             continue
