@@ -65,7 +65,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
 
     kind2color = {}
     kind2style = dict(
-        detour='dashed',
+        detour=(0, (4, 4)),
         scaffold='dotted',
         extended='dashed',
         delaunay='solid',
@@ -132,7 +132,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     if ax is None:
         fig, ax = plt.subplots(
             subplot_kw=dict(
-                aspect='equal', xmargin=0.005, ymargin=0.005),
+                aspect='equal', xmargin=0.002, ymargin=0.002),
             layout='constrained', dpi=max(min_dpi, plt.rcParams['figure.dpi']))
     else:
         ax.set(aspect='equal')
