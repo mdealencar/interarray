@@ -37,7 +37,7 @@ def graph_from_edgeset(edgeset):
         creator = misc['edges_created_by']
         iterations = misc.get('iterations', 1)
     G = nx.Graph(name=nodeset.name,
-                 M=M,
+                 M=M, N=N,
                  VertexC=VertexC,
                  capacity=edgeset.capacity,
                  boundary=pickle.loads(nodeset.boundary),
