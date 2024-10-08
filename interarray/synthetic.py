@@ -64,10 +64,11 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
     VertexC = np.vstack((NodeC, RootC))
     if BoundaryC is None:
         hull = ConvexHull(VertexC)
-        boundary = np.reshape(VertexC[hull.simplices],
-                              (hull.simplices.shape[0]*2, 2))
-        # this arctan2() trick only works because the origin is in the middle
-        BoundaryC = boundary[np.argsort(np.arctan2(*boundary.T[::-1]))]
+        for v in hull.vertices:
+            # hack to avoid error in .mesh.make_planar_embedding()
+            vC = VertexC[v]
+            VertexC[v] += 1e-6*vC
+        BoundaryC = VertexC[hull.vertices]
 
     # create networkx graph
     G = nx.Graph(M=M, N=N,
