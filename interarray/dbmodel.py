@@ -30,6 +30,7 @@ def define_entities(db):
         # hashlib.sha256(VertexC + boundary).digest()
         digest = PrimaryKey(bytes)
         name = Required(str, unique=True)
+        handle = Required(str, unique=True)
         N = Required(int)  # # of non-root nodes
         M = Required(int)  # # of root nodes
         # vertices (nodes + roots) coordinates (UTM)

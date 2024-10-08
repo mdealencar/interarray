@@ -42,7 +42,7 @@ def toyfarm():
     M = 1
     N = VertexC.shape[0] - M
     # create networkx graph
-    G = nx.Graph(M=M,
+    G = nx.Graph(M=M, N=N,
                  VertexC=VertexC,
                  boundary=BoundaryC,
                  name='toy',
@@ -70,7 +70,7 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
         BoundaryC = boundary[np.argsort(np.arctan2(*boundary.T[::-1]))]
 
     # create networkx graph
-    G = nx.Graph(M=M,
+    G = nx.Graph(M=M, N=N,
                  VertexC=VertexC,
                  boundary=BoundaryC,
                  name=name,

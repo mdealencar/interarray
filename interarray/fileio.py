@@ -84,7 +84,11 @@ def file2graph(filename, rotation=None, handle='file'):
                     coords = rotate(np.array(xy), rotation).T
                 else:
                     coords = np.array(tuple(zip(*xy)), dtype=float)
-                data[key] = coords, labels
+                if key == 'WF area limits':
+                    # discard the last WF area vertex (duplicate of the first)
+                    data[key] = coords[:, :-1], (labels[:-1] if labels else None)
+                else:
+                    data[key] = coords, labels
     # read Matlab mat file
     elif fpath.suffix == '.mat':
         windfarm = scipy.io.loadmat(fpath,
@@ -110,7 +114,7 @@ def file2graph(filename, rotation=None, handle='file'):
     N = WTcoords.shape[1]
     M = OSScoords.shape[1]
     # create networkx graph
-    G = nx.Graph(M=M,
+    G = nx.Graph(M=M, N=N,
                  VertexC=np.vstack((WTcoords.T, OSScoords.T[::-1])),
                  boundary=boundary,
                  name=fpath.stem,
