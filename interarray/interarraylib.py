@@ -695,3 +695,37 @@ def as_hooked_to_head(Tʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
         tentative.append((r, new_hook))
     T.graph['tentative'] = tentative
     return T
+
+
+def make_remap(G, refG, H, refH):
+    '''Create a mapping between two representations of the same site.
+
+    CAUTION: only WTG node remapping is implemented.
+
+    If the nodes in `G` and in `H` represent the same site, but have different
+    orientation, scale and node order, the mapping produced here can be used
+    with `NetworkX.relabel_nodes(G, remap)` to translate a routeset in G to a
+    routeset in H.
+
+    Args:
+        G: routeset with obsolete representation.
+        refG: two nodes to used as references.
+        H: routeset with valid representation.
+        refH: two nodes corresponding to `refG`
+    '''
+    N = G.graph['N']
+    VertexC = G.graph['VertexC'][:N]
+    vecref = VertexC[refG[1]] - VertexC[refG[0]]
+    angleG = np.arctan2(*vecref)
+    scaleG = np.hypot(*vecref)
+    GvertC = (VertexC - VertexC[refG[0]])/scaleG
+    VertexC = H.graph['VertexC'][:N]
+    vecref = VertexC[refH[1]] - VertexC[refH[0]]
+    angleH = np.arctan2(*vecref)
+    scaleH = np.hypot(*vecref)
+    HvertC = rotate((VertexC - VertexC[refH[0]])/scaleH, 180*(angleH - angleG)/np.pi)
+    remap = {}
+    for i, coordH in enumerate(HvertC):
+        j = np.argmin(np.hypot(*(GvertC - coordH).T))
+        remap[j] = i
+    return remap
