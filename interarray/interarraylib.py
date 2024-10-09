@@ -457,7 +457,7 @@ def S_from_G(G: nx.Graph) -> nx.Graph:
                       for n, label in G.nodes(data='label')
                       if 0 <= n < N), kind='wtg')
     for r in range(-M, 0):
-        S.add_node(r, label=G.nodes[r]['label'], kind='oss')
+        S.add_node(r, label=G.nodes[r].get('label'), kind='oss')
     return S
 
 
