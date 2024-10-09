@@ -687,7 +687,7 @@ class PathFinder():
                           f'hooked to {F[path[0]]}')
                 G.add_weighted_edges_from(
                     zip(path[:1] + Clone, Clone + path[-1:], dists),
-                    weight='length')
+                    weight='length', load=subtree_load)
                 for _, _, edgeD in G.edges(Clone, data=True):
                     edgeD.update(kind='detour', reverse=True)
                 if added_clones > 0:
