@@ -21,15 +21,15 @@ from orient.planar import (
 
 import PythonCDT as cdt
 
-from interarray.geometric import (
+from .geometric import (
     triangle_AR,
     is_triangle_pair_a_convex_quadrilateral,
     is_same_side,
     rotation_checkers_factory,
 )
-from interarray import MAX_TRIANGLE_ASPECT_RATIO
-from interarray.interarraylib import NodeTagger
-from interarray.geometric import is_triangle_pair_a_convex_quadrilateral
+from . import MAX_TRIANGLE_ASPECT_RATIO
+from .interarraylib import NodeTagger
+from .geometric import is_triangle_pair_a_convex_quadrilateral
 
 trace, debug, info, success, warn, error, critical = (
     logger.trace, logger.debug, logger.info, logger.success,

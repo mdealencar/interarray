@@ -4,9 +4,10 @@
 import heapq
 import math
 from collections import defaultdict, namedtuple
+from collections.abc import Iterable
 from itertools import chain
 
-import matplotlib
+from matplotlib.axes import Axes
 import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -132,9 +133,10 @@ class PathFinder():
         #       nodes -> do away with A metrics, eliminate A from args
         if A is None:
             VertexC = G.graph['VertexC']
+            supertriangleC = planar.graph['supertriangleC']
             if G.graph.get('is_normalized'):
                 supertriangleC = G.graph['norm_scale']*(
-                    planar.graph['supertriangleC'] - G.graph['norm_offset'])
+                    supertriangleC - G.graph['norm_offset'])
             VertexC = np.vstack((VertexC[:N + B],
                                  supertriangleC,
                                  VertexC[-M:]))
@@ -205,7 +207,7 @@ class PathFinder():
         paths_available = tuple((paths[id].dist, id)
                                 for id in self.I_path[n].values())
         if paths_available:
-            dist, id = min(paths_available)
+            _, id = min(paths_available)
             path = [n]
             dists = []
             pseudonode = paths[id]
@@ -320,7 +322,7 @@ class PathFinder():
             left, right = first
 
     def _traverse_channel(self, _apex: int, apex: int, _funnel: list[int],
-                          wedge_end: list[int], portal_iter: iter):
+                          wedge_end: list[int], portal_iter: Iterable):
         # variable naming notation:
         # for variables that represent a node, they may occur in two versions:
         #     - _node: the index it contains maps to a coordinate in VertexC
@@ -556,8 +558,7 @@ class PathFinder():
             path, dists = get_best_path(n)
             nx.add_path(G, path, kind='virtual')
 
-    def plot_best_paths(self, ax: matplotlib.axes.Axes | None = None, **kwargs,
-                        ) -> matplotlib.axes.Axes:
+    def plot_best_paths(self, ax: Axes | None = None, **kwargs) -> Axes:
         '''
         Plot the subtrees of G (without gate edges) overlaid by the shortest
         paths for all nodes.
@@ -578,8 +579,7 @@ class PathFinder():
 
         return ax
 
-    def plot_scaffolded(self, ax: matplotlib.axes.Axes | None = None, **kwargs,
-                        ) -> matplotlib.axes.Axes:
+    def plot_scaffolded(self, ax: Axes | None = None, **kwargs) -> Axes:
         '''
         Plot the PlanarEmbedding of G, overlaid by the edges of G that coincide
         with it.

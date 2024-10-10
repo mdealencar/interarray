@@ -107,7 +107,7 @@ def calcload(G):
     '''
     M, N = (G.graph.get(k) for k in ('M', 'N'))
     roots = range(-M, 0)
-    for node, data in G.nodes(data=True):
+    for _, data in G.nodes(data=True):
         if 'load' in data:
             del data['load']
 
@@ -394,8 +394,8 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
 
 
 def T_from_G(G: nx.Graph):
-    M, N, B = (G.graph[k] for k in 'MNB')
-    fnT, capacity = (G.graph.get(k) for k in ('fnT', 'capacity'))
+    M, N = (G.graph[k] for k in 'MN')
+    capacity = G.graph['capacity']
     has_loads = G.graph.get('has_loads', False)
     T = nx.Graph(
         N=N, M=M,
@@ -447,7 +447,7 @@ def S_from_G(G: nx.Graph) -> nx.Graph:
     Returns:
         Site graph (no edges) with lean attributes.
     '''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    M, N = (G.graph[k] for k in 'MN')
     transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
                        'exclusions', 'landscape_angle')
     S = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
@@ -465,7 +465,7 @@ def as_single_oss(G: nx.Graph) -> nx.Graph:
     '''
     #  But keep this one.
     Gʹ = G.copy()
-    M, VertexC = (G.graph.get(k) for k in ('M', 'VertexC'))
+    M, VertexC = (G.graph[k] for k in ('M', 'VertexC'))
     Gʹ.remove_nodes_from(range(-M, -1))
     VertexCʹ = VertexC[:-M + 1].copy()
     VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
@@ -493,7 +493,7 @@ def as_normalized(Aʹ: nx.Graph) -> nx.Graph:
     A = Aʹ.copy()
     norm_factor = A.graph['norm_scale']
     A.graph['is_normalized'] = True
-    for u, v, eData in A.edges(data=True):
+    for _, _, eData in A.edges(data=True):
         eData['length'] *= norm_factor
     A.graph['VertexC'] = norm_factor*(Aʹ.graph['VertexC']
                                       - Aʹ.graph['norm_offset'])
@@ -519,7 +519,7 @@ def as_site_scale(Gʹ: nx.Graph, S: nx.Graph) -> nx.Graph:
     # alternatively, we could do the math, but this safeguards the coord's hash
     G.graph['VertexC'] = S.graph['VertexC']
     denorm_factor = 1/G.graph['norm_scale']
-    for u, v, eData in G.edges(data=True):
+    for _, _, eData in G.edges(data=True):
         eData['length'] *= denorm_factor
     d2roots = S.graph.get('d2roots')
     if d2roots is not None:

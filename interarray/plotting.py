@@ -4,6 +4,7 @@
 from collections import defaultdict
 from collections.abc import Sequence
 
+from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -29,12 +30,12 @@ NODESIZE_LABELED_DETOUR = 150
 F = NodeTagger()
 
 
-def gplot(G: nx.Graph, ax: plt.Axes | None = None,
+def gplot(G: nx.Graph, ax: Axes | None = None,
           node_tag: str | None = 'label',
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
           hide_ST: bool = True, legend: bool = False,
-          min_dpi: int = 192) -> plt.Axes:
+          min_dpi: int = 192) -> Axes:
     '''Plot site and routeset contained in G.
 
     Args:
@@ -285,7 +286,7 @@ def gplot(G: nx.Graph, ax: plt.Axes | None = None,
     return ax
 
 
-def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> plt.Axes:
+def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> Axes:
     '''Plot PlanarEmbedding `P` using coordinates from `A`.
 
     Wrapper for `interarray.plotting.gplot()`. Performs what one would expect
