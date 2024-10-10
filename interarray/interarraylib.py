@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 
 from .utils import NodeTagger
-from .geometric import make_graph_metrics
+from .geometric import rotate
 
 F = NodeTagger()
 
@@ -158,7 +158,7 @@ def S_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
             name: str site name
             handle: str site identifier
             B: int number of border and exclusion zones' vertices
-            border: numpy.ndarray (B,) of VertexC indices to border vertice coords
+            border: array (B,) of VertexC indices that define the border (ccw)
             exclusions: sequence of numpy.ndarray of VertexC indices
 
     Returns:
@@ -252,9 +252,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                 st_is_tentative = True
 
         load = T[s][t]['load']
-        s_load = T.nodes[s]['load']
-        t_load = T.nodes[t]['load']
-        st_reverse = s_load < t_load
+        st_reverse = T.nodes[s]['load'] < T.nodes[t]['load']
         if st_is_tentative:
             G.add_edge(s, t, length=AedgeD['length'], load=load,
                        reverse=st_reverse, kind='tentative')
@@ -266,7 +264,6 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
                        reverse=st_reverse)
             continue
         # contour edge
-        u, u_load = s, s_load
         shortcuts = AedgeD.get('shortcuts')
         if shortcuts is not None:
             if len(shortcuts) == len(midpath):
@@ -292,6 +289,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             midpath = shortpath
         path = [s] + midpath + [t]
         lengths = np.hypot(*(VertexC[path[1:]] - VertexC[path[:-1]]).T)
+        u = s
         for prime, length in zip(path[1:-1], lengths):
             clone2prime.append(prime)
             if prime not in G.nodes:
@@ -723,7 +721,8 @@ def make_remap(G, refG, H, refH):
     vecref = VertexC[refH[1]] - VertexC[refH[0]]
     angleH = np.arctan2(*vecref)
     scaleH = np.hypot(*vecref)
-    HvertC = rotate((VertexC - VertexC[refH[0]])/scaleH, 180*(angleH - angleG)/np.pi)
+    HvertC = rotate((VertexC - VertexC[refH[0]])/scaleH,
+                    180*(angleH - angleG)/np.pi)
     remap = {}
     for i, coordH in enumerate(HvertC):
         j = np.argmin(np.hypot(*(GvertC - coordH).T))

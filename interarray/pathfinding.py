@@ -3,7 +3,7 @@
 
 import heapq
 import math
-from collections import defaultdict, deque, namedtuple
+from collections import defaultdict, namedtuple
 from itertools import chain
 
 import matplotlib
@@ -276,7 +276,7 @@ class PathFinder():
                   self.n2s(_new, _apex), d_new)
 
     def _advance_portal(self, left: int, right: int):
-        G, P, N, B = self.G, self.P, self.N, self.B
+        G, P, N = self.G, self.P, self.N
         while True:
             # look for children portals
             n = P[left][right]['ccw']
@@ -410,7 +410,7 @@ class PathFinder():
 
     def _find_paths(self):
         #  print('[exp] starting _explore()')
-        G, P, M, N, B, C = self.G, self.P, self.M, self.N, self.B, self.C
+        G, P, M, N, B = self.G, self.P, self.M, self.N, self.B
         d2roots = self.d2roots
         d2rootsRank = self.d2rootsRank
         prioqueue = []
@@ -428,11 +428,9 @@ class PathFinder():
         if fnT is not None:
             edges_G_primed = {((u, v) if u < v else (v, u))
                               for u, v in (fnT[edge,] for edge in G.edges)}
-            nodes_G_primed = {fnT[n] for n in G.nodes}
         else:
             edges_G_primed = {((u, v) if u < v else (v, u))
                               for u, v in G.edges}
-            nodes_G_primed = set(G.nodes)
         ST = N + B
         edges_P = {((u, v) if u < v else (v, u))
                    for u, v in P.edges if u < ST or v < ST}
