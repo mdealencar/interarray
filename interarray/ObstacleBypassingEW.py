@@ -103,9 +103,9 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
 
     # BEGIN: create initial star graph
     G = S_from_G(S) if S.number_of_edges() > 0 else S.copy()
-    G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               A.nodes(data='root') if n >= 0),
-                              weight_attr='length')
+    G.add_weighted_edges_from(
+        ((n, r, d2roots[n, r]) for n, r in A.nodes(data='root')),
+        weight='length')
     # END: create initial star graph
 
     # BEGIN: helper data structures
