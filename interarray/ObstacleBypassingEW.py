@@ -8,22 +8,25 @@ from collections import defaultdict
 import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.stats import rankdata
 
-from .geometric import (angle, apply_edge_exemptions, delaunay,
+from .geometric import (angle, angle_helpers, apply_edge_exemptions, assign_root,
                         edge_crossings, is_bunch_split_by_corner, is_crossing,
                         is_same_side)
+from .mesh import make_planar_embedding
 from .utils import Alerter, NodeStr, NodeTagger
 from .priorityqueue import PriorityQueue
+from .interarraylib import S_from_G, fun_fingerprint
 
 
 F = NodeTagger()
 
 
-def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
+def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
          MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None):
     '''Obstacle Bypassing Esau-Williams heuristic for C-MST
     inputs:
-    G_base: networkx.Graph
+    S: networkx.Graph
     c: capacity
     returns G_cmst: networkx.Graph
 
@@ -55,13 +58,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     options = dict(MARGIN=MARGIN, variant='C',
                    rootlust=rootlust)
 
-    M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
-    G_base.graph['N'] = N
-    # SiteC = G_base.graph['VertexC']
-    # VertexC = np.vstack((SiteC[:N],
-    #                      np.zeros((D, 2), dtype=SiteC.dtype),
-    #                      SiteC[N+D:]))
+    M, N, B = (S.graph[k] for k in 'MNB')
     roots = range(-M, 0)
 
     # list of variables indexed by vertex id:
@@ -76,20 +73,18 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     #
     # need to have a table of vertex -> gate node
 
-    d2roots = G_base.graph['d2roots']
-    d2rootsRank = G_base.graph['d2rootsRank']
-    anglesRank = G_base.graph['anglesRank']
-    anglesYhp = G_base.graph['anglesYhp']
-    anglesXhp = G_base.graph['anglesXhp']
     # TODO: do away with pre-calculated crossings
-    # Xings = G_base.graph['crossings']
+    Xings = S.graph.get('crossings')
 
-    # crossings = G_base.graph['crossings']
+    # crossings = S.graph['crossings']
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    A = delaunay(G_base, bind2root=True)
+    _, A = make_planar_embedding(S)
+    assign_root(A)
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
-    #  A = delaunay_deprecated(G_base)
+    d2roots = A.graph['d2roots']
+    d2rootsRank = rankdata(d2roots, method='dense', axis=0)
+    _, anglesRank, anglesXhp, anglesYhp = angle_helpers(A)
     #  triangles = A.graph['triangles']
     #  triangles_exp = A.graph['triangles_exp']
     # apply weightfun on all delaunay edges
@@ -99,7 +94,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         apply_edge_exemptions(A)
         options['weightfun'] = weightfun.__name__
         options['weight_attr'] = 'length'
-        for u, v, data in A.edges(data=True):
+        for _, _, data in A.edges(data=True):
             data['length'] = weightfun(data)
     # removing root nodes from A to speedup find_option4gate
     # this may be done because G already starts with gates
@@ -107,9 +102,9 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # END: prepare auxiliary graph with all allowed edges and metrics
 
     # BEGIN: create initial star graph
-    G = nx.create_empty_copy(G_base)
+    G = S_from_G(S) if S.number_of_edges() > 0 else S.copy()
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n >= 0),
+                               A.nodes(data='root') if n >= 0),
                               weight_attr='length')
     # END: create initial star graph
 
@@ -128,7 +123,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # <fnT>: farm node translation table
     #        to be used when indexing: VertexC, d2roots, angles, etc
     #        fnT[-M..(N+Dmax)] -> -M..N
-    fnT = np.arange(N + Dmax + M)
+    fnT = np.arange(N + B + Dmax + M)
     fnT[-M:] = range(-M, 0)
 
     # <Stale>: list of detour nodes that were discarded
@@ -146,7 +141,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
 
     # mappings from components (identified by their gates)
     # <ComponIn>: maps component to set of components queued to merge in
-    ComponIn = np.array([set() for _ in range(N)])
+    ComponIn = np.array([set() for _ in range(N)], dtype=object)
     ComponLoLim = np.hstack((np.arange(N)[:, np.newaxis],)*M)  # most CW node
     ComponHiLim = ComponLoLim.copy()  # most CW node
     # ComponLoLim = np.arange(N)  # most CCW node
@@ -167,8 +162,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # edges2ban = deque()
     # TODO: this is not being used, decide what to do about it
     edges2ban = set()
-    VertexC = G_base.graph['VertexC']
-    # SiteC = G_base.graph['VertexC']
+    VertexC = S.graph['VertexC']
+    # SiteC = S.graph['VertexC']
     # VertexC = np.vstack((SiteC[:N],
                          # np.full((Dmax, 2), np.nan, dtype=SiteC.dtype),
                          # SiteC[N:]))
@@ -243,7 +238,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
-                        tiebreaker = d2rootsRank[fnT[v], A[u][v]['root']]
+                        #  tiebreaker = d2rootsRank[fnT[v], A[u][v]['root']]
+                        tiebreaker = d2rootsRank[fnT[v], A.nodes[v]['root']]
                         weighted_edges.append((W, tiebreaker, u, v))
                         #  weighted_edges.append((W-(d2root - newd2root)/3,
                         #                           tiebreaker, u, v))
@@ -272,7 +268,8 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
-                        tiebreaker = d2rootsRank[fnT[v], A[u][v]['root']]
+                        #  tiebreaker = d2rootsRank[fnT[v], A[u][v]['root']]
+                        tiebreaker = d2rootsRank[fnT[v], A.nodes[v]['root']]
                         # weighted_edges.append((W, tiebreaker, u, v))
                         weighted_edges.append((W - d2rGain*root_lust,
                                                tiebreaker, u, v))
@@ -799,7 +796,7 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         if D > Dmax:
             # TODO: extend VertexC, fnT and gnT
             print('@@@@@@@@@@@@@@ Dmax REACHED @@@@@@@@@@@@@@')
-        corner = N + D - 1
+        corner = N + B + D - 1
 
         # update coordinates mapping fnT
         fnT[corner] = corner_
@@ -1229,29 +1226,24 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
 
     log = []
     G.graph['log'] = log
-    for result in loop():
+    for _ in loop():
         pass
 
     if Stale:
         debug and print(f'Stale nodes ({len(Stale)}):', [n2s(n) for n in Stale])
-        old2new = np.arange(N, N + D)
+        old2new = np.arange(N + B, N + B + D)
         mask = np.ones(D, dtype=bool)
         for s in Stale:
-            old2new[s - N + 1:] -= 1
-            mask[s - N] = False
-        mapping = dict(zip(range(N, N + D), old2new))
+            old2new[s - N - B + 1:] -= 1
+            mask[s - N - B] = False
+        mapping = dict(zip(range(N + B, N + B + D), old2new))
         for k in Stale:
             mapping.pop(k)
         nx.relabel_nodes(G, mapping, copy=False)
-        fnT[N:N + D - len(Stale)] = fnT[N:N + D][mask]
+        fnT[N + B:N + B + D - len(Stale)] = fnT[N + B:N + B + D][mask]
         D -= len(Stale)
 
     debug and print(f'FINISHED – Detour nodes added: {D}')
-
-    # G.graph['DetourC'] = VertexC[N:N + D].copy()
-    G.graph['D'] = D
-    # G.graph['clone2prime'] = fnT[N:N + D].copy()
-    G.graph['fnT'] = np.concatenate((fnT[:N + D], fnT[-M:]))
 
     if debug:
         not_marked = []
@@ -1264,14 +1256,22 @@ def OBEW(G_base, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
                              '> were not marked as final @@@@')
 
     # algorithm finished, store some info in the graph object
-    G.graph['iterations'] = i
-    G.graph['prevented_crossings'] = prevented_crossings
-    G.graph['capacity'] = capacity
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
-                          for root in roots]
-    G.graph['creator'] = 'OBEW'
-    G.graph['edges_fun'] = OBEW
-    G.graph['creation_options'] = options
-    G.graph['runtime_unit'] = 's'
-    G.graph['runtime'] = time.perf_counter() - start_time
+    G.graph.update(
+        creator='OBEW',
+        capacity=capacity,
+        runtime=time.perf_counter() - start_time,
+        overfed=[len(G[root])/np.ceil(N/capacity)*M
+                 for root in roots],
+        d2roots=d2roots,
+        method_options= options| {'fun_fingerprint': fun_fingerprint()},
+        solver_details=dict(
+            iterations=i,
+            prevented_crossings=prevented_crossings,
+            **({'rootlust': rootlust} if rootlust else {})
+        ),
+    )
+    if D > 0:
+        G.graph['D'] = D
+        G.graph['fnT'] = np.concatenate((fnT[:N + B + D], fnT[-M:]))
+
     return G
