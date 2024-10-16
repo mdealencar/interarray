@@ -1265,7 +1265,7 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         d2roots=d2roots,
         method_options= options | dict(
             fun_fingerprint=fun_fingerprint(),
-        )
+        ),
         solver_details=dict(
             iterations=i,
             prevented_crossings=prevented_crossings,
