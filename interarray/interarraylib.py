@@ -394,6 +394,17 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
 
 
 def T_from_G(G: nx.Graph):
+    '''Get `G`'s topology (contours, detours, lengths, coords are dropped).
+    
+    One might want to call `as_hooked_to_nearest()` or `as_hooked_to_head()`
+    afterwards.
+
+    Args:
+        G: must contain a feasible solution (either tree or path)
+
+    Returns:
+        topology of `G`
+    '''
     M, N = (G.graph[k] for k in 'MN')
     capacity = G.graph['capacity']
     has_loads = G.graph.get('has_loads', False)
