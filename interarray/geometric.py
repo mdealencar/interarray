@@ -385,8 +385,45 @@ def perimeter(VertexC, vertices_ordered):
                          - VertexC[vertices_ordered[0]])))
 
 
-def make_graph_metrics(G):
+def angle_helpers(S: nx.Graph) -> tuple[np.ndarray, np.ndarray,
+                                        np.ndarray, np.ndarray]:
     '''
+    Args:
+        S: site
+
+    Returns:
+        tuple of (angles, anglesRank, anglesYhp, anglesXhp)
+    '''
+
+    N, M, VertexC = (S.graph[k] for k in ('N', 'M', 'VertexC'))
+    B = S.graph.get('B', 0)
+    NodeC = VertexC[:N + B]
+    RootC = VertexC[-M:]
+
+    angles = np.empty((N + B, M), dtype=float)
+    for n, nodeC in enumerate(NodeC):
+        x, y = (nodeC - RootC).T
+        angles[n] = np.arctan2(y, x)
+
+    anglesRank = rankdata(angles, method='dense', axis=0)
+    anglesXhp = abs(angles) < np.pi/2
+    anglesYhp = angles >= 0.
+    return angles, anglesRank, anglesXhp, anglesYhp
+
+
+def assign_root(A: nx.Graph) -> None:
+    '''Add node attribute 'root' with the root closest to each node.
+
+    Changes A in-place.
+
+    '''
+    closest_root = -A.graph['M'] + np.argmin(A.graph['d2roots'], axis=1)
+    nx.set_node_attributes(
+        A, {n: r for n, r in enumerate(closest_root)}, 'root')
+
+
+def make_graph_metrics(G):
+    ''' DEPRECATED: use angle_helpers() and assign_root() instead
     This function changes G in place!
     Calculates for all nodes, for each root node:
     - distance to root nodes
