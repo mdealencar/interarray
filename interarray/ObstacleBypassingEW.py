@@ -1263,11 +1263,12 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         overfed=[len(G[root])/np.ceil(N/capacity)*M
                  for root in roots],
         d2roots=d2roots,
-        method_options= options| {'fun_fingerprint': fun_fingerprint()},
+        method_options= options | dict(
+            fun_fingerprint=fun_fingerprint(),
+        )
         solver_details=dict(
             iterations=i,
             prevented_crossings=prevented_crossings,
-            **({'rootlust': rootlust} if rootlust else {})
         ),
     )
     if D > 0:
