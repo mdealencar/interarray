@@ -586,6 +586,7 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
         G: routeset or topology T
         d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
     '''
+    assert Gʹ.graph.get('has_loads')
     G = Gʹ.copy()
     M, N = G.graph['M'], G.graph['N']
     # mappings to quickly obtain all nodes on a subtree
@@ -644,6 +645,7 @@ def as_hooked_to_head(Tʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
         T: solution topology
         d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
     '''
+    assert Tʹ.graph.get('has_loads')
     T = Tʹ.copy()
     M, N = T.graph['M'], T.graph['N']
     # mappings to quickly obtain all nodes on a subtree
