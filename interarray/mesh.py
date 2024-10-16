@@ -423,7 +423,7 @@ def make_planar_embedding(
     #  debug(f'offset: {offset}')
     stuntC = []
     border_stunts = []
-    remove_from_border_pt_map = []
+    remove_from_border_pt_map = set()
     B_old = B
     # replace coinciding vertices with stunts and save concavities here
     for i, concavity in enumerate(concavities):
@@ -471,7 +471,8 @@ def make_planar_embedding(
                         trace('XY hull')
                         # project nYZ on XY
                         T = offset*(-XY/_XY_/max(0.5, np.sin(angle)) - nXY)
-                    elif Z_is_hull:
+                    else:
+                        assert Z_is_hull
                         # project nXY on YZ
                         T = offset*(YZ/_YZ_/max(0.5, np.sin(angle)) - nYZ)
                         trace('YZ hull')
@@ -482,10 +483,10 @@ def make_planar_embedding(
                 # stuntsC = VertexC[N + B - len(border_stunts): N + B]
                 border_stunts.append(Y)
                 stunt_coord = VertexC[Y] + T
-                stunt_point = Point(*stunt_coord)
+                stunt_point = Point(*(float(sc) for sc in stunt_coord))
                 stunt_coords.append(stunt_coord)
                 conc_points.append(stunt_point)
-                remove_from_border_pt_map.append(cur)
+                remove_from_border_pt_map.add(cur)
                 border_vertice_from_point[stunt_point] = N + B
                 B += 1
                 changed = True
@@ -667,9 +668,8 @@ def make_planar_embedding(
     if border is not None:
         hull_prunned_cont = Contour(points[hull_prunned])
         border_cont = border_poly.border
-        hull_to_border = contour_in_region(hull_prunned_cont, border_cont)
-        if (hull_to_border is Relation.CROSS
-                or hull_to_border is Relation.OVERLAP):
+        hull__border = contour_in_region(hull_prunned_cont, border_cont)
+        if hull__border in (Relation.CROSS, Relation.TOUCH, Relation.OVERLAP):
             hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
