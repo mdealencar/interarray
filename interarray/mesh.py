@@ -339,7 +339,7 @@ def make_planar_embedding(
     # E) Add concavities+exclusions and get the Constrained Delaunay Triang.
     # F) Build the planar embedding of the constrained triangulation.
     # G) Build P_paths.
-    # H) Revisit A to update edges crossing borders by with P_path contours.
+    # H) Revisit A to update edges crossing borders with P_path contours.
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # J) Calculate the area of the concave hull.
     # X) Create hull_concave.
@@ -857,9 +857,9 @@ def make_planar_embedding(
 
     A.graph['hull_concave'] = hull_concave
 
-    # ######################################################################
-    # H) Revisit A to update edges crossing borders by with P_path contours.
-    # ######################################################################
+    # ###################################################################
+    # H) Revisit A to update edges crossing borders with P_path contours.
+    # ###################################################################
     debug('PART H')
     corner_to_A_edges = defaultdict(list)
     A_edges_to_revisit = []
