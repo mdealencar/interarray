@@ -5,9 +5,8 @@ import networkx as nx
 import hygese as hgs
 from py.io import StdCaptureFD
 
-from ..interarraylib import calcload, fun_fingerprint
-from ..pathfinding import PathFinder
-from ..geometric import make_graph_metrics
+from ..interarraylib import fun_fingerprint
+from ..repair import repair_routeset_path
 from . import length_matrix_single_depot_from_G
 
 # [[2012.10384] Hybrid Genetic Search for the CVRP: Open-Source Implementation
@@ -39,8 +38,8 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     Returns:
         Solution topology.
     '''
-    M, N, B, VertexC = (
-        A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
+    M, N, VertexC = (
+        A.graph[k] for k in ('M', 'N', 'VertexC'))
     assert M == 1, 'ERROR: only single depot supported'
 
     # Solver initialization
@@ -74,7 +73,6 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     # The additional coordinates will be helpful in speeding up the algorithm.
     demands = np.ones(N + M, dtype=float)
     demands[0] = 0.  # depot demand = 0
-    d2roots = A.graph['d2roots']
     weights, w_max = length_matrix_single_depot_from_G(A, scale=1.)
     vehicles_min = math.ceil(N/capacity)
     if vehicles is None or vehicles <= vehicles_min:
@@ -148,3 +146,61 @@ def _solution_time(log, objective) -> float:
             return float(time)
     # if sol_repr was not found, return total runtime
     return float(line.split(' ')[-1])
+
+
+def iterative_hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
+                       vehicles: int | None = None, seed: int = 0,
+                       max_iter: int = 10) -> nx.Graph:
+    '''Iterate until crossing-free solution is found (`hgs_cvrp()` wrapper).
+
+    Each time a solution with a crossing is produced, one of the offending
+    edges is removed from `A` and the solver is called again. In the same
+    way as `hgs_cvrp()`, it is recommended to pass a normalized `A`.
+
+    Args:
+        *: see `hgs_cvrp()`
+        max_iter: maximum number of `hgs_cvrp()` calls in serie
+
+    Returns:
+        Solution T
+    '''
+
+    def remove_solve_repair(edge, Aʹ, num_crossings):
+        # TODO: use a filtered subgraph view instead of copying
+        A = Aʹ.copy()
+        A.remove_edge(*edge)
+        T = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
+                     vehicles=vehicles, seed=seed)
+        T = repair_routeset_path(T, A)
+        return T, A, (T.graph.get('num_crossings', 0) < num_crossings)
+
+    # solve
+    T = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
+                 vehicles=vehicles, seed=seed)
+    # repair
+    T = repair_routeset_path(T, A)
+    # TODO: accumulate solution_time throughout the iterations
+    #       (makes sense to add a new field)
+    for i in range(max_iter):
+        crossings = T.graph.get('outstanding_crossings', [])
+        if not crossings:
+            break
+        # there are still crossings
+        crossing_resolved = False
+        for edge in crossings[0]:
+            # try removing one edge at a time from A
+            T, Aʹ, succeeded = remove_solve_repair(edge, A, len(crossings))
+            if succeeded:
+                # TODO: maybe try comparing the quality between the edge removals
+                A = Aʹ
+                crossing_resolved = True
+                break
+        if not crossing_resolved:
+            print('WARNING: Failed to resolve crossing! Will keep trying.')
+            # use the A with the last edge removed
+            A = Aʹ
+    if i > 0:
+        T.graph['hgs_reruns'] = i
+        if i == 9:
+            print('Probably got stuck in an infinite loop')
+    return T
