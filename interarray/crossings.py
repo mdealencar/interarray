@@ -445,7 +445,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
 
 
 def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
-        -> list[tuple[tuple[int]]]:
+        -> list[tuple[tuple[int, int], tuple[int, int]]]:
     '''
     List edge×edge crossings for the network topology in T.
     `T` must only use extended Delaunay edges. It will not detect crossings
@@ -456,12 +456,11 @@ def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
         A: available edges used in creating `T`
 
     Returns:
-        list of 2-tuple (crossing) of 2-tuple (edge)
+        list of 2-tuple (crossing) of 2-tuple (edge, ordered)
     '''
     eeXings = []
     checked = set()
     diagonals = A.graph['diagonals']
-    P = A.graph['planar']
     for u, v in T.edges:
         u, v = (u, v) if u < v else (v, u)
         st = diagonals.get((u, v))
