@@ -21,17 +21,23 @@ from . import length_matrix_single_depot_from_G
 def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
              vehicles: int | None = None, seed: int = 0) \
                      -> nx.Graph:
-    '''Wrapper for PyHygese module, which provides bindings to the HGS-CVRP
-    library (Hybrid Genetic Search solver for Capacitated Vehicle Routing
-    Problems).
+    '''Solves the OCVRP using PyHygese with links from `A`
+
+    Wraps PyHygese, which provides bindings to the HGS-CVRP library (Hybrid
+    Genetic Search solver for Capacitated Vehicle Routing Problems). This
+    function uses it to solve an Open-CVRP i.e., vehicles do not return to the
+    depot.
 
     Normalization of input graph is recommended before calling this function.
 
-    Arguments:
-        `A`: graph with allowed edges (if it has 0 edges, use complete graph)
-        `capacity`: maximum vehicle capacity
-        `time_limit`: [s] solver run time limit
-        `vehicles`: number of vehicles (if None, use the minimum feasible)
+    Args:
+        A: graph with allowed edges (if it has 0 edges, use complete graph)
+        capacity: maximum vehicle capacity
+        time_limit: [s] solver run time limit
+        vehicles: number of vehicles (if None, use the minimum feasible)
+
+    Returns:
+        Solution topology.
     '''
     M, N, B, VertexC = (
         A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
