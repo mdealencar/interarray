@@ -248,7 +248,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     return m
 
 
-def warmup_model(model: pyo.ConcreteModel, T: nx.Graph) \
+def warmup_model(model: pyo.ConcreteModel, S: nx.Graph) \
         -> pyo.ConcreteModel:
     '''
     Changes `model` in-place.
@@ -257,25 +257,25 @@ def warmup_model(model: pyo.ConcreteModel, T: nx.Graph) \
     N = len(model.N)
     # the first half of diE has all the edges with u < v
     for u, v in list(model.diE)[:Ne]:
-        if (u, v) in T.edges:
-            if T[u][v]['reverse']:
+        if (u, v) in S.edges:
+            if S[u][v]['reverse']:
                 model.Be[u, v] = 1
-                model.De[u, v] = T[u][v]['load']
+                model.De[u, v] = S[u][v]['load']
             else:
                 model.Be[v, u] = 1
-                model.De[v, u] = T[u][v]['load']
+                model.De[v, u] = S[u][v]['load']
     for r in model.R:
-        for n in T.neighbors(r):
+        for n in S.neighbors(r):
             model.Bg[r, n] = 1
-            model.Dg[r, n] = T[n][r]['load']
-    model.warmed_by = T.graph['creator']
+            model.Dg[r, n] = S[n][r]['load']
+    model.warmed_by = S.graph['creator']
     return model
 
 
-def T_from_solution(model: pyo.ConcreteModel,
+def S_from_solution(model: pyo.ConcreteModel,
                     solver: SolverBase, status: SolverResults) -> nx.Graph:
     '''
-    Create a topology `T` with the solution in `model` by `solver`.
+    Create a topology `S` with the solution in `model` by `solver`.
     '''
 
     # Metadata
@@ -283,8 +283,8 @@ def T_from_solution(model: pyo.ConcreteModel,
     solver_name = solver._solver_model.__repr__().split('.', maxsplit=1)[0][1:]
     bound = status['Problem'][0]['Lower bound']
     objective = status['Problem'][0]['Upper bound']
-    # create a topology graph T from the solution
-    T = nx.Graph(
+    # create a topology graph S from the solution
+    S = nx.Graph(
         M=M, N=N,
         handle=model.handle,
         capacity=k,
@@ -309,14 +309,14 @@ def T_from_solution(model: pyo.ConcreteModel,
 
     # Graph data
     # gates
-    T.add_weighted_edges_from(
+    S.add_weighted_edges_from(
         ((r, n, round(model.Dg[r, n].value))
          for (r, n), bg in model.Bg.items()
          if bg.value > 0.5),
         weight='load'
     )
     # node-node edges
-    T.add_weighted_edges_from(
+    S.add_weighted_edges_from(
         ((u, v, round(model.De[u, v].value))
          for (u, v), be in model.Be.items()
          if be.value > 0.5),
@@ -326,22 +326,22 @@ def T_from_solution(model: pyo.ConcreteModel,
     # set the 'reverse' edge attribute
     # node-node edges
     nx.set_edge_attributes(
-        T,
+        S,
         {(u, v): v > u for (u, v), be in model.Be.items() if be.value > 0.5},
         name='reverse')
     # propagate loads from edges to nodes
     subtree = -1
     for r in range(-M, 0):
-        for u, v in nx.edge_dfs(T, r):
-            T.nodes[v]['load'] = T[u][v]['load']
+        for u, v in nx.edge_dfs(S, r):
+            S.nodes[v]['load'] = S[u][v]['load']
             if u == r:
                 subtree += 1
-            T.nodes[v]['subtree'] = subtree
+            S.nodes[v]['subtree'] = subtree
         rootload = 0
-        for nbr in T.neighbors(r):
+        for nbr in S.neighbors(r):
             # set the 'reverse' edge attribute for gates
-            T[r][nbr]['reverse'] = False
-            rootload += T.nodes[nbr]['load']
-        T.nodes[r]['load'] = rootload
+            S[r][nbr]['reverse'] = False
+            rootload += S.nodes[nbr]['load']
+        S.nodes[r]['load'] = rootload
 
-    return T
+    return S

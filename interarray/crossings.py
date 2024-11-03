@@ -444,16 +444,16 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
     return Xings
 
 
-def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
+def list_edge_crossings(S: nx.Graph, A: nx.Graph) \
         -> list[tuple[tuple[int, int], tuple[int, int]]]:
     '''
-    List edge×edge crossings for the network topology in T.
-    `T` must only use extended Delaunay edges. It will not detect crossings
+    List edge×edge crossings for the network topology in S.
+    `S` must only use extended Delaunay edges. It will not detect crossings
     of non-extDelaunay gates or detours.
 
     Args:
-        T: solution topology
-        A: available edges used in creating `T`
+        S: solution topology
+        A: available edges used in creating `S`
 
     Returns:
         list of 2-tuple (crossing) of 2-tuple (edge, ordered)
@@ -461,12 +461,12 @@ def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
     eeXings = []
     checked = set()
     diagonals = A.graph['diagonals']
-    for u, v in T.edges:
+    for u, v in S.edges:
         u, v = (u, v) if u < v else (v, u)
         st = diagonals.get((u, v))
         if st is not None:
             # ⟨u, v⟩ is a diagonal of Delanay edge ⟨s, t⟩
-            if st in T.edges:
+            if st in S.edges:
                 # crossing with Delaunay edge ⟨s, t⟩
                 eeXings.append((st, (u, v)))
             s, t = st
@@ -475,7 +475,7 @@ def list_edge_crossings(T: nx.Graph, A: nx.Graph) \
                      for w, y in ((u, s), (s, v), (v, t), (t, u)))
             for side in sides:
                 diag = diagonals.inv.get(side, False)
-                if diag and diag in T.edges and diag not in checked:
+                if diag and diag in S.edges and diag not in checked:
                     checked.add((u, v))
                     eeXings.append((diag, (u, v)))
     return eeXings

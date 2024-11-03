@@ -470,19 +470,19 @@ def make_planar_embedding(
                     if X_is_hull:
                         trace('XY hull')
                         # project nYZ on XY
-                        T = offset*(-XY/_XY_/max(0.5, np.sin(angle)) - nXY)
+                        S = offset*(-XY/_XY_/max(0.5, np.sin(angle)) - nXY)
                     else:
                         assert Z_is_hull
                         # project nXY on YZ
-                        T = offset*(YZ/_YZ_/max(0.5, np.sin(angle)) - nYZ)
+                        S = offset*(YZ/_YZ_/max(0.5, np.sin(angle)) - nYZ)
                         trace('YZ hull')
                 else:
-                    T = offset*(nYZ+proj)
-                trace('translation: {}', T)
+                    S = offset*(nYZ+proj)
+                trace('translation: {}', S)
                 # to extract stunts' coordinates:
                 # stuntsC = VertexC[N + B - len(border_stunts): N + B]
                 border_stunts.append(Y)
-                stunt_coord = VertexC[Y] + T
+                stunt_coord = VertexC[Y] + S
                 stunt_point = Point(*(float(sc) for sc in stunt_coord))
                 stunt_coords.append(stunt_coord)
                 conc_points.append(stunt_point)

@@ -38,15 +38,15 @@ def pathdist(G, path):
     return dist
 
 
-def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
-    '''Count the number of Delaunay diagonals (extended edges) of `A` in `T`.
+def count_diagonals(S: nx.Graph, A: nx.Graph) -> int:
+    '''Count the number of Delaunay diagonals (extended edges) of `A` in `S`.
 
     Args:
-        T: solution topology
-        A: available edges used in creating `T`
+        S: solution topology
+        A: available edges used in creating `S`
 
     Returns:
-        number of non-gate edges of `T` that are of kind 'extended' or
+        number of non-gate edges of `S` that are of kind 'extended' or
             'contour_extended' (kind is read from `A`).
 
     Raises:
@@ -56,7 +56,7 @@ def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
     extended = 0
     gates = 0
     other = 0
-    for u, v in T.edges:
+    for u, v in S.edges:
         if u < 0 or v < 0:
             gates += 1
             continue
@@ -69,7 +69,7 @@ def count_diagonals(T: nx.Graph, A: nx.Graph) -> int:
             else:
                 other += 1
                 raise ValueError('Unknown edge kind: ' + kind)
-    assert T.number_of_edges() == delaunay + extended + gates + other
+    assert S.number_of_edges() == delaunay + extended + gates + other
     return extended
 
 
@@ -182,18 +182,18 @@ def L_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
     return G
 
 
-def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
+def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     '''
-    Graph `T` contains the topology of a routeset network (nodes only, no
-    contours or detours). `T` must have been created from the available edges
+    Graph `S` contains the topology of a routeset network (nodes only, no
+    contours or detours). `S` must have been created from the available edges
     in `A`, whose contour information is used to obtain a routeset `G`
     (possibly with contours, but not with detours – use PathFinder afterward).
     '''
     M, N, B = (A.graph[k] for k in 'MNB')
     VertexC, d2roots, diagonals = (A.graph[k] for k in
                                    ('VertexC', 'd2roots', 'diagonals'))
-    # TODO: rethink whether to copy from T or from A
-    G = nx.create_empty_copy(T)
+    # TODO: rethink whether to copy from S or from A
+    G = nx.create_empty_copy(S)
     G.graph.update(
         {k: A.graph[k] for k in 'B border name handle norm_scale '
          'norm_offset landscape_angle border_stunts'.split()
@@ -204,25 +204,25 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
     # non_A_edges are the far-reaching gates and ocasionally the result of
     # a poor solver (e.g. LKH-3)
-    non_A_edges = T.edges - A.edges
-    # TA_source, TA_target = np.array(T.edges - non_A_edges).T
-    common_TA = T.edges - non_A_edges
+    non_A_edges = S.edges - A.edges
+    # TA_source, TA_target = np.array(S.edges - non_A_edges).T
+    common_TA = S.edges - non_A_edges
     iC = N + B
     clone2prime = []
     tentative = []
     shortened_contours = {}
     num_diagonals = 0
-    # add to G the T edges that are in A
+    # add to G the S edges that are in A
     for edge in common_TA:
         s, t = edge if edge[0] < edge[1] else edge[::-1]
         AedgeD = A[s][t]
-        subtree_id = T.nodes[t]['subtree']
+        subtree_id = S.nodes[t]['subtree']
         # only count diagonals that are not gates
         num_diagonals += AedgeD['kind'] == 'extended' and s >= 0
         midpath = AedgeD.get('midpath')
 
         # This block checks for gate×edge crossings, which may be unnecessary
-        # depending on how T was generated. (e.g. creator == 'MILP...' and
+        # depending on how S was generated. (e.g. creator == 'MILP...' and
         # gateXings_constraint == True).
         st_is_tentative = False
         if s < 0:
@@ -235,24 +235,24 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
             elif (s, t) in diagonals:
                 # ⟨s, t⟩ is a diagonal
                 u, v = diagonals[(s, t)]
-                if (u, v) in T.edges:
-                    # ⟨s, t⟩'s Delaunay is in T -> Xing
+                if (u, v) in S.edges:
+                    # ⟨s, t⟩'s Delaunay is in S -> Xing
                     st_is_tentative = True
                 else:
                     # check the other diagonals that cross ⟨s, t⟩ (in A)
                     for side in ((u, s), (s, v), (v, t), (t, u)):
                         side = side if side[0] < side[1] else side[::-1]
                         if (side in diagonals.inv
-                                and diagonals.inv[side] in T.edges):
-                            # side's diagonal is in T -> Xing
+                                and diagonals.inv[side] in S.edges):
+                            # side's diagonal is in S -> Xing
                             st_is_tentative = True
                             break
-            elif (s, t) in diagonals.inv and diagonals.inv[(s, t)] in T.edges:
-                # ⟨s, t⟩ is a Delanay edge and its diagonal is in T -> Xing
+            elif (s, t) in diagonals.inv and diagonals.inv[(s, t)] in S.edges:
+                # ⟨s, t⟩ is a Delanay edge and its diagonal is in S -> Xing
                 st_is_tentative = True
 
-        load = T[s][t]['load']
-        st_reverse = T.nodes[s]['load'] < T.nodes[t]['load']
+        load = S[s][t]['load']
+        st_reverse = S.nodes[s]['load'] < S.nodes[t]['load']
         if st_is_tentative:
             G.add_edge(s, t, length=AedgeD['length'], load=load,
                        reverse=st_reverse, kind='tentative')
@@ -318,21 +318,21 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
         G.graph.update(fnT=fnT,
                        clone2prime=clone2prime,
                        C=len(clone2prime))
-    # add to G the T edges that are not in A
+    # add to G the S edges that are not in A
     rogue = []
     for s, t in non_A_edges:
         s, t = (s, t) if s < t else (t, s)
         if s < 0:
             # far-reaching gate
             G.add_edge(s, t, length=d2roots[t, s], kind='tentative',
-                       load=T.nodes[t]['load'], reverse=False)
+                       load=S.nodes[t]['load'], reverse=False)
             tentative.append((s, t))
         else:
             # rogue edge (not supposed to be on the routeset, poor solver)
-            st_reverse = T.edges[s, t]['reverse']
-            load = (T.nodes[s]['load']
+            st_reverse = S.edges[s, t]['reverse']
+            load = (S.nodes[s]['load']
                     if st_reverse else
-                    T.nodes[t]['load'])
+                    S.nodes[t]['load'])
             G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
                        kind='rogue', load=load, reverse=st_reverse)
             rogue.append((s, t))
@@ -343,7 +343,7 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
     diagonals = A.graph['diagonals']
     P = A.graph['planar']
     for r in range(-M, 0):
-        for n in set(T.neighbors(r)) & set(A.neighbors(r)):
+        for n in set(S.neighbors(r)) & set(A.neighbors(r)):
             #  TODO: if ⟨r, n⟩ is a contour in A, G[r][n] might fail. FIXIT
             st = diagonals.get((r, n))
             if st is not None:
@@ -387,13 +387,13 @@ def G_from_T(T: nx.Graph, A: nx.Graph) -> nx.Graph:
 
     G.graph.update(
         num_diagonals=num_diagonals,
-        overfed=[len(G[r])/math.ceil(N/T.graph['capacity'])*M
+        overfed=[len(G[r])/math.ceil(N/S.graph['capacity'])*M
                  for r in range(-M, 0)],
     )
     return G
 
 
-def T_from_G(G: nx.Graph):
+def S_from_G(G: nx.Graph):
     '''Get `G`'s topology (contours, detours, lengths, coords are dropped).
     
     One might want to call `as_hooked_to_nearest()` or `as_hooked_to_head()`
@@ -408,13 +408,13 @@ def T_from_G(G: nx.Graph):
     M, N = (G.graph[k] for k in 'MN')
     capacity = G.graph['capacity']
     has_loads = G.graph.get('has_loads', False)
-    T = nx.Graph(
+    S = nx.Graph(
         N=N, M=M,
         capacity=capacity,
     )
-    # create a topology graph T from the results
+    # create a topology graph S from the results
     for r in range(-M, 0):
-        T.add_node(r, kind='oss', **({'load': G.nodes[r]['load']}
+        S.add_node(r, kind='oss', **({'load': G.nodes[r]['load']}
                                      if has_loads else {}))
         on_hold = None
         for edge in nx.dfs_edges(G, r):
@@ -425,25 +425,25 @@ def T_from_G(G: nx.Graph):
             u = on_hold or u
             if has_loads:
                 v_load = G.nodes[v]['load']
-                T.add_node(v, kind='wtg', load=v_load,
+                S.add_node(v, kind='wtg', load=v_load,
                            subtree=G.nodes[v]['subtree'])
-                T.add_edge(u, v, load=G.edges[edge]['load'],
+                S.add_edge(u, v, load=G.edges[edge]['load'],
                            reverse=(G.nodes[u]['load'] < v_load) == (u < v))
             else:
-                T.add_node(v, kind='wtg')
-                T.add_edge(u, v)
+                S.add_node(v, kind='wtg')
+                S.add_edge(u, v)
             on_hold = None
     creator = G.graph.get('creator')
     if creator is not None:
-        T.graph['creator'] = creator
+        S.graph['creator'] = creator
     method_options = G.graph.get('method_options')
     if method_options is not None:
-        T.graph['method_options'] = method_options
+        S.graph['method_options'] = method_options
     if has_loads:
-        T.graph['has_loads'] = True
+        S.graph['has_loads'] = True
     else:
-        calcload(T)
-    return T
+        calcload(S)
+    return S
 
 
 def L_from_G(G: nx.Graph) -> nx.Graph:
@@ -594,7 +594,7 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     warmstart for MILP models.
 
     Args:
-        G: routeset or topology T
+        G: routeset or topology S
         d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
     '''
     assert Gʹ.graph.get('has_loads')
@@ -635,47 +635,47 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
             assert total_parent_load == ref_load, \
                 f'parent ({total_parent_load}) != expected load ({ref_load})'
         else:
-            # only necessary if using hook_getter (e.g. Gʹ is a T)
+            # only necessary if using hook_getter (e.g. Gʹ is a S)
             G[r][new_hook]['kind'] = 'tentative'
         tentative.append((r, new_hook))
     G.graph['tentative'] = tentative
     return G
 
 
-def as_hooked_to_head(Tʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
+def as_hooked_to_head(Sʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     '''Only works with solutions where branches are paths.
 
     Sifts through all 'tentative' gates' subtrees and re-hook that path to
     the one of its end-nodes that is neares to the respective root according
     to `d2roots`.
 
-    Should be called after `as_undetoured()` if the goal is to use T as a
+    Should be called after `as_undetoured()` if the goal is to use S as a
     warmstart for MILP models.
 
     Args:
-        T: solution topology
+        S: solution topology
         d2roots: distance from nodes to roots (e.g. A.graph['d2roots'])
     '''
-    assert Tʹ.graph.get('has_loads')
-    T = Tʹ.copy()
-    M, N = T.graph['M'], T.graph['N']
+    assert Sʹ.graph.get('has_loads')
+    S = Sʹ.copy()
+    M, N = S.graph['M'], S.graph['N']
     # mappings to quickly obtain all nodes on a subtree
-    T_branches = nx.subgraph_view(Tʹ, filter_node=lambda n: n >= 0)
-    num_subtree = sum(T.degree[r] for r in range(-M, 0))
+    S_T = nx.subgraph_view(Sʹ, filter_node=lambda n: n >= 0)
+    num_subtree = sum(S.degree[r] for r in range(-M, 0))
     nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
                                         count=num_subtree, dtype=object)
     subtree_from_node = np.empty((N,), dtype=object)
     headtail_from_subtree_id = np.fromiter(
         (list() for _ in range(num_subtree)), count=num_subtree, dtype=object)
     headtail_from_node = np.empty((N,), dtype=object)
-    for n, subtree_id in T.nodes(data='subtree'):
+    for n, subtree_id in S.nodes(data='subtree'):
         if 0 <= n < N:
             subtree = nodes_from_subtree_id[subtree_id]
             subtree.append(n)
             subtree_from_node[n] = subtree
             headtail = headtail_from_subtree_id[subtree_id]
             headtail_from_node[n] = headtail
-            if T_branches.degree[n] <= 1:
+            if S_T.degree[n] <= 1:
                 headtail.append(n)
 
     # do the actual rehooking
@@ -683,29 +683,29 @@ def as_hooked_to_head(Tʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     #       see PathFinder.create_detours()
     tentative = []
     hook_getter = ((r, nb) for r in range(-M, 0)
-                   for nb in tuple(T.neighbors(r)))
-    for r, hook in T.graph.pop('tentative', hook_getter):
+                   for nb in tuple(S.neighbors(r)))
+    for r, hook in S.graph.pop('tentative', hook_getter):
         headtail = headtail_from_node[hook]
         new_hook = headtail[np.argmin(d2roots[headtail, r])]
         if new_hook != hook:
-            subtree_load = T.nodes[hook]['load']
-            T.remove_edge(r, hook)
-            T.add_edge(r, new_hook, kind='tentative', load=subtree_load)
+            subtree_load = S.nodes[hook]['load']
+            S.remove_edge(r, hook)
+            S.add_edge(r, new_hook, kind='tentative', load=subtree_load)
             for node in subtree_from_node[hook]:
-                del T.nodes[node]['load']
+                del S.nodes[node]['load']
 
-            ref_load = T.nodes[r]['load']
-            T.nodes[r]['load'] = ref_load - subtree_load
-            total_parent_load = bfs_subtree_loads(T, r, [new_hook],
-                                                  T.nodes[new_hook]['subtree'])
+            ref_load = S.nodes[r]['load']
+            S.nodes[r]['load'] = ref_load - subtree_load
+            total_parent_load = bfs_subtree_loads(S, r, [new_hook],
+                                                  S.nodes[new_hook]['subtree'])
             assert total_parent_load == ref_load, \
                 f'parent ({total_parent_load}) != expected load ({ref_load})'
         else:
-            # only necessary if using hook_getter (e.g. Gʹ is a T)
-            T[r][new_hook]['kind'] = 'tentative'
+            # only necessary if using hook_getter (e.g. Gʹ is a S)
+            S[r][new_hook]['kind'] = 'tentative'
         tentative.append((r, new_hook))
-    T.graph['tentative'] = tentative
-    return T
+    S.graph['tentative'] = tentative
+    return S
 
 
 def make_remap(G, refG, H, refH):

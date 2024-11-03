@@ -116,7 +116,7 @@ def G_from_table(table: np.ndarray[:, :], G_base: nx.Graph,
                  capacity: int | None = None, cost_scale: float = 1e3) \
                  -> nx.Graph:
     '''Creates a networkx graph with nodes and data from G_base and edges from
-    a table. (e.g. the T matrix of juru's `global_optimizer`)
+    a table. (e.g. the S matrix of juru's `global_optimizer`)
 
     `table`: [ [u, v, length, cable type, load (WT number), cost] ]'''
     G = nx.Graph()
@@ -146,13 +146,13 @@ def G_from_table(table: np.ndarray[:, :], G_base: nx.Graph,
     return G
 
 
-def G_from_TG(T, G_base, capacity=None, load_col=4):
+def G_from_TG(S, G_base, capacity=None, load_col=4):
     '''
     DEPRECATED in favor of `G_from_table()`
 
     Creates a networkx graph with nodes and data from G_base and edges from
-    a T matrix.
-    T matrix: [ [u, v, length, load (WT number), cable type], ...]
+    a S matrix.
+    S matrix: [ [u, v, length, load (WT number), cable type], ...]
     '''
     G = nx.Graph()
     G.graph.update(G_base.graph)
@@ -161,26 +161,26 @@ def G_from_TG(T, G_base, capacity=None, load_col=4):
     N = G_base.graph['N']
 
     # indexing differences:
-    # T starts at 1, while G starts at 0
-    # T begins with OSSs followed by WTGs,
+    # S starts at 1, while G starts at 0
+    # S begins with OSSs followed by WTGs,
     # while G begins with WTGs followed by OSSs
     # the line bellow converts the indexing:
-    edges = (T[:, :2].astype(int) - M - 1) % (N + M)
+    edges = (S[:, :2].astype(int) - M - 1) % (N + M)
 
-    G.add_weighted_edges_from(zip(*edges.T, T[:, 2]), weight='length')
+    G.add_weighted_edges_from(zip(*edges.T, S[:, 2]), weight='length')
     # nx.set_edge_attributes(G, {(u, v): load for (u, v), load
-    #                            in zip(edges, T[:, load_col])},
+    #                            in zip(edges, S[:, load_col])},
     #                        name='load')
     # try:
     calcload(G)
     # except AssertionError as err:
     #     print(f'>>>>>>>> SOMETHING WENT REALLY WRONG: {err} <<<<<<<<<<<')
     #     return G
-    if T.shape[1] >= 4:
-        for (u, v), load in zip(edges, T[:, load_col]):
+    if S.shape[1] >= 4:
+        for (u, v), load in zip(edges, S[:, load_col]):
             Gload = G.edges[u, v]['load']
             assert Gload == load, (
-                f'<G.edges[{u}, {v}]> {Gload} != {load} <T matrix>')
+                f'<G.edges[{u}, {v}]> {Gload} != {load} <S matrix>')
     G.graph['has_loads'] = True
     G.graph['creator'] = 'G_from_TG()'
     G.graph['prevented_crossings'] = 0

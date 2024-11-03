@@ -183,7 +183,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
             minimum = 'inf'
             branches = []
     log = result.stdout.decode('utf8')
-    T = nx.Graph(
+    S = nx.Graph(
         creator='baselines.lkh',
         N=N, M=M,
         has_loads=True,
@@ -214,37 +214,37 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         entries = iter(tail.splitlines())
         # Decision to drop avg. stats: unreliable, possibly due to time_limit
         next(entries)  # skip sucesses line
-        T.graph['cost_extrema'] = tuple(float(v) for v in re.match(
+        S.graph['cost_extrema'] = tuple(float(v) for v in re.match(
             r'Cost\.min = (-?\d+), Cost\.avg = -?\d+\.?\d*,'
             r' Cost\.max = -?(\d+)',
             next(entries)).groups())
         next(entries)  # skip gap line
-        T.graph['penalty_extrema'] = tuple(float(v) for v in re.match(
+        S.graph['penalty_extrema'] = tuple(float(v) for v in re.match(
             r'Penalty\.min = (\d+), Penalty\.avg = \d+\.?\d*,'
             r' Penalty\.max = (\d+)',
             next(entries)).groups())
-        T.graph['trials_extrema'] = tuple(float(v) for v in re.match(
+        S.graph['trials_extrema'] = tuple(float(v) for v in re.match(
             r'Trials\.min = (\d+), Trials\.avg = \d+\.?\d*,'
             r' Trials\.max = (\d+)',
             next(entries)).groups())
-        T.graph['runtime_extrema'] = tuple(float(v) for v in re.match(
+        S.graph['runtime_extrema'] = tuple(float(v) for v in re.match(
             r'Time\.min = (\d+\.?\d*) sec., Time\.avg = \d+\.?\d* sec.,'
             r' Time\.max = (\d+\.?\d*) sec.',
             next(entries)).groups())
     for subtree_id, branch in enumerate(branches):
         loads = range(len(branch), 0, -1)
-        T.add_nodes_from(((n, {'load': load})
+        S.add_nodes_from(((n, {'load': load})
                           for n, load in zip(branch, loads)),
                          subtree=subtree_id)
         branch_roll = [-1] + branch[:-1]
         reverses = tuple(u < v for u, v in zip(branch, branch_roll))
         edgeD = ({'load': load, 'reverse': reverse}
                  for load, reverse in zip(loads, reverses))
-        T.add_edges_from(zip(branch_roll, branch, edgeD))
-    root_load = sum(T.nodes[n]['load'] for n in T.neighbors(-1))
-    T.nodes[-1]['load'] = root_load
+        S.add_edges_from(zip(branch_roll, branch, edgeD))
+    root_load = sum(S.nodes[n]['load'] for n in S.neighbors(-1))
+    S.nodes[-1]['load'] = root_load
     assert root_load == N, 'ERROR: root node load does not match N.'
-    return T
+    return S
 
 
 def _solution_time(log, objective) -> float:

@@ -98,8 +98,8 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     result, out, err = StdCaptureFD.call(hgs_solver.solve_cvrp, data,
                                          rounding=False)
 
-    # create a topology graph T from the results
-    T = nx.Graph(
+    # create a topology graph S from the results
+    S = nx.Graph(
         N=N, M=M,
         capacity=capacity,
         has_loads=True,
@@ -117,18 +117,18 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     branches = ([n - 1 for n in branch] for branch in result.routes)
     for subtree_id, branch in enumerate(branches):
         loads = range(len(branch), 0, -1)
-        T.add_nodes_from(((n, {'load': load})
+        S.add_nodes_from(((n, {'load': load})
                           for n, load in zip(branch, loads)),
                          subtree=subtree_id)
         branch_roll = [-1] + branch[:-1]
         reverses = tuple(u < v for u, v in zip(branch, branch_roll))
         edgeD = ({'load': load, 'reverse': reverse}
                  for load, reverse in zip(loads, reverses))
-        T.add_edges_from(zip(branch_roll, branch, edgeD))
-    root_load = sum(T.nodes[n]['load'] for n in T.neighbors(-1))
-    T.nodes[-1]['load'] = root_load
+        S.add_edges_from(zip(branch_roll, branch, edgeD))
+    root_load = sum(S.nodes[n]['load'] for n in S.neighbors(-1))
+    S.nodes[-1]['load'] = root_load
     assert root_load == N, 'ERROR: root node load does not match N.'
-    return T
+    return S
 
 
 def _solution_time(log, objective) -> float:
@@ -162,34 +162,34 @@ def iterative_hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         max_iter: maximum number of `hgs_cvrp()` calls in serie
 
     Returns:
-        Solution T
+        Solution S
     '''
 
     def remove_solve_repair(edge, Aʹ, num_crossings):
         # TODO: use a filtered subgraph view instead of copying
         A = Aʹ.copy()
         A.remove_edge(*edge)
-        T = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
+        S = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
                      vehicles=vehicles, seed=seed)
-        T = repair_routeset_path(T, A)
-        return T, A, (T.graph.get('num_crossings', 0) < num_crossings)
+        S = repair_routeset_path(S, A)
+        return S, A, (S.graph.get('num_crossings', 0) < num_crossings)
 
     # solve
-    T = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
+    S = hgs_cvrp(A, capacity=capacity, time_limit=time_limit,
                  vehicles=vehicles, seed=seed)
     # repair
-    T = repair_routeset_path(T, A)
+    S = repair_routeset_path(S, A)
     # TODO: accumulate solution_time throughout the iterations
     #       (makes sense to add a new field)
     for i in range(max_iter):
-        crossings = T.graph.get('outstanding_crossings', [])
+        crossings = S.graph.get('outstanding_crossings', [])
         if not crossings:
             break
         # there are still crossings
         crossing_resolved = False
         for edge in crossings[0]:
             # try removing one edge at a time from A
-            T, Aʹ, succeeded = remove_solve_repair(edge, A, len(crossings))
+            S, Aʹ, succeeded = remove_solve_repair(edge, A, len(crossings))
             if succeeded:
                 # TODO: maybe try comparing the quality between the edge removals
                 A = Aʹ
@@ -200,7 +200,7 @@ def iterative_hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
             # use the A with the last edge removed
             A = Aʹ
     if i > 0:
-        T.graph['hgs_reruns'] = i
+        S.graph['hgs_reruns'] = i
         if i == 9:
             print('Probably got stuck in an infinite loop')
-    return T
+    return S

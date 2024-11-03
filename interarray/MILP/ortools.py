@@ -192,7 +192,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     return m
 
 
-def warmup_model(model: cp_model.CpModel, T: nx.Graph) -> cp_model.CpModel:
+def warmup_model(model: cp_model.CpModel, S: nx.Graph) -> cp_model.CpModel:
     '''
     Changes `model` in-place.
 
@@ -203,26 +203,26 @@ def warmup_model(model: cp_model.CpModel, T: nx.Graph) -> cp_model.CpModel:
     if upstream is not None:
         let_branch = True
     for (u, v), Be in model.Be.items():
-        is_in_G = (u, v) in T.edges
+        is_in_G = (u, v) in S.edges
         model.AddHint(Be, is_in_G)
         De = model.De[u, v]
         if is_in_G:
-            edgeD = T.edges[u, v]
+            edgeD = S.edges[u, v]
             model.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
         else:
             model.AddHint(De, 0)
     for rn, Bg in model.Bg.items():
-        is_in_G = rn in T.edges
+        is_in_G = rn in S.edges
         model.AddHint(Bg, is_in_G)
         Dg = model.Dg[rn]
-        model.AddHint(Dg, T.edges[rn]['load'] if is_in_G else 0)
-    model.warmed_by = T.graph['creator']
+        model.AddHint(Dg, S.edges[rn]['load'] if is_in_G else 0)
+    model.warmed_by = S.graph['creator']
     return model
 
 
-def T_from_solution(model: cp_model.CpModel,
+def S_from_solution(model: cp_model.CpModel,
                     solver: cp_model.CpSolver, status: int = 0) -> nx.Graph:
-    '''Create a topology `T` from the OR-tools solution to the MILP model.
+    '''Create a topology `S` from the OR-tools solution to the MILP model.
 
     Args:
         model: passed to the solver.
@@ -238,7 +238,7 @@ def T_from_solution(model: cp_model.CpModel,
     solver_name = 'ortools'
     bound = solver.best_objective_bound
     objective = solver.objective_value
-    T = nx.Graph(
+    S = nx.Graph(
         M=M, N=N,
         handle=model.handle,
         capacity=model.k,
@@ -267,9 +267,9 @@ def T_from_solution(model: cp_model.CpModel,
     gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
                             for (r, n), bg in model.Bg.items()
                             if solver.BooleanValue(bg))
-    T.add_weighted_edges_from(gates_and_loads, weight='load')
+    S.add_weighted_edges_from(gates_and_loads, weight='load')
     # node-node edges
-    T.add_weighted_edges_from(
+    S.add_weighted_edges_from(
         ((u, v, abs(solver.Value(model.De[u, v])))
          for (u, v), be in model.Be.items()
          if solver.BooleanValue(be)),
@@ -279,7 +279,7 @@ def T_from_solution(model: cp_model.CpModel,
     # set the 'reverse' edges property
     # node-node edges
     nx.set_edge_attributes(
-        T,
+        S,
         {(u, v): solver.Value(model.De[u, v]) > 0
          for (u, v), be in model.Be.items() if solver.BooleanValue(be)},
         name='reverse')
@@ -287,15 +287,15 @@ def T_from_solution(model: cp_model.CpModel,
     # propagate loads from edges to nodes
     subtree = -1
     for r in range(-M, 0):
-        for u, v in nx.edge_dfs(T, r):
-            T.nodes[v]['load'] = T.edges[u, v]['load']
+        for u, v in nx.edge_dfs(S, r):
+            S.nodes[v]['load'] = S.edges[u, v]['load']
             if u == r:
                 subtree += 1
-            T.nodes[v]['subtree'] = subtree
+            S.nodes[v]['subtree'] = subtree
         rootload = 0
-        for nbr in T.neighbors(r):
+        for nbr in S.neighbors(r):
             # set the 'reverse' edge attribute for gates
-            T[r][nbr]['reverse'] = False
-            rootload += T.nodes[nbr]['load']
-        T.nodes[r]['load'] = rootload
-    return T
+            S[r][nbr]['reverse'] = False
+            rootload += S.nodes[nbr]['load']
+        S.nodes[r]['load'] = rootload
+    return S
