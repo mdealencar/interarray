@@ -34,7 +34,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     margin = 30
     root_side = round(1.77*node_size)
     # TODO: ¿use SVG's attr overflow="visible" instead of margin?
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
     C, D = (G.graph.get(k, 0) for k in 'CD')
     border, exclusions, landscape_angle = (
@@ -54,11 +54,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         BoundaryC = VertexC[border]
 
     # viewport scaling
-    idx_B = N + B
-    Woff = min(VertexC[:idx_B, 0].min(), VertexC[-M:, 0].min())
-    W = max(VertexC[:idx_B, 0].max(), VertexC[-M:, 0].max()) - Woff
-    Hoff = min(VertexC[:idx_B, 1].min(), VertexC[-M:, 1].min())
-    H = max(VertexC[:idx_B, 1].max(), VertexC[-M:, 1].max()) - Hoff
+    idx_B = T + B
+    Woff = min(VertexC[:idx_B, 0].min(), VertexC[-R:, 0].min())
+    W = max(VertexC[:idx_B, 0].max(), VertexC[-R:, 0].max()) - Woff
+    Hoff = min(VertexC[:idx_B, 1].min(), VertexC[-R:, 1].min())
+    H = max(VertexC[:idx_B, 1].max(), VertexC[-R:, 1].max()) - Hoff
     wr = (w - 2*margin)/W
     hr = (h - 2*margin)/H
     if wr/hr < w/h:
@@ -134,8 +134,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
 
     fnT = G.graph.get('fnT')
     if fnT is None:
-        fnT = np.arange(M + N + B + 3)
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(R + T + B + 3)
+        fnT[-R:] = range(-R, 0)
 
     # farm border shape
     border = svg.Polygon(
@@ -146,13 +146,13 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     )
 
     if (not G.graph.get('has_loads', False)
-            and G.number_of_edges() == N + C + D):
+            and G.number_of_edges() == T + C + D):
         calcload(G)
 
     # wtg nodes
     subtrees = defaultdict(list)
     for n, sub in G.nodes(data='subtree', default=19):
-        if 0 <= n < N:
+        if 0 <= n < T:
             subtrees[sub].append(n)
     svgnodes = []
     for sub, nodes in subtrees.items():
@@ -167,12 +167,12 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         id='OSSgrp',
         elements=[svg.Use(href='#oss', x=VertexS[r, 0] - root_side/2,
                           y=VertexS[r, 1] - root_side/2)
-                  for r in range(-M, 0)])
+                  for r in range(-R, 0)])
     # Detour nodes
     svgdetours = svg.G(
         id='DTgrp', elements=[svg.Use(href='#dt', x=VertexS[d, 0],
                                       y=VertexS[d, 1])
-                              for d in fnT[N + B + C: N + B + C + D]])
+                              for d in fnT[T + B + C: T + B + C + D]])
 
     # Edges
     class_dict = {'delaunay': 'del',
@@ -201,8 +201,8 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
     if D:
-        for r in range(-M, 0):
-            detoured = [n for n in G.neighbors(r) if n >= N + B + C]
+        for r in range(-R, 0):
+            detoured = [n for n in G.neighbors(r) if n >= T + B + C]
             for t in detoured:
                 s = r
                 hops = [s, fnT[t]]
@@ -211,7 +211,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                     nbr.remove(s)
                     u = nbr.pop()
                     hops.append(fnT[u])
-                    if u < N:
+                    if u < T:
                         break
                     s, t = t, u
                 Points.append(' '.join(str(c) for c in VertexS[hops].flat))

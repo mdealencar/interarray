@@ -121,7 +121,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         polygon_edge = '#444444'
         polygon_face = 'whitesmoke'
 
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
     C, D = (G.graph.get(k, 0) for k in 'CD')
     border, exclusions, landscape_angle = (
@@ -144,13 +144,13 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
                 linestyle='--', linewidth=0.2)
 
     # setup
-    roots = range(-M, 0)
-    pos = (dict(enumerate(VertexC[:-M]))
-           | dict(enumerate(VertexC[-M:], start=-M)))
+    roots = range(-R, 0)
+    pos = (dict(enumerate(VertexC[:-R]))
+           | dict(enumerate(VertexC[-R:], start=-R)))
     if C > 0 or D > 0:
         fnT = G.graph['fnT']
-        contour = range(N + B, N + B + C)
-        detour = range(N + B + C, N + B + C + D)
+        contour = range(T + B, T + B + C)
+        detour = range(T + B + C, T + B + C + D)
         pos |= dict(zip(detour, VertexC[fnT[detour]]))
         pos |= dict(zip(contour, VertexC[fnT[contour]]))
     RootL = {r: G.nodes[r].get('label', F[r]) for r in roots[::-1]}
@@ -159,7 +159,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     # default value for subtree (i.e. color for unconnected nodes)
     # is the last color of the tab20 colormap (i.e. 19)
     subtrees = G.nodes(data='subtree', default=19)
-    node_colors = [colors[subtrees[n] % len(colors)] for n in range(N)]
+    node_colors = [colors[subtrees[n] % len(colors)] for n in range(T)]
 
     edges_width = 0.7
     edges_capstyle = 'round'
@@ -203,7 +203,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         edgecolors=node_edge, node_size=root_size, node_shape='s', label='OSS')
     arts.set_clip_on(False)
     arts = nx.draw_networkx_nodes(
-        G, pos, nodelist=range(N), edgecolors=node_edge, ax=ax, label='WTG',
+        G, pos, nodelist=range(T), edgecolors=node_edge, ax=ax, label='WTG',
         node_color=node_colors, node_size=node_size, linewidths=0.2)
     arts.set_clip_on(False)
 
@@ -222,7 +222,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             for det in detour:
                 if det in labels:
                     labels.pop(det)
-        for n in range(N):
+        for n in range(T):
             if n not in labels:
                 labels[n] = F[n]
         arts = nx.draw_networkx_labels(G, pos, ax=ax, labels=labels,
@@ -245,7 +245,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     if infobox:
         if 'capacity' in G.graph:
             info = [f'$\\kappa$ = {G.graph["capacity"]}, '
-                    f'$N$ = {N}']
+                    f'$T$ = {T}']
             feeder_info = [f'$\\phi_{{{rootL}}}$ = {len(G[r])}'
                            for r, rootL in RootL.items()]
             if 'overfed' in G.graph:
@@ -274,9 +274,9 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
                   columnspacing=1, handletextpad=0.3)
         if 'capacity' in G.graph and infobox:
             ax.add_artist(infobox)
-    if hide_ST and VertexC.shape[0] > M + N + B:
+    if hide_ST and VertexC.shape[0] > R + T + B:
         # coordinates include the supertriangle, adjust view limits to hide it
-        nonStC = np.r_[VertexC[:N + B], VertexC[-M:]]
+        nonStC = np.r_[VertexC[:T + B], VertexC[-R:]]
         minima = np.min(nonStC, axis=0)
         maxima = np.max(nonStC, axis=0)
         xmargin, ymargin = abs(maxima - minima)*0.05
@@ -304,10 +304,10 @@ def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> Axes:
     H = nx.create_empty_copy(A)
     if 'has_loads' in H.graph:
         del H.graph['has_loads']
-    M, N, B = (A.graph[k] for k in 'MNB')
+    R, T, B = (A.graph[k] for k in 'RTB')
     H.add_edges_from(P.edges, kind='planar')
-    fnT = np.arange(M + N + B + 3)
-    fnT[-M:] = range(-M, 0)
+    fnT = np.arange(R + T + B + 3)
+    fnT[-R:] = range(-R, 0)
     H.graph['fnT'] = fnT
     return gplot(H, **kwargs)
 
@@ -338,7 +338,7 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
     for attr in 'fnT C'.split():
         if attr in scaff.graph:
             del scaff.graph[attr]
-    M, N, B, C, D = (G.graph.get(k, 0) for k in 'M N B C D'.split())
+    R, T, B, C, D = (G.graph.get(k, 0) for k in 'R T B C D'.split())
     nx.set_edge_attributes(scaff, 'scaffold', 'kind')
     constraints = P.graph.get('constraint_edges', [])
     for edge in constraints:
@@ -350,8 +350,8 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
     if C > 0 or D > 0:
         fnT = G.graph['fnT']
     else:
-        fnT = np.arange(M + N + B + C + D)
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(R + T + B + C + D)
+        fnT[-R:] = range(-R, 0)
     for u, v in G.edges:
         st = fnT[u], fnT[v]
         if st in scaff.edges:
@@ -361,9 +361,9 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
     if G.graph.get('is_normalized'):
         supertriangleC = G.graph['norm_scale']*(supertriangleC
                                                 - G.graph['norm_offset'])
-    VertexC = np.vstack((VertexC[:-M],
+    VertexC = np.vstack((VertexC[:-R],
                          supertriangleC,
-                         VertexC[-M:]))
+                         VertexC[-R:]))
     scaff.graph['VertexC'] = VertexC
     return scaff
 
@@ -412,38 +412,38 @@ class LayoutPlotter():
 
         VertexC = G_base.graph['VertexC']
         self.VertexC = VertexC
-        M = G_base.graph['M']
-        self.M = M
-        N = G_base.graph['N']
-        self.N = N
+        R = G_base.graph['R']
+        self.R = R
+        T = G_base.graph['T']
+        self.T = T
         self.fnT = G_base.graph.get('fnT')
-        pos = dict(zip(range(N), VertexC[:N]))
-        pos |= dict(zip(range(-M, 0), VertexC[-M:]))
+        pos = dict(zip(range(T), VertexC[:T]))
+        pos |= dict(zip(range(-R, 0), VertexC[-R:]))
         D = G_base.graph.get('D')
         if D is not None:
-            N -= D
+            T -= D
         self.pos = pos
 
-        G = nx.Graph(name=G_base.name, M=M, VertexC=VertexC)
+        G = nx.Graph(name=G_base.name, R=R, VertexC=VertexC)
         G.add_nodes_from(G_base.nodes(data=True))
         # make star graph
         make_graph_metrics(G)
         d2roots = G.graph['d2roots']
-        for n in range(N):
+        for n in range(T):
             # root = G_base.nodes[n]['root']
             root = G.nodes[n]['root']
             G.add_edge(root, n, length=d2roots[n, root])
-        # for node in G.nbunch_iter(range(N, N + D)):
+        # for node in G.nbunch_iter(range(T, T + D)):
             # G[node]['color'] = 'none'
         self.G = G
 
         subtrees = G.nodes(data='subtree', default=-1)
         self.node_colors = np.array([self.colors[subtrees[n] %
                                                  len(self.colors)]
-                                     for n in range(N)])
+                                     for n in range(T)])
         Subtree = defaultdict(list)
         for node, subtreeI in G.nodes(data='subtree'):
-            if subtreeI is None or node >= N:
+            if subtreeI is None or node >= T:
                 continue
             Subtree[subtreeI].append(node)
         self.Subtree = Subtree
@@ -464,7 +464,7 @@ class LayoutPlotter():
 
     def init_plt(self):
         G = self.G
-        M = self.M
+        R = self.R
         pos = self.pos
         # ax = self.ax
         ax = self.fig.add_subplot(aspect='equal')
@@ -484,7 +484,7 @@ class LayoutPlotter():
         ax.set_aspect('equal')
 
         # draw root nodes
-        roots = range(-M, 0)
+        roots = range(-R, 0)
         RootL = {r: G.nodes[r]['label'] for r in roots[::-1]}
         redraw.append(nx.draw_networkx_nodes(
             G, pos, ax=ax, nodelist=roots, node_color=self.root_color,
@@ -552,7 +552,7 @@ class LayoutPlotter():
 
     def update(self, step):
         redraw = []
-        #  n2s = NodeStr(self.fnT, self.N)
+        #  n2s = NodeStr(self.fnT, self.T)
         detourprop = dict(style='dashed', color='yellow')
         G = self.G
         pos = self.pos

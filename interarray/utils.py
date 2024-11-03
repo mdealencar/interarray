@@ -13,7 +13,7 @@ def namedtuplify(namedtuple_typename='', **kwargs):
 
 class NodeTagger():
     # 50 digits, 'I' and 'l' were dropped
-    alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ'
+    alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLRTOPQRSTUVWXYZ'
     value = {c: i for i, c in enumerate(alphabet)}
 
     def __getattr__(self, b50):
@@ -50,14 +50,14 @@ F = NodeTagger()
 
 class NodeStr():
 
-    def __init__(self, fnT, N):
+    def __init__(self, fnT, T):
         self.fnT = fnT
-        self.N = N
+        self.T = T
 
     def __call__(self, u, *args):
         nodes = tuple((self.fnT[n], n)
                       for n in (u,) + args if n is not None)
-        out = '–'.join(F[n_] + ('' if n < self.N else f'({F[n]})')
+        out = '–'.join(F[n_] + ('' if n < self.T else f'({F[n]})')
                        for n_, n in nodes)
         if len(nodes) > 1:
             out = f'«{out}»'

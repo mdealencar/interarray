@@ -26,8 +26,8 @@ F = NodeTagger()
 def graph_from_edgeset(edgeset):
     nodeset = edgeset.nodes
     VertexC = pickle.loads(nodeset.VertexC)
-    N = nodeset.N
-    M = nodeset.M
+    T = nodeset.T
+    R = nodeset.R
     pickled_misc = edgeset.misc
     if pickled_misc is None:
         creator = edgeset.method.funname
@@ -37,7 +37,7 @@ def graph_from_edgeset(edgeset):
         creator = misc['edges_created_by']
         iterations = misc.get('iterations', 1)
     G = nx.Graph(name=nodeset.name,
-                 M=M, N=N, handle=nodeset.handle,
+                 R=R, T=T, handle=nodeset.handle,
                  VertexC=VertexC,
                  capacity=edgeset.capacity,
                  boundary=pickle.loads(nodeset.boundary),
@@ -47,26 +47,26 @@ def graph_from_edgeset(edgeset):
                  iterations=iterations)
 
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
 
     D = edgeset.D or 0
     if D > 0:
         G.graph['D'] = D
-        detournodes = range(N, N + D)
+        detournodes = range(T, T + D)
         G.add_nodes_from(((s, {'kind': 'detour'})
                           for s in detournodes))
         clone2prime = edgeset.clone2prime
         assert len(clone2prime) == D, \
             'len(EdgeSet.clone2prime) != EdgeSet.D'
-        fnT = np.arange(N + D + M)
-        fnT[N: N + D] = clone2prime
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(T + D + R)
+        fnT[T: T + D] = clone2prime
+        fnT[-R:] = range(-R, 0)
         G.graph['fnT'] = fnT
-        AllnodesC = np.vstack((VertexC[:N],
+        AllnodesC = np.vstack((VertexC[:T],
                                VertexC[clone2prime],
-                               VertexC[-M:]))
+                               VertexC[-R:]))
     else:
         AllnodesC = VertexC
 
@@ -77,8 +77,8 @@ def graph_from_edgeset(edgeset):
     if D > 0:
         for _, _, edgeD in G.edges(detournodes, data=True):
             edgeD['kind'] = 'detour'
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
-                          for root in range(-M, 0)]
+    G.graph['overfed'] = [len(G[root])/np.ceil(T/edgeset.capacity)*R
+                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     assert abs(calc_length - edgeset.length) < 1, (
         f'{calc_length} != {edgeset.length}')
@@ -91,16 +91,16 @@ def graph_from_edgeset(edgeset):
 
 
 def packnodes(G):
-    M = G.graph['M']
-    N = G.number_of_nodes() - M
+    R = G.graph['R']
+    T = G.number_of_nodes() - R
     VertexCpkl = pickle.dumps(np.round(G.graph['VertexC'], 2))
     boundarypkl = pickle.dumps(np.round(G.graph['boundary'], 2))
     digest = sha256(VertexCpkl + boundarypkl).digest()
     pack = dict(
         digest=digest,
         name=G.name,
-        N=N,
-        M=M,
+        T=T,
+        R=R,
         VertexC=VertexCpkl,
         boundary=boundarypkl,
         landscape_angle=G.graph.get('landscape_angle', 0.),
@@ -155,13 +155,13 @@ def edgeset_from_graph(G, db):
     nodesetID = nodeset_from_graph(G, db)
     methodID = method_from_graph(G, db),
     machineID = get_machineID(db)
-    M = G.graph['M']
+    R = G.graph['R']
     edgepack = dict(
             edges=pickle.dumps(
                 np.array([((u, v) if u < v else (v, u))
                           for u, v in G.edges])),
             length=G.size(weight='length'),
-            gates=[len(G[root]) for root in range(-M, 0)],
+            gates=[len(G[root]) for root in range(-R, 0)],
             capacity=G.graph['capacity'],
             runtime=G.graph['runtime'],
             runtime_unit=G.graph['runtime_unit'],
@@ -171,11 +171,11 @@ def edgeset_from_graph(G, db):
 
     D = G.graph.get('D')
     if D is not None and D > 0:
-        N_plus_D = G.number_of_nodes() - M
-        assert len(G.graph['fnT']) == N_plus_D + M, \
-            "len(fnT) != N + D + M"
+        T_plus_D = G.number_of_nodes() - R
+        assert len(G.graph['fnT']) == T_plus_D + R, \
+            "len(fnT) != T + D + R"
         edgepack['D'] = D
-        edgepack['clone2prime'] = G.graph['fnT'][N_plus_D - D: N_plus_D]
+        edgepack['clone2prime'] = G.graph['fnT'][T_plus_D - D: T_plus_D]
     else:
         edgepack['D'] = 0
     with db_session:

@@ -34,8 +34,8 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     `branching`: if root branches are paths (False) or can be trees (True).
     '''
-    M = A.graph['M']
-    N = A.graph['N']
+    R = A.graph['R']
+    T = A.graph['T']
     d2roots = A.graph['d2roots']
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
@@ -52,9 +52,9 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     Eʹ = tuple((v, u) for u, v in E)
 
     m.diE = pyo.Set(initialize=E + Eʹ)
-    #  m.N = pyo.RangeSet(0, N - 1)
-    m.N = pyo.Set(initialize=A_nodes.nodes.keys())
-    m.R = pyo.RangeSet(-M, -1)
+    #  m.T = pyo.RangeSet(0, T - 1)
+    m.T = pyo.Set(initialize=A_nodes.nodes.keys())
+    m.R = pyo.RangeSet(-R, -1)
 
     ##############
     # Parameters #
@@ -65,7 +65,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
                     name='edge_cost',
                     initialize=lambda m, u, v: A.edges[(u, v)]['length'])
 
-    m.g = pyo.Param(m.R, m.N,
+    m.g = pyo.Param(m.R, m.T,
                     domain=pyo.PositiveReals,
                     name='gate_cost',
                     initialize=lambda m, r, n: d2roots[n, r])
@@ -81,10 +81,10 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     m.De = pyo.Var(m.diE, domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k - 1), initialize=0)
 
-    m.Bg = pyo.Var(m.R, m.N,
+    m.Bg = pyo.Var(m.R, m.T,
                    domain=pyo.Binary,
                    initialize=0)
-    m.Dg = pyo.Var(m.R, m.N,
+    m.Dg = pyo.Var(m.R, m.T,
                    domain=pyo.NonNegativeIntegers,
                    bounds=(0, m.k),
                    initialize=0)
@@ -96,7 +96,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     # total number of edges must be equal to number of non-root nodes
     m.cons_edges_eq_nodes = pyo.Constraint(
         rule=lambda m: (sum(m.Be[u, v] for u, v in m.diE)
-                        + sum(m.Bg[r, n] for r in m.R for n in m.N) == N)
+                        + sum(m.Bg[r, n] for r in m.R for n in m.T) == T)
     )
 
     # enforce a single directed edge between each node pair
@@ -107,7 +107,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     # each node is connected to a single root
     m.cons_one_root = pyo.Constraint(
-        m.N,
+        m.T,
         rule=lambda m, n: sum(m.Bg[:, n]) <= 1)
 
     # gate-edge crossings
@@ -149,11 +149,11 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
         rule=lambda m, u, v: m.Be[(u, v)] <= m.De[(u, v)]
     )
     m.cons_gate_active_iff_demand_lb = pyo.Constraint(
-        m.R, m.N,
+        m.R, m.T,
         rule=lambda m, r, n: m.Dg[r, n] <= m.k*m.Bg[r, n]
     )
     m.cons_gate_active_iff_demand_ub = pyo.Constraint(
-        m.R, m.N,
+        m.R, m.T,
         rule=lambda m, r, n: m.Bg[r, n] <= m.Dg[r, n]
     )
 
@@ -173,7 +173,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     # flow conservation with possibly non-unitary node power
     m.cons_flow_conservation = pyo.Constraint(
-        m.N,
+        m.T,
         rule=lambda m, u: (sum((m.De[u, v] - m.De[v, u])
                                for v in A_nodes.neighbors(u))
                            + sum(m.Dg[r, u] for r in m.R)
@@ -183,11 +183,11 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     # gates limit
     if gates_limit:
         def gates_limit_eq_rule(m):
-            return (sum(m.Bg[r, u] for r in m.R for u in m.N)
-                    == math.ceil(N/m.k))
+            return (sum(m.Bg[r, u] for r in m.R for u in m.T)
+                    == math.ceil(T/m.k))
 
         def gates_limit_ub_rule(m):
-            return (sum(m.Bg[r, u] for r in m.R for u in m.N)
+            return (sum(m.Bg[r, u] for r in m.R for u in m.T)
                     <= gates_limit)
 
         m.gates_limit = pyo.Constraint(rule=(gates_limit_eq_rule
@@ -199,28 +199,28 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
         # just need to limit incoming edges since the outgoing are
         # limited by the m.cons_one_out_edge
         m.non_branching = pyo.Constraint(
-            m.N,
+            m.T,
             rule=lambda m, u: (sum(m.Be[v, u] for v in A_nodes.neighbors(u))
                                <= 1)
         )
 
     # assert all nodes are connected to some root
     m.cons_all_nodes_connected = pyo.Constraint(
-        rule=lambda m: sum(m.Dg[r, n] for r in m.R for n in m.N) == W
+        rule=lambda m: sum(m.Dg[r, n] for r in m.R for n in m.T) == W
     )
 
     # valid inequalities
     m.cons_min_gates_required = pyo.Constraint(
-        rule=lambda m: (sum(m.Bg[r, n] for r in m.R for n in m.N)
-                        >= math.ceil(N/m.k))
+        rule=lambda m: (sum(m.Bg[r, n] for r in m.R for n in m.T)
+                        >= math.ceil(T/m.k))
     )
     m.cons_incoming_demand_limit = pyo.Constraint(
-        m.N,
+        m.T,
         rule=lambda m, u: (sum(m.De[v, u] for v in A_nodes.neighbors(u))
                            <= m.k - 1)
     )
     m.cons_one_out_edge = pyo.Constraint(
-        m.N,
+        m.T,
         rule=lambda m, u: (sum(m.Be[u, v] for v in A_nodes.neighbors(u))
                            + sum(m.Bg[r, u] for r in m.R) == 1)
     )
@@ -254,7 +254,7 @@ def warmup_model(model: pyo.ConcreteModel, S: nx.Graph) \
     Changes `model` in-place.
     '''
     Ne = len(model.diE)//2
-    N = len(model.N)
+    T = len(model.T)
     # the first half of diE has all the edges with u < v
     for u, v in list(model.diE)[:Ne]:
         if (u, v) in S.edges:
@@ -279,13 +279,13 @@ def S_from_solution(model: pyo.ConcreteModel,
     '''
 
     # Metadata
-    M, N, k = len(model.R), len(model.N), model.k.value
+    R, T, k = len(model.R), len(model.T), model.k.value
     solver_name = solver._solver_model.__repr__().split('.', maxsplit=1)[0][1:]
     bound = status['Problem'][0]['Lower bound']
     objective = status['Problem'][0]['Upper bound']
     # create a topology graph S from the solution
     S = nx.Graph(
-        M=M, N=N,
+        R=R, T=T,
         handle=model.handle,
         capacity=k,
         objective=objective,
@@ -331,7 +331,7 @@ def S_from_solution(model: pyo.ConcreteModel,
         name='reverse')
     # propagate loads from edges to nodes
     subtree = -1
-    for r in range(-M, 0):
+    for r in range(-R, 0):
         for u, v in nx.edge_dfs(S, r):
             S.nodes[v]['load'] = S[u][v]['load']
             if u == r:

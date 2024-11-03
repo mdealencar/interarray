@@ -14,14 +14,14 @@ import networkx as nx
 F = NodeTagger()
 
 
-# iCDF_factory(N_min = 70,  N_max = 200, η = 0.6, d_lb = 0.045):
-def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
+# iCDF_factory(T_min = 70,  T_max = 200, η = 0.6, d_lb = 0.045):
+def iCDF_factory(T_min: int, T_max: int, η: float, d_lb: float)\
         -> Callable[[float], int]:
     '''
-    Create function to shape the PDF: y(x) = d(N) - d_lb = 2*sqrt(η/π/N) - d_lb
+    Create function to shape the PDF: y(x) = d(T) - d_lb = 2*sqrt(η/π/T) - d_lb
     where:
-        N is the WT count
-        η is the area covered by N circles of diameter d (η = Nπd²/4)
+        T is the WT count
+        η is the area covered by T circles of diameter d (η = Nπd²/4)
         d_lb is the lower bound for the minimum distance between WT
     '''
 
@@ -32,11 +32,11 @@ def iCDF_factory(N_min: int, N_max: int, η: float, d_lb: float)\
         return ((-4*np.sqrt(4*η**2 - np.pi*η*d_lb*y) + 8*η - np.pi*d_lb*y)
                 / (np.pi*d_lb**2))
 
-    offset = integral(N_min - 0.4999999)
-    area_under_curve = integral(N_max + 0.5) - offset
+    offset = integral(T_min - 0.4999999)
+    area_under_curve = integral(T_max + 0.5) - offset
 
     def iCDF(u: float) -> int:
-        '''Map from u ~ uniform(0, 1) to random variable N ~ custom \
+        '''Map from u ~ uniform(0, 1) to random variable T ~ custom \
         probability density function'''
         return int(round(integral_inv(u*area_under_curve + offset)))
 
@@ -58,34 +58,34 @@ def normalize_site_single_oss(G: nx.Graph)\
     bound_poly = shp.Polygon(BoundaryC)
     corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
                                  for A, B in ((0, 2), (2, 4)))
-    M = G.graph['M']
+    R = G.graph['R']
     factor = 1/np.sqrt(bound_poly.area)
     BoundaryC -= corner_lo
     BoundaryC *= factor
-    oss = ((VertexC[-M:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
+    oss = ((VertexC[-R:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
     return factor, corner_lo, BoundaryC, oss, (corner_hi - corner_lo)*factor
 
 
 def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
                          landscape_angle=0):
-    N = WTpos.shape[0]
+    T = WTpos.shape[0]
     if oss is not None:
-        M = oss.shape[0]
+        R = oss.shape[0]
         VertexC = np.concatenate((WTpos, oss))
     else:
-        M = 0
+        R = 0
         VertexC = WTpos
     G = nx.Graph(
         name=name,
         handle=handle,
-        M=M,
+        R=R,
         boundary=boundary,
         landscape_angle=landscape_angle,
         VertexC=VertexC)
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
     return G
 
 
@@ -104,7 +104,7 @@ def clears(repellers: nb.float64[:, :], clearance_sq: np.float64,
 def contains_np(polygon: nb.float64[:, :],
                 pts: nb.float64[:, :]) -> nb.bool_[:]:
     '''
-    Evaluate if 2D points in `pts` (N×2) are inside `polygon` (K×2, CCW vertex
+    Evaluate if 2D points in `pts` (T×2) are inside `polygon` (K×2, CCW vertex
     order).
     Return 1D boolean array (True if pts[i] inside `polygon`).
     '''
@@ -150,27 +150,27 @@ def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
     return intersections != 0
 
 
-def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
+def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
                         repellers: nb.optional(nb.float64[:, :]) = None,
                         clearance: float = 0, exclude=None, seed=None,
                         iter_max_factor: int = 50, plot: bool = False,
                         partial_fulfilment: bool = True) -> nb.float64[:, :]:
     '''
-    Fills the area delimited by `boundary` with `N` randomly
+    Fills the area delimited by `boundary` with `T` randomly
     placed points that are at least `min_dist` apart and that
     don't fall inside any of the `repellers` discs or `exclude` areas.
-    :param N:
+    :param T:
     :param min_dist:
     :param boundary: iterable (B × 2) with CCW-ordered vertices of a polygon
-    :param repellers: iterable (M × 2) with the centers of forbidden discs
+    :param repellers: iterable (R × 2) with the centers of forbidden discs
     :param clearance: the radius of the forbidden discs
     :param exclude: iterable (E × X × 2)
-    :param iter_max_factor: factor to multiply by `N` to limit the number of
+    :param iter_max_factor: factor to multiply by `T` to limit the number of
                             iterations
-    :param partial_fulfilment: whether to return less than `N` points (True) or
+    :param partial_fulfilment: whether to return less than `T` points (True) or
                                to raise exception (False) if unable to fulfill
                                request.
-    :return numpy array shaped (N, 2) with points' positions
+    :return numpy array shaped (T, 2) with points' positions
     '''
     # TODO: implement exclusion zones
     if exclude is not None:
@@ -185,16 +185,16 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
     # A Simple Proof of Thue's Theorem on Circle Packing
     # https://arxiv.org/abs/1009.4322
-    area_demand = N*np.pi*min_dist**2/4
+    area_demand = T*np.pi*min_dist**2/4
     efficiency = area_demand/area_avail
     efficiency_optimal = np.pi*np.sqrt(3)/6
     if efficiency > efficiency_optimal:
-        msg = (f"(N = {N}, min_dist = {min_dist}) imply a packing "
+        msg = (f"(T = {T}, min_dist = {min_dist}) imply a packing "
                f"efficiency of {efficiency:.3f} which is higher than "
                f"the optimal possible ({efficiency_optimal:.3f}).")
         if partial_fulfilment:
             print('Info: Attempting partial fullfillment.', msg,
-                  'Try with lower N and/or min_dist.')
+                  'Try with lower T and/or min_dist.')
         else:
             raise ValueError(msg)
 
@@ -251,7 +251,7 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
     # Sequence of (i, j) of cells that overlap with the polygon
     cell_idc = np.argwhere(cell_covers_polygon)
 
-    iter_max = iter_max_factor*N
+    iter_max = iter_max_factor*T
     rng = np.random.default_rng(seed)
 
     # useful plot for debugging purposes only
@@ -269,12 +269,12 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
 
     # point-placing function
     points = wrapped_poisson_disc_filler(
-        N, iter_max, i_len, j_len, cell_idc, boundary_scaled, clearance_sq,
+        T, iter_max, i_len, j_len, cell_idc, boundary_scaled, clearance_sq,
         repellers_scaled, rng)
 
     # check if request was fulfilled
-    if len(points) < N:
-        msg = (f'Only {len(points)} points generated (requested: {N}, itera'
+    if len(points) < T:
+        msg = (f'Only {len(points)} points generated (requested: {T}, itera'
                f'tions: {iter_max}, efficiency requested: {efficiency:.3f}, '
                f'efficiency limit: {efficiency_optimal:.3f})')
         print('WARNING:', msg)
@@ -284,7 +284,7 @@ def poisson_disc_filler(N: int, min_dist: float, boundary: nb.float64[:, :],
 
 @nb.njit(cache=True)
 def wrapped_poisson_disc_filler(
-        N: int, iter_max: int, i_len: int, j_len: int,
+        T: int, iter_max: int, i_len: int, j_len: int,
         cell_idc: nb.int64[:, :], boundary_scaled: nb.float64[:, :],
         clearance_sq: float, repellers_scaled: nb.optional(nb.float64[:, :]),
         rng: np.random.Generator) -> nb.float64[:, :]:
@@ -300,9 +300,9 @@ def wrapped_poisson_disc_filler(
                              (False, True, True,  True, False)))
 
     # points to be returned by this function
-    points = np.empty((N, 2), dtype=np.float64)
-    # grid for mapping of cell to position in array `points` (N means not set)
-    cells = np.full((i_len, j_len), N, dtype=np.int64)
+    points = np.empty((T, 2), dtype=np.float64)
+    # grid for mapping of cell to position in array `points` (T means not set)
+    cells = np.full((i_len, j_len), T, dtype=np.int64)
 
     def no_conflict(p: int, q: int, point: nb.float64[:]) -> bool:
         '''
@@ -318,7 +318,7 @@ def wrapped_poisson_disc_filler(
         cells_window = cells[p_min:p_max, q_min:q_max].copy()
         mask = (neighbormask[2 + p_min - p: 2 + p_max - p,
                              2 + q_min - q: 2 + q_max - q]
-                & (cells_window < N))
+                & (cells_window < T))
         ii = cells_window.reshape(mask.size)[np.flatnonzero(mask.flat)]
         return not (((point[np.newaxis, :] - points[ii])**2).sum(axis=-1)
                     < 2).any()
@@ -347,7 +347,7 @@ def wrapped_poisson_disc_filler(
                 cells[i, j] = out_count
                 del idc_list[empty_idx]
                 out_count += 1
-                if out_count == N or not idc_list:
+                if out_count == T or not idc_list:
                     break
 
     return points[:out_count]

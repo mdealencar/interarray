@@ -27,9 +27,9 @@ PackType = Mapping[str, Any]
 _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'd2rootsRank', 'd2roots', 'name', 'boundary', 'capacity', 'B',
              'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
-             'landscape_angle', 'Root', 'creation_options', 'G_nodeset', 'N',
+             'landscape_angle', 'Root', 'creation_options', 'G_nodeset', 'T',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
-             'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
+             'planar', 'has_loads', 'R', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
              'num_diagonals', 'crossings_map', 'tentative', 'method_options',
@@ -40,12 +40,12 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
 
 def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
-    N = nodeset.N
-    M = nodeset.M
+    T = nodeset.T
+    R = nodeset.R
     B, *exclusion_groups = nodeset.constraint_groups
     border = nodeset.constraint_vertices[:B]
     L = nx.Graph(
-         M=M, N=N, B=B,
+         R=R, T=T, B=B,
          name=nodeset.name,
          border=border,
          VertexC=pickle.loads(nodeset.VertexC),
@@ -56,18 +56,18 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
             exclusions=[nodeset.constraint_vertices[a:b] for a, b in
                         pairwise([B] + exclusion_groups + [None])])
     L.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     L.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
     return L
 
 
 def G_from_routeset(routeset: object) -> nx.Graph:
     nodeset = routeset.nodes
-    M, N, B = nodeset.M, nodeset.N, nodeset.B
+    R, T, B = nodeset.R, nodeset.T, nodeset.B
     G = L_from_nodeset(nodeset)
     G.graph.update(
-        M=M, N=N, B=B,
+        R=R, T=T, B=B,
         C=routeset.C, D=routeset.D,
         handle=routeset.handle,
         capacity=routeset.capacity,
@@ -87,11 +87,11 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         stuntC = pickle.loads(routeset.stuntC)
         G.graph['B'] += len(stuntC)
         VertexC = G.graph['VertexC']
-        G.graph['VertexC'] = np.vstack((VertexC[:-M], stuntC,
-                                        VertexC[-M:]))
+        G.graph['VertexC'] = np.vstack((VertexC[:-R], stuntC,
+                                        VertexC[-R:]))
     untersify_to_G(G, terse=routeset.edges, clone2prime=routeset.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/routeset.capacity)*M
-                          for root in range(-M, 0)]
+    G.graph['overfed'] = [len(G[root])/np.ceil(T/routeset.capacity)*R
+                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     #  assert abs(calc_length/routeset.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "
@@ -108,13 +108,13 @@ def G_from_routeset(routeset: object) -> nx.Graph:
 
 
 def packnodes(G: nx.Graph) -> PackType:
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
     # border_stunts, stuntC
     border_stunts = G.graph.get('border_stunts')
     if border_stunts:
-        VertexC = np.vstack((VertexC[:N + B - len(border_stunts)],
-                             VertexC[-M:]))
+        VertexC = np.vstack((VertexC[:T + B - len(border_stunts)],
+                             VertexC[-R:]))
     VertexCpkl = pickle.dumps(VertexC)
     digest = sha256(VertexCpkl).digest()
 
@@ -125,7 +125,7 @@ def packnodes(G: nx.Graph) -> PackType:
     constraint_vertices = list(chain((G.graph.get('border', ()),),
                                      G.graph.get('exclusions', ())))
     pack = dict(
-        N=N, M=M, B=B,
+        T=T, R=R, B=B,
         name=name,
         VertexC=VertexCpkl,
         constraint_groups=[len(p) for p in constraint_vertices],
@@ -184,11 +184,11 @@ def terse_pack_from_G(G: nx.Graph) -> PackType:
     Returns:
         dict with keys:
             edges: where ⟨i, edges[i]⟩ is a directed edge of `G`
-            clone2prime: mapping the above-N clones to below-N nodes
+            clone2prime: mapping the above-T clones to below-T nodes
     '''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    terse = np.empty((N + C + D,), dtype=int)
+    terse = np.empty((T + C + D,), dtype=int)
     if not G.graph.get('has_loads'):
         calcload(G)
     for u, v, reverse in G.edges(data='reverse'):
@@ -196,13 +196,13 @@ def terse_pack_from_G(G: nx.Graph) -> PackType:
             raise ValueError('reverse must not be None')
         u, v = (u, v) if u < v else (v, u)
         i, target = (u, v) if reverse else (v, u)
-        if i < N:
+        if i < T:
             terse[i] = target
         else:
             terse[i - B] = target
     terse_pack = dict(edges=terse)
     if C > 0 or D > 0:
-        terse_pack['clone2prime'] = G.graph['fnT'][N + B: -M]
+        terse_pack['clone2prime'] = G.graph['fnT'][T + B: -R]
     return terse_pack
 
 
@@ -211,19 +211,19 @@ def untersify_to_G(G: nx.Graph, terse: np.ndarray,
     '''
     Changes G in place!
     '''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
     source = np.arange(len(terse))
     if clone2prime:
-        source[N:] += B
-        contournodes = range(N + B, N + B + C)
-        detournodes = range(N + B + C, N + B + C + D)
+        source[T:] += B
+        contournodes = range(T + B, T + B + C)
+        detournodes = range(T + B + C, T + B + C + D)
         G.add_nodes_from(contournodes, kind='contour')
         G.add_nodes_from(detournodes, kind='detour')
-        fnT = np.arange(M + N + B + C + D)
-        fnT[N + B: N + B + C + D] = clone2prime
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(R + T + B + C + D)
+        fnT[T + B: T + B + C + D] = clone2prime
+        fnT[-R:] = range(-R, 0)
         G.graph['fnT'] = fnT
         Length = np.hypot(*(VertexC[fnT[terse]] - VertexC[fnT[source]]).T)
     else:
@@ -256,7 +256,7 @@ def oddtypes_to_serializable(obj):
 
 
 def pack_G(G: nx.Graph) -> dict[str, Any]:
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     terse_pack = terse_pack_from_G(G)
     misc = {key: G.graph[key]
@@ -266,7 +266,7 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         misc[k] = oddtypes_to_serializable(v)
     length = G.size(weight='length')
     packed_G = dict(
-        M=M, N=N, C=C, D=D,
+        R=R, T=T, C=C, D=D,
         handle=G.graph.get('handle',
                            G.graph['name'].strip().replace(' ', '_')),
         capacity=G.graph['capacity'],
@@ -274,7 +274,7 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         creator=G.graph['creator'],
         is_normalized=G.graph.get('is_normalized', False),
         runtime=G.graph['runtime'],
-        num_gates=[len(G[root]) for root in range(-M, 0)],
+        num_gates=[len(G[root]) for root in range(-R, 0)],
         misc=misc,
         **terse_pack,
     )
@@ -282,7 +282,7 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     border_stunts = G.graph.get('border_stunts')
     if border_stunts:
         VertexC = G.graph['VertexC']
-        stuntC = VertexC[N + B - len(border_stunts): N + B].copy()
+        stuntC = VertexC[T + B - len(border_stunts): T + B].copy()
         packed_G['stuntC'] = pickle.dumps(stuntC)
     concatenate_tuples = partial(sum, start=())
     pack_if_given = (  # key, function to prepare data

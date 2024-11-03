@@ -27,33 +27,33 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'runtime', 'runtime_unit', 'edges_fun', 'D', 'DetourC', 'fnT',
              'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
-             'planar', 'has_loads', 'M', 'Subtree', 'handle', 'non_A_edges',
+             'planar', 'has_loads', 'R', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
              'loading_length_mismatch', 'gnT', 'C', 'border'}
 
 
 def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
-    N = nodeset.N
-    M = nodeset.M
+    T = nodeset.T
+    R = nodeset.R
     G = nx.Graph(name=nodeset.name,
-                 N=N,
-                 M=M,
+                 T=T,
+                 R=R,
                  VertexC=pickle.loads(nodeset.VertexC),
                  boundary=pickle.loads(nodeset.boundary),
                  landscape_angle=nodeset.landscape_angle,
                  )
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
     return G
 
 
 def graph_from_edgeset(edgeset: object) -> nx.Graph:
     nodeset = edgeset.nodes
-    N = nodeset.N
-    M = nodeset.M
+    T = nodeset.T
+    R = nodeset.R
     G = base_graph_from_nodeset(nodeset)
     G.graph.update(handle=edgeset.handle,
                    capacity=edgeset.capacity,
@@ -65,8 +65,8 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
                    **edgeset.misc)
 
     add_edges_to(G, edges=edgeset.edges, clone2prime=edgeset.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/edgeset.capacity)*M
-                          for root in range(-M, 0)]
+    G.graph['overfed'] = [len(G[root])/np.ceil(T/edgeset.capacity)*R
+                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     #  assert abs(calc_length/edgeset.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "
@@ -77,9 +77,9 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
 
 
 def packnodes(G: nx.Graph) -> PackType:
-    M = G.graph['M']
+    R = G.graph['R']
     D = G.graph.get('D', 0)
-    N = G.number_of_nodes() - D - M
+    T = G.number_of_nodes() - D - R
     digest, pickled_coordinates = site_fingerprint(G.graph['VertexC'],
                                                    G.graph['boundary'])
     if G.name[0] == '!':
@@ -89,8 +89,8 @@ def packnodes(G: nx.Graph) -> PackType:
     pack = dict(
         digest=digest,
         name=name,
-        N=N,
-        M=M,
+        T=T,
+        R=R,
         landscape_angle=G.graph.get('landscape_angle', 0.),
         **pickled_coordinates,
     )
@@ -137,10 +137,10 @@ def terse_graph_from_G(G: nx.Graph) -> dict:
     '''
     Returns a dict with:
         edges: where ⟨i, edge[i]⟩ is a directed edge
-        clone2prime: mapping the above-N clones to below-N nodes
+        clone2prime: mapping the above-T clones to below-T nodes
     '''
-    M = G.graph['M']
-    V = G.number_of_nodes() - M
+    R = G.graph['R']
+    V = G.number_of_nodes() - R
     edges = np.empty((V,), dtype=int)
     if not G.graph.get('has_loads'):
         calcload(G)
@@ -151,8 +151,8 @@ def terse_graph_from_G(G: nx.Graph) -> dict:
     terse_graph = dict(edges=edges)
     D = G.graph.get('D', 0)
     if D > 0:
-        N = V - D
-        terse_graph['clone2prime'] = G.graph['fnT'][N: N + D]
+        T = V - D
+        terse_graph['clone2prime'] = G.graph['fnT'][T: T + D]
     return terse_graph
 
 
@@ -165,26 +165,26 @@ def add_edges_to(G: nx.Graph, edges: np.ndarray,
     if G.number_of_edges() > 0:
         G = nx.create_empty_copy(G, with_data=True)
     VertexC = G.graph['VertexC']
-    M = G.graph['M']
-    N = G.graph['N']
+    R = G.graph['R']
+    T = G.graph['T']
     if clone2prime:
         D = len(clone2prime)
         G.graph['D'] = D
-        detournodes = range(N, N + D)
+        detournodes = range(T, T + D)
         G.add_nodes_from(((s, {'kind': 'detour'})
                           for s in detournodes))
-        fnT = np.arange(N + D + M)
-        fnT[N: N + D] = clone2prime
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(T + D + R)
+        fnT[T: T + D] = clone2prime
+        fnT[-R:] = range(-R, 0)
         G.graph['fnT'] = fnT
-        AllnodesC = np.vstack((VertexC[:N],
+        AllnodesC = np.vstack((VertexC[:T],
                                VertexC[clone2prime],
-                               VertexC[-M:]))
+                               VertexC[-R:]))
     else:
         D = 0
         AllnodesC = VertexC
-    Length = np.hypot(*(AllnodesC[:-M] - AllnodesC[edges]).T)
-    G.add_weighted_edges_from(zip(range(N + D), edges, Length),
+    Length = np.hypot(*(AllnodesC[:-R] - AllnodesC[edges]).T)
+    G.add_weighted_edges_from(zip(range(T + D), edges, Length),
                               weight='length')
     if D > 0:
         for _, _, edgeD in G.edges(detournodes, data=True):
@@ -209,8 +209,8 @@ def oddtypes_to_serializable(obj):
 
 
 def packedges(G: nx.Graph) -> dict[str, Any]:
-    M = G.graph['M']
-    N = G.graph['VertexC'].shape[0] - M
+    R = G.graph['R']
+    T = G.graph['VertexC'].shape[0] - R
     terse_graph = terse_graph_from_G(G)
     misc = {key: G.graph[key]
             for key in G.graph.keys() - _misc_not}
@@ -223,9 +223,9 @@ def packedges(G: nx.Graph) -> dict[str, Any]:
         capacity=G.graph['capacity'],
         length=G.size(weight='length'),
         runtime=G.graph['runtime'],
-        gates=[len(G[root]) for root in range(-M, 0)],
-        N=N,
-        M=M,
+        gates=[len(G[root]) for root in range(-R, 0)],
+        T=T,
+        R=R,
         misc=misc,
         D=G.graph.get('D', 0),
         **terse_graph,

@@ -174,7 +174,7 @@ def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
     return P
 
 
-def hull_processor(P: nx.PlanarEmbedding, N: int,
+def hull_processor(P: nx.PlanarEmbedding, T: int,
                    supertriangle: tuple[int, int, int],
                    vertex2conc_id_map: dict[int, int]) \
         -> tuple[list[int], list[tuple[int, int]], set[tuple[int, int]]]:
@@ -182,7 +182,7 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
     Iterates over the edges that form a triangle with one of supertriangle's
     vertices.
 
-    The supertriangle vertices must have indices in `range(N + B - 3, N + B)`
+    The supertriangle vertices must have indices in `range(T + B - 3, T + B)`
 
     If the border has concavities, `to_remove` will be non-empty.
 
@@ -206,7 +206,7 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
         source, target = tee(P.neighbors_cw_order(pivot))
         outer = begin
         for u, v in zip(source, chain(target, (next(target),))):
-            if u >= N and v >= N:
+            if u >= T and v >= T:
                 if u == outer:
                     to_remove.append((pivot, u))
                     trace('del_sup', pivot, u)
@@ -226,7 +226,7 @@ def hull_processor(P: nx.PlanarEmbedding, N: int,
     return convex_hull, to_remove, conc_outer_edges
 
 
-def _flip_triangles_near_exclusions(P: nx.PlanarEmbedding, N: int, B: int,
+def _flip_triangles_near_exclusions(P: nx.PlanarEmbedding, T: int, B: int,
                                     VertexC: np.ndarray) \
         -> list[tuple[tuple[int, int]]]:
     '''
@@ -235,7 +235,7 @@ def _flip_triangles_near_exclusions(P: nx.PlanarEmbedding, N: int, B: int,
     Changes P in-place.
     '''
     changes = {}
-    border_nodes = set(range(N, N + B - 3)) & P.nodes
+    border_nodes = set(range(T, T + B - 3)) & P.nodes
     while border_nodes:
         u = border_nodes.pop()
         nbcw = P.neighbors_cw_order(u)
@@ -243,8 +243,8 @@ def _flip_triangles_near_exclusions(P: nx.PlanarEmbedding, N: int, B: int,
         cur = next(nbcw)
         for fwd in chain(nbcw, (rev, cur)):
             trace('looking at:', F[u], F[cur])
-            if ((rev < N)
-                    and (fwd < N)
+            if ((rev < T)
+                    and (fwd < T)
                     and (u, cur) in P.edges
                     and not (cur, u) in changes
                     and not is_same_side(*VertexC[[rev, fwd, u, cur]])
@@ -263,7 +263,7 @@ def _flip_triangles_near_exclusions(P: nx.PlanarEmbedding, N: int, B: int,
     return changes
 
 
-def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
+def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, T: int, B: int,
                                      VertexC: np.ndarray, max_tri_AR: float) \
         -> list[tuple[tuple[int, int]]]:
     '''
@@ -277,10 +277,10 @@ def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
     a vertex in the supertriangle.
     '''
     changes = {}
-    idx_ST = N + B - 3
+    idx_ST = T + B - 3
     print('idx_ST', idx_ST)
     # examine only border triangles
-    for u in range(N, idx_ST):
+    for u in range(T, idx_ST):
         if u not in P.nodes:
             continue
         nbcw = P.neighbors_cw_order(u)
@@ -289,9 +289,9 @@ def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
         for fwd in chain(nbcw, (rev, cur)):
             print('looking at:', F[u], F[cur], end=' | ')
             if (cur < idx_ST and (
-                    ((N <= rev < idx_ST) and fwd >= idx_ST
+                    ((T <= rev < idx_ST) and fwd >= idx_ST
                      and triangle_AR(*VertexC[[u, cur, rev]]) > max_tri_AR)
-                    or ((N <= fwd < idx_ST) and rev >= idx_ST
+                    or ((T <= fwd < idx_ST) and rev >= idx_ST
                         and triangle_AR(*VertexC[[u, cur, fwd]]) > max_tri_AR))
                     and P[rev][u]['ccw'] == cur
                     and P[fwd][u]['cw'] == cur):
@@ -308,7 +308,7 @@ def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
 
 def make_planar_embedding(
         L: nx.Graph,
-        #  M: int, VertexC: np.ndarray,
+        #  R: int, VertexC: np.ndarray,
         #  boundaries: list[np.ndarray] | None = None,
         offset_scale: float = 1e-4,
         max_tri_AR: float = MAX_TRIANGLE_ASPECT_RATIO) -> \
@@ -344,7 +344,7 @@ def make_planar_embedding(
     # J) Calculate the area of the concave hull.
     # X) Create hull_concave.
 
-    M, N, B, VertexCʹ = (L.graph[k] for k in 'M N B VertexC'.split())
+    R, T, B, VertexCʹ = (L.graph[k] for k in 'R T B VertexC'.split())
     border, exclusions = (L.graph.get(k, []) for k in ('border', 'exclusions'))
 
     # #############################################
@@ -368,7 +368,7 @@ def make_planar_embedding(
     context = get_context()
     points = np.fromiter((Point(float(x), float(y)) for x, y in VertexC),
                          dtype=object,
-                         count=N + B + M)
+                         count=T + B + R)
 
     # ##############################################
     # A.1) Transform border concavities in polygons.
@@ -378,7 +378,7 @@ def make_planar_embedding(
 
     # Check if roots are outside the border. If so, extend the border to them.
     roots_outside = [
-        r_pt for r_pt in points[-M:]
+        r_pt for r_pt in points[-R:]
         if point_in_polygon(r_pt, border_poly) is Location.EXTERIOR]
     #  print('roots_outside', len(roots_outside), roots_outside, border_poly)
     hull = context.points_convex_hull(roots_outside
@@ -386,7 +386,7 @@ def make_planar_embedding(
     hull_poly = Polygon(border=Contour(hull))
 
     border_vertice_from_point = {
-            point: i for i, point in enumerate(points[N:-M], start=N)}
+            point: i for i, point in enumerate(points[T:-R], start=T)}
 
     hull_border_vertices = [border_vertice_from_point[hullpt]
                             for hullpt in hull
@@ -442,7 +442,7 @@ def make_planar_embedding(
         for fwd in chain(vertices[1:], (cur,)):
             Z = border_vertice_from_point[fwd]
             Z_is_hull = fwd in hull_poly.border.vertices
-            if cur in points[:N] or cur in points[-M:]:
+            if cur in points[:T] or cur in points[-R:]:
                 # Concavity border vertex coincides with node.
                 # Therefore, create a stunt vertex for the border.
                 XY = VertexC[Y] - VertexC[X]
@@ -480,14 +480,14 @@ def make_planar_embedding(
                     S = offset*(nYZ+proj)
                 trace('translation: {}', S)
                 # to extract stunts' coordinates:
-                # stuntsC = VertexC[N + B - len(border_stunts): N + B]
+                # stuntsC = VertexC[T + B - len(border_stunts): T + B]
                 border_stunts.append(Y)
                 stunt_coord = VertexC[Y] + S
                 stunt_point = Point(*(float(sc) for sc in stunt_coord))
                 stunt_coords.append(stunt_coord)
                 conc_points.append(stunt_point)
                 remove_from_border_pt_map.add(cur)
-                border_vertice_from_point[stunt_point] = N + B
+                border_vertice_from_point[stunt_point] = T + B
                 B += 1
                 changed = True
             else:
@@ -517,8 +517,8 @@ def make_planar_embedding(
 
     vertice_from_point = (
         border_vertice_from_point
-        | {point: i for i, point in enumerate(points[:N])}
-        | {point: i for i, point in zip(range(-M, 0), points[-M:])}
+        | {point: i for i, point in enumerate(points[:T])}
+        | {point: i for i, point in zip(range(-R, 0), points[-R:])}
     )
 
     if roots_outside:
@@ -535,12 +535,12 @@ def make_planar_embedding(
     # create the PythonCDT vertices
     verticesCDT = []
     verticeCDT_from_point = {}
-    vertice_from_verticeCDT = np.empty((3 + N + M + len(points_used),),
+    vertice_from_verticeCDT = np.empty((3 + T + R + len(points_used),),
                                        dtype=int)
     # account for the supertriangle vertices that cdt.Triangulation() adds
-    supertriangle = tuple(range(N + B, N + B + 3))
+    supertriangle = tuple(range(T + B, T + B + 3))
     vertice_from_verticeCDT[:3] = supertriangle
-    for i, pt in enumerate(chain(points[:N], points[-M:], points_used)):
+    for i, pt in enumerate(chain(points[:T], points[-R:], points_used)):
         verticesCDT.append(cdt.V2d(pt.x, pt.y))
         # this one is used before supertriangle (no + 3)
         verticeCDT_from_point[pt] = i
@@ -590,7 +590,7 @@ def make_planar_embedding(
     # Create triangulation and add vertices and edges
     mesh = cdt.Triangulation(cdt.VertexInsertionOrder.AUTO,
                              cdt.IntersectingConstraintEdges.NOT_ALLOWED, 0.0)
-    mesh.insert_vertices(verticesCDT[:N + M])
+    mesh.insert_vertices(verticesCDT[:T + R])
 
     P_A = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
 
@@ -639,7 +639,7 @@ def make_planar_embedding(
     nx.set_edge_attributes(A, 'delaunay', name='kind')
     # TODO: ¿do we really need node attr kind? separate with test: node < 0
     nx.set_node_attributes(A, 'wtg', name='kind')
-    for r in range(-M, 0):
+    for r in range(-R, 0):
         A.nodes[r]['kind'] = 'oss'
 
     # Extend A with diagonals.
@@ -708,8 +708,8 @@ def make_planar_embedding(
 
     # Add A's hull as constraint edges to ensure A's edges remain in P.
     for s, t in zip(hull_concave, hull_concave[1:] + [hull_concave[0]]):
-        edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else N + M + s,
-                                     t if t >= 0 else N + M + t))
+        edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else T + R + s,
+                                     t if t >= 0 else T + R + t))
 
     # This ensures P_A edges within the concave hull remain unaltered.
     mesh.insert_edges(edgesCDT_P_A)
@@ -730,7 +730,7 @@ def make_planar_embedding(
                                      verticeCDT_from_point[seg.end]))
     # TODO: add exclusion zones
 
-    mesh.insert_vertices(verticesCDT[N + M:])
+    mesh.insert_vertices(verticesCDT[T + R:])
     mesh.insert_edges(edgesCDT)
     #  print('\n\n', mesh.calculate_triangle_depths(), '\n\n')
 
@@ -751,10 +751,10 @@ def make_planar_embedding(
     supertriangleC = (mean +
                       scale*np.array([(v.x, v.y) for v in mesh.vertices[:3]]))
     # NOTE: stuntC was scaled back upon its creation
-    VertexC = np.vstack((VertexCʹ[:-M],
+    VertexC = np.vstack((VertexCʹ[:-R],
                          *stuntC,
                          supertriangleC,
-                         VertexCʹ[-M:]))
+                         VertexCʹ[-R:]))
 
     # Add length attribute to A's edges.
     A_edges = tuple(A.edges)
@@ -779,17 +779,17 @@ def make_planar_embedding(
 
     # adjust flat triangles around concavities
     #  changes_super = _flip_triangles_exclusions_super(
-    #          P, N, B + 3, VertexC, max_tri_AR=max_tri_AR)
+    #          P, T, B + 3, VertexC, max_tri_AR=max_tri_AR)
 
     convex_hull, to_remove, conc_outer_edges = hull_processor(
-            P, N, supertriangle, vertex2conc_id_map)
+            P, T, supertriangle, vertex2conc_id_map)
     P.remove_edges_from(to_remove)
     constraint_edges -= conc_outer_edges
-    P.graph.update(M=M, N=N, B=B,
+    P.graph.update(R=R, T=T, B=B,
                    constraint_edges=constraint_edges,
                    supertriangleC=supertriangleC,)
 
-    #  changes_exclusions = _flip_triangles_near_exclusions(P, N, B + 3,
+    #  changes_exclusions = _flip_triangles_near_exclusions(P, T, B + 3,
     #                                                       VertexC)
     #  P.check_structure()
     #  print('changes_super', [(F[a], F[b]) for a, b in changes_super])
@@ -834,7 +834,7 @@ def make_planar_embedding(
                               and v in vertex2conc_id_map))]:
         uvD = P[u][v]
         s, t = uvD['cw'], uvD['ccw']
-        if s >= N + B or t >= N + B:
+        if s >= T + B or t >= T + B:
             # do not add diagonals incident to supertriangle's vertices
             continue
         if is_triangle_pair_a_convex_quadrilateral(*VertexC[[u, v, s, t]]):
@@ -869,7 +869,7 @@ def make_planar_embedding(
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
         warn('A_edge: {}–{} length: {}; path: {}', F[u], F[v], length, path)
-        if all(n >= N for n in path[1:-1]):
+        if all(n >= T for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
             midpath = (path[1:-1].copy()
@@ -976,18 +976,18 @@ def make_planar_embedding(
     # I) Revisit A to update d2roots according to lengths along P_paths.
     # ##################################################################
     debug('PART I')
-    d2roots = cdist(VertexC[:N + B + 3], VertexC[-M:])
+    d2roots = cdist(VertexC[:T + B + 3], VertexC[-R:])
     # d2roots may not be the plain Euclidean distance if there are obstacles.
     if len(concavityVertexSeqs) > 0 or (exclusions and len(exclusions) > 0):
         # Use P_paths to obtain estimates of d2roots taking into consideration
         # the concavities and exclusion zones.
-        for r in range(-M, 0):
+        for r in range(-R, 0):
             lengths, paths = nx.single_source_dijkstra(P_paths, r,
                                                        weight='length')
             for n, path in paths.items():
-                if n >= N:
+                if n >= T:
                     continue
-                if any(p >= N for p in path):
+                if any(p >= T for p in path):
                     # This estimate may be slightly longer that just going
                     # around the border.
                     trace(f'changing {n} with path', path)
@@ -1002,7 +1002,7 @@ def make_planar_embedding(
     # J) Calculate the area of the concave hull.
     # ##########################################
     # for the bounding box, use border, roots and stunts
-    bX, bY = np.vstack((VertexC[border], VertexC[-M:], *stuntC)).T
+    bX, bY = np.vstack((VertexC[border], VertexC[-R:], *stuntC)).T
     # assuming that coordinates are UTM -> min() as bbox's offset to origin
     norm_offset = np.array((bX.min(), bY.min()), dtype=np.float64)
     # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
@@ -1014,7 +1014,7 @@ def make_planar_embedding(
 
     # Set A's graph attributes.
     A.graph.update(
-        N=N, M=M, B=B,
+        T=T, R=R, B=B,
         VertexC=VertexC,
         border=border,
         name=L.name,
@@ -1049,12 +1049,12 @@ def make_planar_embedding(
     #          A.nodes[n]['root'] = n_root
     #      # alternatively, if G_base nodes do not have 'root' attr:
     #      #  for n, nodeD in A.nodes(data=True):
-    #      #      nodeD['root'] = -M + np.argmin(d2roots[n])
+    #      #      nodeD['root'] = -R + np.argmin(d2roots[n])
     #      # assign each edge to the root closest to the edge's middle point
     #      for u, v, edgeD in A.edges(data=True):
-    #          edgeD['root'] = -M + np.argmin(
+    #          edgeD['root'] = -R + np.argmin(
     #                  cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
-    #                        VertexC[-M:]))
+    #                        VertexC[-R:]))
 
     return P, A
 
@@ -1090,7 +1090,7 @@ def A_graph(G_base, delaunay_based=True, weightfun=None, weight_attr='weight'):
 
     # remove all gates from A
     # TODO: decide about this line
-    # A.remove_edges_from(list(A.edges(range(-M, 0))))
+    # A.remove_edges_from(list(A.edges(range(-R, 0))))
     return A
 
 
@@ -1106,8 +1106,8 @@ def _deprecated_planar_flipped_by_routeset(
     graph attribute 'diagonals'. In addition, `G` must be free of edge×edge
     crossings.
     '''
-    M, N, B, D, VertexC, border, exclusions = (
-        G.graph.get(k) for k in ('M', 'N', 'B', 'D', 'VertexC', 'border',
+    R, T, B, D, VertexC, border, exclusions = (
+        G.graph.get(k) for k in ('R', 'T', 'B', 'D', 'VertexC', 'border',
                                  'exclusions'))
 
     P = planar.copy()
@@ -1118,10 +1118,10 @@ def _deprecated_planar_flipped_by_routeset(
         # update the planar embedding to include any Delaunay diagonals
         # used in G; the corresponding crossing Delaunay edge is removed
         u, v = (u, v) if u < v else (v, u)
-        if u >= N:
+        if u >= T:
             # we are in a redundant segment of a multi-segment path
             continue
-        if v >= N and u not in seen_endpoints:
+        if v >= T and u not in seen_endpoints:
             uvA = G[u][v]['A_edge']
             seen_endpoints.add(uvA[0] if uvA[1] == u else uvA[1])
             print('path_uv:', F[u], F[v], '->', F[uvA[0]], F[uvA[1]])
@@ -1211,12 +1211,12 @@ def planar_flipped_by_routeset(
 
     Important: `G` must be free of edge×edge crossings.
     '''
-    M, N, B, C, D = (G.graph.get(k, 0) for k in ('M', 'N', 'B', 'C', 'D'))
+    R, T, B, C, D = (G.graph.get(k, 0) for k in ('R', 'T', 'B', 'C', 'D'))
     border, exclusions, fnT = (
         G.graph.get(k) for k in ('border', 'exclusions', 'fnT'))
     if fnT is None:
-        fnT = np.arange(M + N + B + 3 + C + D)
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(R + T + B + 3 + C + D)
+        fnT[-R:] = range(-R, 0)
 
     P = planar.copy()
     if diagonals is not None:
@@ -1224,10 +1224,10 @@ def planar_flipped_by_routeset(
     else:
         diags = ()
     debug('differences between G and P:')
-    # get G's edges in terms of node range -M : N + B
+    # get G's edges in terms of node range -R : T + B
     edges_G = {((u, v) if u < v else (v, u))
                for u, v in (fnT[edge,] for edge in G.edges)}
-    ST = N + B
+    ST = T + B
     edges_P = {((u, v) if u < v else (v, u))
                for u, v in P.edges if u < ST and v < ST}
     stack = list(edges_G - edges_P)

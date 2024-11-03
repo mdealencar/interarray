@@ -30,11 +30,11 @@ def define_entities(db):
     class NodeSet(db.Entity):
         # hashlib.sha256(VertexC + boundary).digest()
         name = Required(str, unique=True)
-        N = Required(int)  # # of non-root nodes
-        M = Required(int)  # # of root nodes
+        T = Required(int)  # # of non-root nodes
+        R = Required(int)  # # of root nodes
         B = Required(int)  # num_border_vertices
         # vertices (nodes + roots) coordinates (UTM)
-        # pickle.dumps(np.empty((M + N + B, 2), dtype=float)
+        # pickle.dumps(np.empty((R + T + B, 2), dtype=float)
         VertexC = Required(bytes)
         # the first group is the border (ccw), then exclusions (cw)
         # B is sum(constraint_groups)
@@ -49,8 +49,8 @@ def define_entities(db):
         id = PrimaryKey(int, auto=True)
         handle = Required(str)
         valid = Optional(bool)
-        N = Required(int)  # num_nodes
-        M = Required(int)  # num_roots
+        T = Required(int)  # num_nodes
+        R = Required(int)  # num_roots
         capacity = Required(int)
         length = Required(float)
         is_normalized = Required(bool)

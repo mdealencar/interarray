@@ -39,26 +39,26 @@ def toyfarm():
         [972., 206.],
         [699., 566.],
     ])
-    M = 1
-    N = VertexC.shape[0] - M
+    R = 1
+    T = VertexC.shape[0] - R
     # create networkx graph
-    G = nx.Graph(M=M, N=N,
+    G = nx.Graph(R=R, T=T,
                  VertexC=VertexC,
                  boundary=BoundaryC,
                  name='toy',
                  handle='toy')
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
 
     make_graph_metrics(G)
     return G
 
 
 def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
-    N = NodeC.shape[0]
-    M = RootC.shape[0]
+    T = NodeC.shape[0]
+    R = RootC.shape[0]
 
     # build data structures
     VertexC = np.vstack((NodeC, RootC))
@@ -71,15 +71,15 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
         BoundaryC = VertexC[hull.vertices]
 
     # create networkx graph
-    G = nx.Graph(M=M, N=N,
+    G = nx.Graph(R=R, T=T,
                  VertexC=VertexC,
                  boundary=BoundaryC,
                  name=name,
                  handle=handle)
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
 
     make_graph_metrics(G)
     return G

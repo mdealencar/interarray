@@ -87,17 +87,17 @@ class PathFinder():
                  A: nx.Graph | None = None,
                  branching: bool = True) -> None:
         G = Gʹ.copy()
-        M, N, B = (G.graph[k] for k in 'MNB')
+        R, T, B = (G.graph[k] for k in 'RTB')
         C = G.graph.get('C', 0)
         assert not G.graph.get('D'), 'Gʹ has already has detours.'
 
         # Block for facilitating the printing of debug messages.
-        allnodes = np.arange(N + M + B + 3)
-        allnodes[-M:] = range(-M, 0)
-        self.n2s = NodeStr(allnodes, N + B + 3)
+        allnodes = np.arange(T + R + B + 3)
+        allnodes[-R:] = range(-R, 0)
+        self.n2s = NodeStr(allnodes, T + B + 3)
 
         info('BEGIN pathfinding on "{}" (#wtg = {})',
-             G.graph.get('name') or G.graph.get('handle') or 'unnamed', N)
+             G.graph.get('name') or G.graph.get('handle') or 'unnamed', T)
 
         # tentative will be copied later, by initializing a set from it.
         tentative = G.graph.get('tentative')
@@ -105,13 +105,13 @@ class PathFinder():
         if tentative is None:
             # TODO: this case should be removed ('tentative' attr mandatory)
             tentative = []
-            for r in range(-M, 0):
+            for r in range(-R, 0):
                 gates = set(n for n in G.neighbors(r)
                             if G[r][n].get('kind') == 'tentative')
                 tentative.extend((r, n) for n in gates)
                 hooks2check.append(gates)
         else:
-            hooks2check.extend(set() for _ in range(M))
+            hooks2check.extend(set() for _ in range(R))
             for r, n in tentative:
                 hooks2check[r].add(n)
 
@@ -137,10 +137,10 @@ class PathFinder():
             if G.graph.get('is_normalized'):
                 supertriangleC = G.graph['norm_scale']*(
                     supertriangleC - G.graph['norm_offset'])
-            VertexC = np.vstack((VertexC[:N + B],
+            VertexC = np.vstack((VertexC[:T + B],
                                  supertriangleC,
-                                 VertexC[-M:]))
-            d2roots = cdist(VertexC[:-M], VertexC[-M:])
+                                 VertexC[-R:]))
+            d2roots = cdist(VertexC[:-R], VertexC[-R:])
             Rank = None
             diagonals = None
         else:
@@ -155,16 +155,16 @@ class PathFinder():
             # We need to put these paths back in G to do P edge flips.
             # The changes made here are undone in `create_detours()`.
             clone2prime = G.graph['clone2prime']
-            clone_offset = N + B
+            clone_offset = T + B
             for (s, t), (midpath, shortpath) in shortened_contours.items():
                 # G follows shortpath, but we want it to follow midpath
                 subtree_id = G.nodes[t]['subtree']
                 stored_edges = []
                 path = [s] + shortpath + [t]
                 for u_, v_ in zip(path[:-1], path[1:]):
-                    u = (u_ if u_ < N else
+                    u = (u_ if u_ < T else
                          clone_offset + np.flatnonzero(clone2prime == u_)[-1])
-                    v = (v_ if v_ < N else
+                    v = (v_ if v_ < T else
                          clone_offset + np.flatnonzero(clone2prime == v_)[-1])
                     stored_edges.append((u, v, G[u][v]))
                     # the nodes are left for later reuse
@@ -191,7 +191,7 @@ class PathFinder():
         else:
             self.branching = branching
 
-        self.M, self.N, self.B, self.C = M, N, B, C
+        self.R, self.T, self.B, self.C = R, T, B, C
         self.P, self.VertexC, self.clone2prime = P, VertexC, clone2prime
         self.hooks2check = hooks2check
         self._find_paths()
@@ -231,7 +231,7 @@ class PathFinder():
         path is reaching `_node`.
         '''
         # TODO: there is probably a better way to avoid spinning around _node
-        if _node >= self.N:
+        if _node >= self.T:
             # _node is in a border (which means it must only be reachable from
             # one side, so that sector becomes irrelevant)
             return NULL
@@ -278,7 +278,7 @@ class PathFinder():
                   self.n2s(_new, _apex), d_new)
 
     def _advance_portal(self, left: int, right: int):
-        G, P, N = self.G, self.P, self.N
+        G, P, T = self.G, self.P, self.T
         while True:
             # look for children portals
             n = P[left][right]['ccw']
@@ -291,7 +291,7 @@ class PathFinder():
                 st_sorted = (s, t) if s < t else (t, s)
                 trace('evaluating {}', self.n2s(s, t))
                 if (st_sorted not in self.portal_set
-                        or (s < N and t < N
+                        or (s < T and t < T
                             and G.nodes[s]['subtree'] ==
                             G.nodes[t]['subtree'])):
                     # (s, t) is in G or is bounded by a subtree
@@ -412,7 +412,7 @@ class PathFinder():
 
     def _find_paths(self):
         #  print('[exp] starting _explore()')
-        G, P, M, N, B = self.G, self.P, self.M, self.N, self.B
+        G, P, R, T, B = self.G, self.P, self.R, self.T, self.B
         d2roots = self.d2roots
         d2rootsRank = self.d2rootsRank
         prioqueue = []
@@ -433,7 +433,7 @@ class PathFinder():
         else:
             edges_G_primed = {((u, v) if u < v else (v, u))
                               for u, v in G.edges}
-        ST = N + B
+        ST = T + B
         edges_P = {((u, v) if u < v else (v, u))
                    for u, v in P.edges if u < ST or v < ST}
         portal_set = edges_P - edges_G_primed
@@ -441,7 +441,7 @@ class PathFinder():
         constraint_edges = P.graph['constraint_edges']
 
         # launch channel traversers around the roots to the prioqueue
-        for r in range(-M, 0):
+        for r in range(-R, 0):
             paths[r] = PseudoNode(r, r, None, 0., 0.)
             paths.prime_from_id[r] = r
             paths.ids_from_prime_sector[r, r] = [r]
@@ -550,7 +550,7 @@ class PathFinder():
         Update G with the paths found by `_find_paths()`.
         '''
         get_best_path = self.get_best_path
-        for n in range(self.N):
+        for n in range(self.T):
             for id in self.I_path[n].values():
                 if id < 0:
                     # n is a root's neighbor
@@ -611,15 +611,15 @@ class PathFinder():
                 G.remove_edges_from(helper_edges)
                 G.add_edges_from(stored_edges)
 
-        M, N, B, C = self.M, self.N, self.B, self.C
+        R, T, B, C = self.R, self.T, self.B, self.C
         clone2prime = self.clone2prime.copy()
         paths, I_path = self.paths, self.I_path
-        clone_idx = N + B + C
+        clone_idx = T + B + C
         failed_detours = []
 
         subtree_from_subtree_id = defaultdict(list)
         subtree_id_from_n = {}
-        for n in chain(range(N), range(N + B, clone_idx)):
+        for n in chain(range(T), range(T + B, clone_idx)):
             subtree_id = G.nodes[n]['subtree']
             subtree_from_subtree_id[subtree_id].append(n)
             subtree_id_from_n[n] = subtree_id
@@ -630,7 +630,7 @@ class PathFinder():
             subtree = subtree_from_subtree_id[subtree_id]
             subtree_load = G.nodes[n]['load']
             # set of nodes to examine is different depending on `branching`
-            hookchoices = ([n for n in subtree if n < N]
+            hookchoices = ([n for n in subtree if n < T]
                            if self.branching else
                            [n, next(h for h in subtree if G.degree[h] == 1)])
             debug('hookchoices: {}', self.n2s(*hookchoices))
@@ -728,10 +728,10 @@ class PathFinder():
         else:
             del G.graph['tentative']
 
-        fnT = np.arange(M + clone_idx)
-        fnT[N + B: clone_idx] = clone2prime
-        fnT[-M:] = range(-M, 0)
-        G.graph.update(D=clone_idx - N - B - C, fnT=fnT)
+        fnT = np.arange(R + clone_idx)
+        fnT[T + B: clone_idx] = clone2prime
+        fnT[-R:] = range(-R, 0)
+        G.graph.update(D=clone_idx - T - B - C, fnT=fnT)
         G.graph['detextra'] = G.size(weight='length')/self.predetour_length - 1
         # TODO: there might be some lost contour clones that could be prunned
         return G

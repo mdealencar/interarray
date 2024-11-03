@@ -31,10 +31,10 @@ def define_entities(db):
         digest = PrimaryKey(bytes)
         name = Required(str, unique=True)
         handle = Required(str, unique=True)
-        N = Required(int)  # # of non-root nodes
-        M = Required(int)  # # of root nodes
+        T = Required(int)  # # of non-root nodes
+        R = Required(int)  # # of root nodes
         # vertices (nodes + roots) coordinates (UTM)
-        # pickle.dumps(np.empty((N + M, 2), dtype=float)
+        # pickle.dumps(np.empty((T + R, 2), dtype=float)
         VertexC = Required(bytes)
         # region polygon: P vertices (x, y), ordered ccw
         # pickle.dumps(np.empty((P, 2), dtype=float)

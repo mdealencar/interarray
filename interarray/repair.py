@@ -254,7 +254,7 @@ def repair_routeset_path(Sʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
         print('ERROR: no changes made - `repair_routeset_path()` requires '
               '`Sʹ` as a topology.')
         return Sʹ
-    N = Sʹ.graph['N']
+    T = Sʹ.graph['T']
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
     S = Sʹ.copy()

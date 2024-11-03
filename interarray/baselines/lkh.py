@@ -23,13 +23,13 @@ def make_edge_listing(A: nx.Graph, scale: float) -> str:
     node numbering starts from 0
     every node number will be incremented by 1 when loaded by LKH
     '''
-    M = A.graph['M']
-    N = A.graph['N']
-    V = M + N
+    R = A.graph['R']
+    T = A.graph['T']
+    V = R + T
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
     return '\n'.join((
         # first line is <number_of_nodes> <number_of_edges>
-        f'{V} {2*A_nodes.number_of_edges() + 2*N}',
+        f'{V} {2*A_nodes.number_of_edges() + 2*T}',
         # edges not including the depot (symmetric)
         '\n'.join('{s} {t} {cost:.0f}\n{t} {s} {cost:.0f}'.format(
             s=u+1, t=v+1, cost=scale*d)
@@ -56,23 +56,23 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         `runs`: consult LKH manual
         `per_run_limit`: consult LKH manual
     '''
-    M, N, B, VertexC = (
-        A.graph.get(k) for k in ('M', 'N', 'B', 'VertexC'))
-    assert M == 1, 'LKH allows only 1 depot'
+    R, T, B, VertexC = (
+        A.graph.get(k) for k in ('R', 'T', 'B', 'VertexC'))
+    assert R == 1, 'LKH allows only 1 depot'
     problem_fname = 'problem.txt'
     params_fname = 'params.txt'
     edge_fname = 'edge_file.txt'
     w_saturation = np.iinfo(np.int32).max/1000
     d2roots = A.graph.get('d2roots')
     if d2roots is None:
-        d2roots = cdist(VertexC[:-M], VertexC[-M:])
+        d2roots = cdist(VertexC[:-R], VertexC[-R:])
         A.graph['d2roots'] = d2roots
     weights, w_max = length_matrix_single_depot_from_G(A, scale=scale)
     assert w_max <= w_saturation, 'ERROR: weight values outside int32 range.'
     weights = weights.clip(max=w_saturation).round().astype(np.int32)
     if w_max > w_saturation:
         print('WARNING: at least one edge weight has been clipped.')
-    #  weights = np.ones((N + M, N + M), dtype=int)
+    #  weights = np.ones((T + R, T + R), dtype=int)
     with io.StringIO() as str_io:
         np.savetxt(str_io, weights, fmt='%d')
         edge_weights = str_io.getvalue()[:-1]
@@ -83,14 +83,14 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         NAME=A.graph.get('name', 'unnamed'),
         TYPE='ACVRP',  # maybe try asymmetric TSP: 'ATSP',
         # TYPE='ATSP',  # maybe try asymmetric capacitaded VRP: 'ACVRP',
-        DIMENSION=N + M,  # CVRP number of nodes and depots
-        # DIMENSION=N,  # TSP: number of nodes
+        DIMENSION=T + R,  # CVRP number of nodes and depots
+        # DIMENSION=T,  # TSP: number of nodes
         CAPACITY=capacity,
         EDGE_WEIGHT_TYPE='EXPLICIT',
         EDGE_WEIGHT_FORMAT='FULL_MATRIX',
     )
     data = dict(
-        # DEMAND_SECTION='\n'.join(f'{i} 1' for i in range(N)) + f'\n{N} 0',
+        # DEMAND_SECTION='\n'.join(f'{i} 1' for i in range(T)) + f'\n{T} 0',
         DEPOT_SECTION=f'1\n-1',
         EDGE_WEIGHT_SECTION=edge_weights,
     )
@@ -101,7 +101,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
         data['EDGE_DATA_SECTION'] = '\n'.join((
             # depot has out-edges to all nodes
-            f'1 {" ".join(str(n) for n in range(2, N + 2))} -1',
+            f'1 {" ".join(str(n) for n in range(2, T + 2))} -1',
             # all nodes have out-edges to depot
             '\n'.join(f'{n + 2} 1 {" ".join(str(a + 2) for a in adj)} -1'
                       for n, adj in A_nodes.adjacency()),
@@ -113,7 +113,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         data['EDGE_DATA_SECTION'] = '\n'.join((
                 '\n'.join(f'{u + 2} {v + 2}\n{v + 2} {u + 2}'
                           for u, v in A.edges if u >= 0 and v >= 0),
-                '\n'.join(f'{n} 1\n1 {n}' for n in range(2, N + 2)),
+                '\n'.join(f'{n} 1\n1 {n}' for n in range(2, T + 2)),
                 '-1\n'))
     if False and A is not None:
         # TODO: Deprecate this. EDGE_FILE is for the transformed problem.
@@ -121,14 +121,14 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
 
     spec_str = '\n'.join(f'{k}: {v}' for k, v in specs.items())
     data_str = '\n'.join(f'{k}\n{v}' for k, v in data.items()) + '\nEOF'
-    vehicles_min = math.ceil(N/capacity)
+    vehicles_min = math.ceil(T/capacity)
     if (vehicles is None) or (vehicles <= vehicles_min):
         # set to minimum feasible vehicle number
         if vehicles is not None and vehicles < vehicles_min:
             print(f'Vehicle number ({vehicles}) too low for feasibilty '
                   f'with capacity ({capacity}). Setting to {vehicles_min}.')
         vehicles = vehicles_min
-        min_route_size = (N % capacity) or capacity
+        min_route_size = (T % capacity) or capacity
     else:
         min_route_size = 0
     params = dict(
@@ -185,7 +185,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
     log = result.stdout.decode('utf8')
     S = nx.Graph(
         creator='baselines.lkh',
-        N=N, M=M,
+        T=T, R=R,
         has_loads=True,
         capacity=capacity,
         objective=float(minimum)/scale,
@@ -243,7 +243,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
         S.add_edges_from(zip(branch_roll, branch, edgeD))
     root_load = sum(S.nodes[n]['load'] for n in S.neighbors(-1))
     S.nodes[-1]['load'] = root_load
-    assert root_load == N, 'ERROR: root node load does not match N.'
+    assert root_load == T, 'ERROR: root node load does not match T.'
     return S
 
 

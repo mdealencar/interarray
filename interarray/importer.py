@@ -72,21 +72,21 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     Node, NodeTag = _tags_and_array_from_key('TURBINES', parsed_dict)
 
     # create networkx graph
-    N = Node.shape[0]
-    M = Root.shape[0]
+    T = Node.shape[0]
+    R = Root.shape[0]
     B = Border.shape[0]
-    G = nx.Graph(N=N, M=M, B=B,
+    G = nx.Graph(T=T, R=R, B=B,
                  VertexC=np.vstack((Node, Border, Root)),
-                 border=np.arange(N, N + B),
+                 border=np.arange(T, T + B),
                  name=fpath.stem,
                  handle=handle)
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
     if lsangle is not None:
         G.graph['landscape_angle'] = lsangle
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg', 'tag': NodeTag[n]})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss', 'tag': RootTag[r]})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
     make_graph_metrics(G)
     return G
 
@@ -149,7 +149,7 @@ def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
         wtg = [point for tags, point in gen_nodes]
     else:
         print(f'«{name}» Unable to identify generators.')
-    N = len(wtg)
+    T = len(wtg)
 
     # Substations
     ossn = ([point for tags, point in data['substation']['nodes']]
@@ -159,7 +159,7 @@ def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
     if ossn and ossw:
         print(f'«{name}» Warning: substations found both as nodes and ways.')
     oss = ossn + ossw
-    M = len(oss)
+    R = len(oss)
 
     # Boundary
     plant_ways = data['plant'].get('ways')
@@ -195,9 +195,9 @@ def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
     # TODO: use the wtg names as node labels if available
     #       this means bringing the core of L_from_site here
     L = L_from_site(
-            N=N, M=M, B=B,
+            T=T, R=R, B=B,
             VertexC=VertexC,
-            border=np.arange(N, N + B),
+            border=np.arange(T, T + B),
             name=name,
             )
     if plant_name is not None:

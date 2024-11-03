@@ -31,8 +31,8 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     `branching`: if root branches are paths (False) or can be trees (True).
     '''
-    M = A.graph['M']
-    N = A.graph['N']
+    R = A.graph['R']
+    T = A.graph['T']
     d2roots = A.graph['d2roots']
 
     # Prepare data from A
@@ -40,7 +40,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
-    G = tuple((r, n) for n in A_nodes.nodes for r in range(-M, 0))
+    G = tuple((r, n) for n in A_nodes.nodes for r in range(-R, 0))
     w_E = tuple(A[u][v]['length'] for u, v in E)
     w_G = tuple(d2roots[n, r] for r, n in G)
 
@@ -69,29 +69,29 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     ###############
 
     # limit on number of gates
-    min_gates = math.ceil(N/k)
+    min_gates = math.ceil(T/k)
     min_gate_load = 1
     if gates_limit:
         if isinstance(gates_limit, bool) or gates_limit == min_gates:
             # fixed number of gates
-            m.Add((sum(Bg[r, u] for r in range(-M, 0)
+            m.Add((sum(Bg[r, u] for r in range(-R, 0)
                        for u in A_nodes.nodes.keys())
-                   == math.ceil(N/k)))
-            min_gate_load = N % k
+                   == math.ceil(T/k)))
+            min_gate_load = T % k
         else:
             assert min_gates < gates_limit, (
-                    f'Infeasible: N/k > gates_limit (N = {N}, k = {k},'
+                    f'Infeasible: T/k > gates_limit (T = {T}, k = {k},'
                     f' gates_limit = {gates_limit}).')
             # number of gates within range
             m.AddLinearConstraint(
-                sum(Bg[r, u] for r in range(-M, 0)
+                sum(Bg[r, u] for r in range(-R, 0)
                     for u in A_nodes.nodes.keys()),
                 min_gates,
                 gates_limit)
     else:
         # valid inequality: number of gates is at least the minimum
         m.Add(min_gates <= sum(Bg[r, n]
-                               for r in range(-M, 0)
+                               for r in range(-R, 0)
                                for n in A_nodes.nodes.keys()))
 
     # link edges' demand and binary
@@ -104,12 +104,12 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     # link gates' demand and binary
     for n in A_nodes.nodes.keys():
-        for r in range(-M, 0):
+        for r in range(-R, 0):
             m.Add(Dg[r, n] == 0).OnlyEnforceIf(Bg[r, n].Not())
             m.Add(Dg[r, n] >= min_gate_load).OnlyEnforceIf(Bg[r, n])
 
     # total number of edges must be equal to number of non-root nodes
-    m.Add(sum(Be.values()) + sum(Bg.values()) == N)
+    m.Add(sum(Be.values()) + sum(Bg.values()) == T)
 
     # gate-edge crossings
     if gateXings_constraint:
@@ -124,7 +124,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     for u in A_nodes.nodes.keys():
         m.Add(sum(De[u, v] if u < v else -De[v, u]
                   for v in A_nodes.neighbors(u))
-              + sum(Dg[r, u] for r in range(-M, 0))
+              + sum(Dg[r, u] for r in range(-R, 0))
               == A.nodes[u].get('power', 1))
 
     if not branching:
@@ -132,9 +132,9 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
         for u in A_nodes.nodes.keys():
             m.Add(sum((Be[u, v] if u < v else Be[v, u])
                       for v in A_nodes.neighbors(u))
-                  + sum(Bg[r, u] for r in range(-M, 0)) <= 2)
+                  + sum(Bg[r, u] for r in range(-R, 0)) <= 2)
             # each node is connected to a single root
-            m.AddAtMostOne(Bg[r, u] for r in range(-M, 0))
+            m.AddAtMostOne(Bg[r, u] for r in range(-R, 0))
     else:
         # If degree can be more than 2, enforce only one
         # edge flowing towards the root (up).
@@ -157,12 +157,12 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
         for n in A_nodes.nodes.keys():
             # single root enforcement is encompassed here
             m.AddAtMostOne(
-                *upstream[n].values(), *tuple(Bg[r, n] for r in range(-M, 0))
+                *upstream[n].values(), *tuple(Bg[r, n] for r in range(-R, 0))
             )
         m.upstream = upstream
 
     # assert all nodes are connected to some root (using gate edge demands)
-    m.Add(sum(Dg[r, n] for r in range(-M, 0)
+    m.Add(sum(Dg[r, n] for r in range(-R, 0)
               for n in A_nodes.nodes.keys()) == W)
 
     #############
@@ -173,9 +173,9 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
                + cp_model.LinearExpr.WeightedSum(Bg.values(), w_G))
 
     # save data structure as model attributes
-    m.Be, m.Bg, m.De, m.Dg, m.M, m.N, m.k = Be, Bg, De, Dg, M, N, k
+    m.Be, m.Bg, m.De, m.Dg, m.R, m.T, m.k = Be, Bg, De, Dg, R, T, k
     #  m.site = {key: A.graph[key]
-    #            for key in ('N', 'M', 'B', 'VertexC', 'border', 'exclusions',
+    #            for key in ('T', 'R', 'B', 'VertexC', 'border', 'exclusions',
     #                        'name', 'handle')
     #            if key in A.graph}
 
@@ -234,12 +234,12 @@ def S_from_solution(model: cp_model.CpModel,
     # the solution is in the solver object not in the model
 
     # Metadata
-    M, N = model.M, model.N
+    R, T = model.R, model.T
     solver_name = 'ortools'
     bound = solver.best_objective_bound
     objective = solver.objective_value
     S = nx.Graph(
-        M=M, N=N,
+        R=R, T=T,
         handle=model.handle,
         capacity=model.k,
         objective=objective,
@@ -286,7 +286,7 @@ def S_from_solution(model: cp_model.CpModel,
 
     # propagate loads from edges to nodes
     subtree = -1
-    for r in range(-M, 0):
+    for r in range(-R, 0):
         for u, v in nx.edge_dfs(S, r):
             S.nodes[v]['load'] = S.edges[u, v]['load']
             if u == r:

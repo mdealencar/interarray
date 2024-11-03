@@ -291,7 +291,7 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
 
     Args:
         G: Routeset or edgeset (A) to examine.
-        hooks: Nodes to check, grouped by root in sub-sequences from root `-M`
+        hooks: Nodes to check, grouped by root in sub-sequences from root `-R`
             to `-1`. If `None`, all non-root nodes are checked using `'root'`
             node attribute.
         borders: Impassable line segments between border vertices.
@@ -300,9 +300,9 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
     Yields:
         Pair of (edge, gate) that cross (each a 2-tuple of nodes).
     '''
-    M, N, B, VertexC = (G.graph[k] for k in ('M', 'N', 'B', 'VertexC'))
+    R, T, B, VertexC = (G.graph[k] for k in ('R', 'T', 'B', 'VertexC'))
     fnT = G.graph.get('fnT')
-    roots = range(-M, 0)
+    roots = range(-R, 0)
     anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
         make_graph_metrics(G)
@@ -316,8 +316,8 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
     if borders is not None:
         Edge = chain(Edge, borders)
     if hooks is None:
-        all_nodes = np.arange(N)
-        IGate = [all_nodes]*M
+        all_nodes = np.arange(T)
+        IGate = [all_nodes]*R
     else:
         IGate = hooks
     # it is important to consider touch as crossing
@@ -374,14 +374,14 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
                 else:
                     print(f'detour @ {F[u]} splits {F[s]}–{F[v]}–{F[t]}')
     '''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC']
     if C > 0 or D > 0:
         fnT = G.graph['fnT']
     else:
-        fnT = np.arange(N + M)
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(T + R)
+        fnT[-R:] = range(-R, 0)
 
     # TOPOLOGY check: is it a proper tree?
     calcload(G)
@@ -426,7 +426,7 @@ def validate_routeset(G: nx.Graph) -> list[tuple[int, int, int, int]]:
     # ¿do we need a special case for a detour segment going through a node?
 
     # check detour nodes for branch-splitting
-    for d, d_ in zip(range(N, N + D), fnT[N:N + D]):
+    for d, d_ in zip(range(T, T + D), fnT[T:T + D]):
         if G.degree[d_] == 1:
             # trivial case: no way to break a branch apart
             continue

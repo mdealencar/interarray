@@ -38,9 +38,9 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     Returns:
         Solution topology.
     '''
-    M, N, VertexC = (
-        A.graph[k] for k in ('M', 'N', 'VertexC'))
-    assert M == 1, 'ERROR: only single depot supported'
+    R, T, VertexC = (
+        A.graph[k] for k in ('R', 'T', 'VertexC'))
+    assert R == 1, 'ERROR: only single depot supported'
 
     # Solver initialization
     # https://github.com/vidalt/HGS-CVRP/tree/main#running-the-algorithm
@@ -66,15 +66,15 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         seed=seed,
     )
     hgs_solver = hgs.Solver(parameters=ap, verbose=True)
-    x_coordinates, y_coordinates = np.c_[VertexC[-M:].T, VertexC[:N].T]
+    x_coordinates, y_coordinates = np.c_[VertexC[-R:].T, VertexC[:T].T]
     # data preparation
     # Distance_matrix may be provided instead of coordinates, or in addition to
     # coordinates. Distance_matrix is used for cost calculation if provided.
     # The additional coordinates will be helpful in speeding up the algorithm.
-    demands = np.ones(N + M, dtype=float)
+    demands = np.ones(T + R, dtype=float)
     demands[0] = 0.  # depot demand = 0
     weights, w_max = length_matrix_single_depot_from_G(A, scale=1.)
-    vehicles_min = math.ceil(N/capacity)
+    vehicles_min = math.ceil(T/capacity)
     if vehicles is None or vehicles <= vehicles_min:
         if vehicles is not None and vehicles < vehicles_min:
             print(f'Vehicle number ({vehicles}) too low for feasibilty '
@@ -88,7 +88,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         x_coordinates=x_coordinates,
         y_coordinates=y_coordinates,
         distance_matrix=distance_matrix,
-        service_times=np.zeros(N + M),
+        service_times=np.zeros(T + R),
         demands=demands,
         vehicle_capacity=capacity,
         num_vehicles=vehicles,
@@ -100,7 +100,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
 
     # create a topology graph S from the results
     S = nx.Graph(
-        N=N, M=M,
+        T=T, R=R,
         capacity=capacity,
         has_loads=True,
         objective=result.cost,
@@ -127,7 +127,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
         S.add_edges_from(zip(branch_roll, branch, edgeD))
     root_load = sum(S.nodes[n]['load'] for n in S.neighbors(-1))
     S.nodes[-1]['load'] = root_load
-    assert root_load == N, 'ERROR: root node load does not match N.'
+    assert root_load == T, 'ERROR: root node load does not match T.'
     return S
 
 

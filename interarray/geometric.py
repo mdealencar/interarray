@@ -61,7 +61,7 @@ def any_pairs_opposite_edge(NodesC, uC, vC, margin=0):
 
 
 def rotate(coords, angle):
-    '''rotates `coords` (numpy array N×2) by `angle` (degrees)'''
+    '''rotates `coords` (numpy array T×2) by `angle` (degrees)'''
     rotation = np.deg2rad(angle)
     c, s = np.cos(rotation), np.sin(rotation)
     return np.dot(coords, np.array([[c, s], [-s, c]]))
@@ -108,7 +108,7 @@ def angle(a, pivot, b):
 def is_bb_overlapping(uv, st):
     ''' checks if there is an overlap in the bounding boxes of `uv` and `st`
     (per row)
-    `uv` and `st` have shape N×2, '''
+    `uv` and `st` have shape T×2, '''
     pass
 
 
@@ -210,7 +210,7 @@ def is_crossing(u, v, s, t, touch_is_cross=True):
 
 
 def is_bunch_split_by_corner(bunch, a, o, b, margin=1e-3):
-    '''`bunch` is a numpy array of points (N×2)
+    '''`bunch` is a numpy array of points (T×2)
     the points `a`-`o`-`b` define a corner'''
     AngleA = angle_numpy(a, o, bunch)
     AngleB = angle_numpy(b, o, bunch)
@@ -292,11 +292,11 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
     E_hull = G.graph['E_hull']
     N_hull = G.graph['N_hull']
     N_inner = set(G.nodes) - N_hull
-    M = G.graph['M']
-    # N = G.number_of_nodes() - M
+    R = G.graph['R']
+    # T = G.number_of_nodes() - R
     VertexC = G.graph['VertexC']
-    # roots = range(N, N + M)
-    roots = range(-M, 0)
+    # roots = range(T, T + R)
+    roots = range(-R, 0)
     triangles = G.graph['triangles']
     angles = G.graph['angles']
 
@@ -323,7 +323,7 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
                     G.edges[uv]['exempted'] = True
 
     # calculate blockage arc for each edge
-    zeros = np.full((M,), 0.)
+    zeros = np.full((R,), 0.)
     for u, v, d in list(G.edges(data=True)):
         if (frozenset((u, v)) in E_hull_exp) or (u in roots) or (v in roots):
             angdiff = zeros
@@ -331,8 +331,8 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
             # angdiff = (angles[:, u] - angles[:, v]) % (2*np.pi)
             # angdiff = abs(angles[:, u] - angles[:, v])
             angdiff = abs(angles[u] - angles[v])
-        arc = np.empty((M,), dtype=float)
-        for i in range(M):  # TODO: vectorize this loop
+        arc = np.empty((R,), dtype=float)
+        for i in range(R):  # TODO: vectorize this loop
             arc[i] = angdiff[i] if angdiff[i] < np.pi else 2*np.pi - angdiff[i]
         d['arc'] = arc
         # if arc is π/2 or more, remove the edge (it's shorter to go to root)
@@ -395,12 +395,12 @@ def angle_helpers(L: nx.Graph) -> tuple[np.ndarray, np.ndarray,
         tuple of (angles, anglesRank, anglesYhp, anglesXhp)
     '''
 
-    N, M, VertexC = (L.graph[k] for k in ('N', 'M', 'VertexC'))
+    T, R, VertexC = (L.graph[k] for k in ('T', 'R', 'VertexC'))
     B = L.graph.get('B', 0)
-    NodeC = VertexC[:N + B]
-    RootC = VertexC[-M:]
+    NodeC = VertexC[:T + B]
+    RootC = VertexC[-R:]
 
-    angles = np.empty((N + B, M), dtype=float)
+    angles = np.empty((T + B, R), dtype=float)
     for n, nodeC in enumerate(NodeC):
         x, y = (nodeC - RootC).T
         angles[n] = np.arctan2(y, x)
@@ -417,7 +417,7 @@ def assign_root(A: nx.Graph) -> None:
     Changes A in-place.
 
     '''
-    closest_root = -A.graph['M'] + np.argmin(A.graph['d2roots'], axis=1)
+    closest_root = -A.graph['R'] + np.argmin(A.graph['d2roots'], axis=1)
     nx.set_node_attributes(
         A, {n: r for n, r in enumerate(closest_root)}, 'root')
 
@@ -431,23 +431,23 @@ def make_graph_metrics(G):
 
     Any detour nodes in G are ignored.
     '''
-    N, M, VertexC = (G.graph[k] for k in ('N', 'M', 'VertexC'))
+    T, R, VertexC = (G.graph[k] for k in ('T', 'R', 'VertexC'))
     B = G.graph.get('B', 0)
-    roots = range(-M, 0)
-    NodeC = VertexC[:N + B]
-    RootC = VertexC[-M:]
+    roots = range(-R, 0)
+    NodeC = VertexC[:T + B]
+    RootC = VertexC[-R:]
 
     # calculate distance from all nodes to each of the roots
     d2roots = G.graph.get('d2roots')
     if d2roots is None:
-        d2roots = cdist(VertexC[:N + B], VertexC[-M:])
+        d2roots = cdist(VertexC[:T + B], VertexC[-R:])
 
-    angles = np.empty((N + B, M), dtype=float)
+    angles = np.empty((T + B, R), dtype=float)
     for n, nodeC in enumerate(NodeC):
-        if n < N:
+        if n < T:
             nodeD = G.nodes[n]
             # assign the node to the closest root
-            nodeD['root'] = -M + np.argmin(d2roots[n])
+            nodeD['root'] = -R + np.argmin(d2roots[n])
         x, y = (nodeC - RootC).T
         angles[n] = np.arctan2(y, x)
     # TODO: ¿is this below actually used anywhere?
@@ -489,12 +489,12 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The length of each edge is the euclidean distance between its vertices.'''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G_base.graph['VertexC']
-    NodeC = VertexC[:N]
-    RootC = VertexC[-M:]
-    Root = range(-M, 0)
-    V = N + (M if include_roots else 0)
+    NodeC = VertexC[:T]
+    RootC = VertexC[-R:]
+    Root = range(-R, 0)
+    V = T + (R if include_roots else 0)
     G = nx.complete_graph(V)
     EdgeComplete = np.column_stack(np.triu_indices(V, k=1))
     #  mask = np.zeros((V,), dtype=bool)
@@ -502,14 +502,14 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
     if include_roots:
         # mask root-root edges
         offset = 0
-        for i in range(0, M - 1):
-            for j in range(0, M - i - 1):
+        for i in range(0, R - 1):
+            for j in range(0, R - i - 1):
                 mask[offset + j] = True
             offset += (V - i - 1)
 
-        # make node indices span -M:(N - 1)
-        EdgeComplete -= M
-        nx.relabel_nodes(G, dict(zip(range(N, N + M), Root)),
+        # make node indices span -R:(T - 1)
+        EdgeComplete -= R
+        nx.relabel_nodes(G, dict(zip(range(T, T + R), Root)),
                          copy=False)
         C = cdist(VertexC, VertexC)
     else:
@@ -538,18 +538,18 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
     for u, v, edgeD in G.edges(data=True):
         edgeD['length'] = C[u, v]
         # assign the edge to the root closest to the edge's middle point
-        edgeD['root'] = -M + np.argmin(
+        edgeD['root'] = -R + np.argmin(
             cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :], RootC))
     return G
 
 
 def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     '''Return a graph of the minimum spanning tree connecting the node in G.'''
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
-    V = M + N
+    V = R + T
     raise NotImplementedError('CDT changed make_planar_embedding()')
-    P = make_planar_embedding(M, VertexC)[0].to_undirected(as_view=True)
+    P = make_planar_embedding(R, VertexC)[0].to_undirected(as_view=True)
     E_planar = np.array(P.edges, dtype=np.int32)
     # E_planar = np.array(P.edges)
     Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
@@ -560,7 +560,7 @@ def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
     H = nx.Graph()
     H.add_nodes_from(G.nodes(data=True))
     for s, t in zip(S, T):
-        H.add_edge(s if s < N else s - V, t if t < N else t - V,
+        H.add_edge(s if s < T else s - V, t if t < T else t - V,
                    length=Q_[s, t])
     H.graph.update(G.graph)
     return H
@@ -574,28 +574,28 @@ def check_crossings(G, debug=False, MARGIN=0.1):
     MARGIN is how far an edge can advance across another one and still not be
     considered a crossing.'''
     VertexC = G.graph['VertexC']
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     raise NotImplementedError('CDT requires changes in this function')
     if C > 0 or D > 0:
-        # detournodes = range(N, N + D)
+        # detournodes = range(T, T + D)
         # G.add_nodes_from(((s, {'kind': 'detour'})
         #                   for s in detournodes))
         # clone2prime = G.graph['clone2prime']
         # assert len(clone2prime) == D, \
         #     'len(clone2prime) != D'
-        # fnT = np.arange(N + D + M)
-        # fnT[N: N + D] = clone2prime
+        # fnT = np.arange(T + D + R)
+        # fnT[T: T + D] = clone2prime
         # DetourC = VertexC[clone2prime].copy()
         fnT = G.graph['fnT']
-        AllnodesC = np.vstack((VertexC[:N], VertexC[fnT[N:N + D]],
-                               VertexC[-M:]))
+        AllnodesC = np.vstack((VertexC[:T], VertexC[fnT[T:T + D]],
+                               VertexC[-R:]))
     else:
-        fnT = np.arange(N + M)
+        fnT = np.arange(T + R)
         AllnodesC = VertexC
-    roots = range(-M, 0)
-    fnT[-M:] = roots
-    n2s = NodeStr(fnT, N)
+    roots = range(-R, 0)
+    fnT[-R:] = roots
+    n2s = NodeStr(fnT, T)
 
     crossings = []
     pivot_plus_edge = []
@@ -791,7 +791,7 @@ def rotating_calipers(convex_hull: np.ndarray) \
     #   CUDA and Numba implementations of computational geometry algorithms.
     # (https://github.com/jhultman/rotating-calipers)
     """
-    argument `convex_hull` is a (N, 2) array of coordinates of the convex hull
+    argument `convex_hull` is a (T, 2) array of coordinates of the convex hull
         in counter-clockwise order.
     Reference:
         Toussaint, Godfried T. "Solving geometric problems with
@@ -799,15 +799,15 @@ def rotating_calipers(convex_hull: np.ndarray) \
     """
     caliper_angles = np.float_([0.5*np.pi, 0, -0.5*np.pi, np.pi])
     area_min = np.inf
-    N = convex_hull.shape[0]
+    T = convex_hull.shape[0]
     left, bottom = convex_hull.argmin(axis=0)
     right, top = convex_hull.argmax(axis=0)
 
     calipers = np.int_([left, top, right, bottom])
 
-    for _ in range(N):
+    for _ in range(T):
         # Roll vertices counter-clockwise
-        calipers_advanced = (calipers - 1) % N
+        calipers_advanced = (calipers - 1) % T
         # Vectors from previous calipers to candidates
         vec = convex_hull[calipers_advanced] - convex_hull[calipers]
         # Find angles of candidate edgelines
@@ -894,16 +894,16 @@ def denormalize(G_scaled, G_base):
     note: d2roots will be created in G_base if absent.
     '''
     G = G_scaled.copy()
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     C, D = (G.graph.get(k, 0) for k in 'CD')
     VertexC = G.graph['VertexC'] = G_base.graph['VertexC']
     fnT = G.graph.get('fnT')
     if fnT is None:
-        fnT = np.arange(N + M)
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(T + R)
+        fnT[-R:] = range(-R, 0)
     d2roots = G_base.graph.get('d2roots')
     if d2roots is None:
-        d2roots = cdist(VertexC[:N], VertexC[-M:])
+        d2roots = cdist(VertexC[:T], VertexC[-R:])
         G_base.graph['d2roots'] = d2roots
     G.graph['d2roots'] = d2roots
     G.graph['landscape_angle'] = G_base.graph['landscape_angle']

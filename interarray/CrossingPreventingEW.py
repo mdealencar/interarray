@@ -29,10 +29,10 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     # grab relevant options to store in the graph later
     options = dict(delaunay_based=delaunay_based)
 
-    M = G_base.graph['M']
-    N = G_base.number_of_nodes() - M
-    # roots = range(N, N + M)
-    roots = range(-M, 0)
+    R = G_base.graph['R']
+    T = G_base.number_of_nodes() - R
+    # roots = range(T, T + R)
+    roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
     d2roots = G_base.graph['d2roots']
     d2rootsRank = G_base.graph['d2rootsRank']
@@ -79,19 +79,19 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
 
     # mappings from nodes
     # <subtrees>: maps nodes to the set of nodes in their subtree
-    subtrees = np.array([{n} for n in range(N)])
+    subtrees = np.array([{n} for n in range(T)])
     # <Gate>: maps nodes to their gates
-    Gate = np.array([n for n in range(N)])
+    Gate = np.array([n for n in range(T)])
 
     # mappings from components (identified by their gates)
     # <ComponIn>: maps component to set of components queued to merge in
-    ComponIn = np.array([set() for _ in range(N)])
-    ComponLoLim = np.arange(N)  # most CW node
-    ComponHiLim = np.arange(N)  # most CCW node
+    ComponIn = np.array([set() for _ in range(T)])
+    ComponLoLim = np.arange(T)  # most CW node
+    ComponHiLim = np.arange(T)  # most CCW node
 
     # mappings from roots
     # <Final_G>: set of gates of finished components (one set per root)
-    Final_G = np.array([set() for _ in range(M)])
+    Final_G = np.array([set() for _ in range(R)])
 
     # other structures
     # <pq>: queue prioritized by lowest tradeoff length
@@ -104,10 +104,10 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     # edges2ban = deque()
     # TODO: this is not being used, decide what to do about it
     edges2ban = set()
-    # TODO: edges{N,C,V} could be used to vectorize the edge crossing detection
-    # <edgesN>: array of nodes of the edges of G (N×2)
-    # <edgesC>: array of node coordinates for edges of G (N×2×2)
-    # <edgesV>: array of vectors of the edges of G (N×2)
+    # TODO: edges{T,C,V} could be used to vectorize the edge crossing detection
+    # <edgesN>: array of nodes of the edges of G (T×2)
+    # <edgesC>: array of node coordinates for edges of G (T×2×2)
+    # <edgesV>: array of vectors of the edges of G (T×2)
     # <i>: iteration counter
     i = 0
     # <prevented_crossing>: counter for edges discarded due to crossings
@@ -354,7 +354,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
         find_option4gate(g2drop)
 
     # initialize pq
-    for n in range(N):
+    for n in range(T):
         find_option4gate(n)
 
     log = []
@@ -583,7 +583,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     G.graph['iterations'] = i
     G.graph['prevented_crossings'] = prevented_crossings
     G.graph['capacity'] = capacity
-    G.graph['overfed'] = [len(G[root])/np.ceil(N/capacity)*M
+    G.graph['overfed'] = [len(G[root])/np.ceil(T/capacity)*R
                           for root in roots]
     G.graph['creator'] = 'CPEW'
     G.graph['edges_fun'] = CPEW

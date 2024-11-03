@@ -80,9 +80,9 @@ def bfs_subtree_loads(G, parent, children, subtree):
     used independently (e.g. from PathFinder).
     Nodes must not have a 'load' attribute.
     '''
-    N = G.graph['N']
+    T = G.graph['T']
     nodeD = G.nodes[parent]
-    default = 1 if parent < N else 0  # load is 1 for wtg nodes
+    default = 1 if parent < T else 0  # load is 1 for wtg nodes
     if not children:
         nodeD['load'] = default
         return default
@@ -105,8 +105,8 @@ def calcload(G):
     attribute (keys 'subtree' and 'load', respectively). Also the edges'
     'load' attributes are updated accordingly.
     '''
-    M, N = (G.graph.get(k) for k in ('M', 'N'))
-    roots = range(-M, 0)
+    R, T = (G.graph.get(k) for k in ('R', 'T'))
+    roots = range(-R, 0)
     for _, data in G.nodes(data=True):
         if 'load' in data:
             del data['load']
@@ -121,7 +121,7 @@ def calcload(G):
             subtree += 1
             max_load = max(max_load, G.nodes[subroot]['load'])
         total_load += G.nodes[root]['load']
-    assert total_load == N, f'counted ({total_load}) != nonrootnodes({N})'
+    assert total_load == T, f'counted ({total_load}) != nonrootnodes({T})'
     G.graph['has_loads'] = True
     G.graph['max_load'] = max_load
 
@@ -148,12 +148,12 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             )
 
 
-def L_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
+def L_from_site(*, VertexC: np.ndarray, T: int, R: int, **kwargs) -> nx.Graph:
     '''
     Args:
         VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
-        N: int number of wtg
-        M: int number of oss
+        T: int number of wtg
+        R: int number of oss
         **kwargs: Additional relevant arguments, for example:
             name: str site name
             handle: str site identifier
@@ -171,14 +171,14 @@ def L_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
         kwargs['name'] = kwargs['handle']
     if 'B' not in kwargs:
         kwargs['B'] = 0
-    G = nx.Graph(N=N, M=M,
+    G = nx.Graph(T=T, R=R,
                  VertexC=VertexC,
                  **kwargs)
 
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
-                      for n in range(N)))
+                      for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
-                      for r in range(-M, 0)))
+                      for r in range(-R, 0)))
     return G
 
 
@@ -189,7 +189,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     in `A`, whose contour information is used to obtain a routeset `G`
     (possibly with contours, but not with detours – use PathFinder afterward).
     '''
-    M, N, B = (A.graph[k] for k in 'MNB')
+    R, T, B = (A.graph[k] for k in 'RTB')
     VertexC, d2roots, diagonals = (A.graph[k] for k in
                                    ('VertexC', 'd2roots', 'diagonals'))
     # TODO: rethink whether to copy from S or from A
@@ -201,13 +201,13 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     if 'is_normalized' in A.graph:
         G.graph['is_normalized'] = True
     # remove supertriangle coordinates from VertexC
-    G.graph['VertexC'] = np.vstack((VertexC[:-M - 3], VertexC[-M:]))
+    G.graph['VertexC'] = np.vstack((VertexC[:-R - 3], VertexC[-R:]))
     # non_A_edges are the far-reaching gates and ocasionally the result of
     # a poor solver (e.g. LKH-3)
     non_A_edges = S.edges - A.edges
     # TA_source, TA_target = np.array(S.edges - non_A_edges).T
     common_TA = S.edges - non_A_edges
-    iC = N + B
+    iC = T + B
     clone2prime = []
     tentative = []
     shortened_contours = {}
@@ -312,9 +312,9 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     if shortened_contours:
         G.graph['shortened_contours'] = shortened_contours
     if clone2prime:
-        fnT = np.arange(iC + M)
-        fnT[N + B:-M] = clone2prime
-        fnT[-M:] = range(-M, 0)
+        fnT = np.arange(iC + R)
+        fnT[T + B:-R] = clone2prime
+        fnT[-R:] = range(-R, 0)
         G.graph.update(fnT=fnT,
                        clone2prime=clone2prime,
                        C=len(clone2prime))
@@ -342,7 +342,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     # Check on crossings between G's gates that are in A and G's edges
     diagonals = A.graph['diagonals']
     P = A.graph['planar']
-    for r in range(-M, 0):
+    for r in range(-R, 0):
         for n in set(S.neighbors(r)) & set(A.neighbors(r)):
             #  TODO: if ⟨r, n⟩ is a contour in A, G[r][n] might fail. FIXIT
             st = diagonals.get((r, n))
@@ -387,8 +387,8 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
 
     G.graph.update(
         num_diagonals=num_diagonals,
-        overfed=[len(G[r])/math.ceil(N/S.graph['capacity'])*M
-                 for r in range(-M, 0)],
+        overfed=[len(G[r])/math.ceil(T/S.graph['capacity'])*R
+                 for r in range(-R, 0)],
     )
     return G
 
@@ -405,21 +405,21 @@ def S_from_G(G: nx.Graph):
     Returns:
         topology of `G`
     '''
-    M, N = (G.graph[k] for k in 'MN')
+    R, T = (G.graph[k] for k in 'RT')
     capacity = G.graph['capacity']
     has_loads = G.graph.get('has_loads', False)
     S = nx.Graph(
-        N=N, M=M,
+        T=T, R=R,
         capacity=capacity,
     )
     # create a topology graph S from the results
-    for r in range(-M, 0):
+    for r in range(-R, 0):
         S.add_node(r, kind='oss', **({'load': G.nodes[r]['load']}
                                      if has_loads else {}))
         on_hold = None
         for edge in nx.dfs_edges(G, r):
             u, v = edge
-            if v >= N:
+            if v >= T:
                 on_hold = on_hold or u
                 continue
             u = on_hold or u
@@ -458,14 +458,14 @@ def L_from_G(G: nx.Graph) -> nx.Graph:
     Returns:
         Site graph (no edges) with lean attributes.
     '''
-    M, N = (G.graph[k] for k in 'MN')
-    transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
+    R, T = (G.graph[k] for k in 'RT')
+    transfer_fields = ('name', 'handle', 'VertexC', 'T', 'R', 'B', 'border',
                        'exclusions', 'landscape_angle')
     L = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
     L.add_nodes_from(((n, {'label': label})
                       for n, label in G.nodes(data='label')
-                      if 0 <= n < N), kind='wtg')
-    for r in range(-M, 0):
+                      if 0 <= n < T), kind='wtg')
+    for r in range(-R, 0):
         L.add_node(r, label=G.nodes[r].get('label'), kind='oss')
     return L
 
@@ -476,11 +476,11 @@ def as_single_oss(G: nx.Graph) -> nx.Graph:
     '''
     #  But keep this one.
     Gʹ = G.copy()
-    M, VertexC = (G.graph[k] for k in ('M', 'VertexC'))
-    Gʹ.remove_nodes_from(range(-M, -1))
-    VertexCʹ = VertexC[:-M + 1].copy()
-    VertexCʹ[-1] = VertexC[-M:].mean(axis=0)
-    Gʹ.graph.update(VertexC=VertexCʹ, M=1)
+    R, VertexC = (G.graph[k] for k in ('R', 'VertexC'))
+    Gʹ.remove_nodes_from(range(-R, -1))
+    VertexCʹ = VertexC[:-R + 1].copy()
+    VertexCʹ[-1] = VertexC[-R:].mean(axis=0)
+    Gʹ.graph.update(VertexC=VertexCʹ, R=1)
     Gʹ.graph['name'] += '.1_OSS'
     Gʹ.graph['handle'] += '_1'
     return Gʹ
@@ -556,14 +556,14 @@ def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
     C, D = (G.graph.get(k, 0) for k in 'CD')
     if not D:
         return G
-    M, N, B = (G.graph[k] for k in 'MNB')
+    R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
     tentative = []
-    for r in range(-M, 0):
-        for n in [n for n in G.neighbors(r) if n >= N + B + C]:
+    for r in range(-R, 0):
+        for n in [n for n in G.neighbors(r) if n >= T + B + C]:
             rev = r
             G.remove_edge(n, r)
-            while n >= N:
+            while n >= T:
                 rev = n
                 n, = G.neighbors(rev)
                 G.remove_node(rev)
@@ -576,7 +576,7 @@ def as_undetoured(Gʹ: nx.Graph) -> nx.Graph:
     del G.graph['D']
     if C:
         fnT = G.graph['fnT']
-        G.graph['fnT'] = np.hstack((fnT[: N + B + C], fnT[-M:]))
+        G.graph['fnT'] = np.hstack((fnT[: T + B + C], fnT[-R:]))
     else:
         del G.graph['fnT']
     G.graph['tentative'] = tentative
@@ -599,14 +599,14 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     '''
     assert Gʹ.graph.get('has_loads')
     G = Gʹ.copy()
-    M, N = G.graph['M'], G.graph['N']
+    R, T = G.graph['R'], G.graph['T']
     # mappings to quickly obtain all nodes on a subtree
-    num_subtree = sum(G.degree[r] for r in range(-M, 0))
+    num_subtree = sum(G.degree[r] for r in range(-R, 0))
     nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
                                         count=num_subtree, dtype=object)
-    subtree_from_node = np.empty((N,), dtype=object)
+    subtree_from_node = np.empty((T,), dtype=object)
     for n, subtree_id in G.nodes(data='subtree'):
-        if 0 <= n < N:
+        if 0 <= n < T:
             subtree = nodes_from_subtree_id[subtree_id]
             subtree.append(n)
             subtree_from_node[n] = subtree
@@ -615,7 +615,7 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     # TODO: rehook should take into account the other roots
     #       see PathFinder.create_detours()
     tentative = []
-    hook_getter = ((r, nb) for r in range(-M, 0)
+    hook_getter = ((r, nb) for r in range(-R, 0)
                    for nb in tuple(G.neighbors(r)))
     for r, hook in G.graph.pop('tentative', hook_getter):
         subtree = subtree_from_node[hook]
@@ -658,18 +658,18 @@ def as_hooked_to_head(Sʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     '''
     assert Sʹ.graph.get('has_loads')
     S = Sʹ.copy()
-    M, N = S.graph['M'], S.graph['N']
+    R, T = S.graph['R'], S.graph['T']
     # mappings to quickly obtain all nodes on a subtree
     S_T = nx.subgraph_view(Sʹ, filter_node=lambda n: n >= 0)
-    num_subtree = sum(S.degree[r] for r in range(-M, 0))
+    num_subtree = sum(S.degree[r] for r in range(-R, 0))
     nodes_from_subtree_id = np.fromiter((list() for _ in range(num_subtree)),
                                         count=num_subtree, dtype=object)
-    subtree_from_node = np.empty((N,), dtype=object)
+    subtree_from_node = np.empty((T,), dtype=object)
     headtail_from_subtree_id = np.fromiter(
         (list() for _ in range(num_subtree)), count=num_subtree, dtype=object)
-    headtail_from_node = np.empty((N,), dtype=object)
+    headtail_from_node = np.empty((T,), dtype=object)
     for n, subtree_id in S.nodes(data='subtree'):
-        if 0 <= n < N:
+        if 0 <= n < T:
             subtree = nodes_from_subtree_id[subtree_id]
             subtree.append(n)
             subtree_from_node[n] = subtree
@@ -682,7 +682,7 @@ def as_hooked_to_head(Sʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
     # TODO: rehook should take into account the other roots
     #       see PathFinder.create_detours()
     tentative = []
-    hook_getter = ((r, nb) for r in range(-M, 0)
+    hook_getter = ((r, nb) for r in range(-R, 0)
                    for nb in tuple(S.neighbors(r)))
     for r, hook in S.graph.pop('tentative', hook_getter):
         headtail = headtail_from_node[hook]
@@ -724,13 +724,13 @@ def make_remap(G, refG, H, refH):
         H: routeset with valid representation.
         refH: two nodes corresponding to `refG`
     '''
-    N = G.graph['N']
-    VertexC = G.graph['VertexC'][:N]
+    T = G.graph['T']
+    VertexC = G.graph['VertexC'][:T]
     vecref = VertexC[refG[1]] - VertexC[refG[0]]
     angleG = np.arctan2(*vecref)
     scaleG = np.hypot(*vecref)
     GvertC = (VertexC - VertexC[refG[0]])/scaleG
-    VertexC = H.graph['VertexC'][:N]
+    VertexC = H.graph['VertexC'][:T]
     vecref = VertexC[refH[1]] - VertexC[refH[0]]
     angleH = np.arctan2(*vecref)
     scaleH = np.hypot(*vecref)

@@ -219,8 +219,8 @@ def try_pathfinding_with_exc_handling(info2store, solver, G, in_place=False):
     return H
 
 
-def memory_usage_model_MB(N, solver_name):
-    mem = 500*N + 0.8*N**2
+def memory_usage_model_MB(T, solver_name):
+    mem = 500*T + 0.8*T**2
     if solver_name == 'cplex':
         return round(mem)
     elif solver_name == 'beta':
@@ -240,16 +240,16 @@ def unify_roots(G_base):
         - root nodes of `G_base` are replaced by a single root that is the
           centroid of the original ones.
     '''
-    M = G_base.graph['M']
-    if M <= 1:
+    R = G_base.graph['R']
+    if R <= 1:
         return
     VertexC = G_base.graph['VertexC']
-    G_base.remove_nodes_from(range(-M, -1))
+    G_base.remove_nodes_from(range(-R, -1))
     G_base.graph['VertexC'] = np.r_[
-            VertexC[:-M],
-            VertexC[-M:].mean(axis=0)[np.newaxis, :]
+            VertexC[:-R],
+            VertexC[-R:].mean(axis=0)[np.newaxis, :]
             ]
-    G_base.graph['M'] = M = 1
+    G_base.graph['R'] = R = 1
     G_base.graph['name'] += '.1_OSS'
     G_base.graph['handle'] += '_1'
     make_graph_metrics(G_base)
@@ -323,7 +323,7 @@ class CondaJob:
             ## RAM per core/slot
             #BSUB -R "rusage[mem={round(mem_per_core)}MB]"
             ## job termination threshold: RAM per core/slot (Resident set size)
-            #BSUB -M {math.ceil(max_mem)}MB
+            #BSUB -R {math.ceil(max_mem)}MB
             ## job termination threshold: execution time (hh:mm)
             #BSUB -W {hours:02}:{minutes:02}
             ## stdout
@@ -349,7 +349,7 @@ class CondaJob:
                 ## email
                 #BSUB -u {email}
                 ## notify on end
-                #BSUB -N
+                #BSUB -T
                 ''')
         self.jobscript += ' '.join(
             [os.environ['CONDA_EXE'], 'run', '--no-capture-output',
