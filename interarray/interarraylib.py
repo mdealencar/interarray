@@ -148,7 +148,7 @@ def fun_fingerprint(fun=None) -> dict[str, bytes | str]:
             )
 
 
-def S_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
+def L_from_site(*, VertexC: np.ndarray, N: int, M: int, **kwargs) -> nx.Graph:
     '''
     Args:
         VertexC: numpy.ndarray (V, 2) with x, y pos. of wtg + oss (total V)
@@ -446,10 +446,10 @@ def T_from_G(G: nx.Graph):
     return T
 
 
-def S_from_G(G: nx.Graph) -> nx.Graph:
+def L_from_G(G: nx.Graph) -> nx.Graph:
     '''Return new graph with nodes and site attributes from G.
 
-    The returned site graph `S` retains only roots, nodes and site graph
+    The returned locations graph `L` retains only roots, nodes and locations graph
     attributes. All edges and remaining data are not carried from `G`.
 
     Args:
@@ -461,13 +461,13 @@ def S_from_G(G: nx.Graph) -> nx.Graph:
     M, N = (G.graph[k] for k in 'MN')
     transfer_fields = ('name', 'handle', 'VertexC', 'N', 'M', 'B', 'border',
                        'exclusions', 'landscape_angle')
-    S = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
-    S.add_nodes_from(((n, {'label': label})
+    L = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
+    L.add_nodes_from(((n, {'label': label})
                       for n, label in G.nodes(data='label')
                       if 0 <= n < N), kind='wtg')
     for r in range(-M, 0):
-        S.add_node(r, label=G.nodes[r].get('label'), kind='oss')
-    return S
+        L.add_node(r, label=G.nodes[r].get('label'), kind='oss')
+    return L
 
 
 def as_single_oss(G: nx.Graph) -> nx.Graph:
@@ -512,13 +512,13 @@ def as_normalized(Aʹ: nx.Graph) -> nx.Graph:
     return A
 
 
-def as_site_scale(Gʹ: nx.Graph, S: nx.Graph) -> nx.Graph:
+def as_rescaled(Gʹ: nx.Graph, L: nx.Graph) -> nx.Graph:
     '''Revert normalization done by `as_normalized()`.
 
     Args:
         Gʹ: routeset to rescale to pre-normalization size.
-        S: (or G or A) site/routeset to get 'VertexC' from (also 'd2roots', if
-            available).
+        L: (or G or A) locations or routeset to get 'VertexC' from (also
+            'd2roots', if available).
 
     Returns:
         Routeset with coordinates and lengths at site scale.
@@ -528,11 +528,11 @@ def as_site_scale(Gʹ: nx.Graph, S: nx.Graph) -> nx.Graph:
         return Gʹ
     G = Gʹ.copy()
     # alternatively, we could do the math, but this safeguards the coord's hash
-    G.graph['VertexC'] = S.graph['VertexC']
+    G.graph['VertexC'] = L.graph['VertexC']
     denorm_factor = 1/G.graph['norm_scale']
     for _, _, eData in G.edges(data=True):
         eData['length'] *= denorm_factor
-    d2roots = S.graph.get('d2roots')
+    d2roots = L.graph.get('d2roots')
     if d2roots is not None:
         G.graph['d2roots'] = d2roots
     elif 'd2roots' in G.graph:

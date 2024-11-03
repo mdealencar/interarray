@@ -292,7 +292,7 @@ def pplot(P: nx.PlanarEmbedding, A: nx.Graph, **kwargs) -> Axes:
     Wrapper for `interarray.plotting.gplot()`. Performs what one would expect
     from `gplot(P, ...)` - which does not work because P lacks coordinates and
     node 'kind' attribute. The source needs to be `A` (as opposed to `G` or
-    `S`) because only `A` has the supertriangle's vertices coordinates.
+    `L`) because only `A` has the supertriangle's vertices coordinates.
 
     Args:
         P: Planar embedding to plot.

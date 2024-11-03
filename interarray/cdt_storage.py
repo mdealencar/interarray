@@ -38,13 +38,13 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'nonAedges', 'method', 'border_stunts', 'crossings', 'creator'}
 
 
-def S_from_nodeset(nodeset: object) -> nx.Graph:
+def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     N = nodeset.N
     M = nodeset.M
     B, *exclusion_groups = nodeset.constraint_groups
     border = nodeset.constraint_vertices[:B]
-    S = nx.Graph(
+    L = nx.Graph(
          M=M, N=N, B=B,
          name=nodeset.name,
          border=border,
@@ -52,20 +52,20 @@ def S_from_nodeset(nodeset: object) -> nx.Graph:
          landscape_angle=nodeset.landscape_angle,
     )
     if exclusion_groups:
-        S.graph.update(
+        L.graph.update(
             exclusions=[nodeset.constraint_vertices[a:b] for a, b in
                         pairwise([B] + exclusion_groups + [None])])
-    S.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
+    L.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(N)))
-    S.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
+    L.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-M, 0)))
-    return S
+    return L
 
 
 def G_from_routeset(routeset: object) -> nx.Graph:
     nodeset = routeset.nodes
     M, N, B = nodeset.M, nodeset.N, nodeset.B
-    G = S_from_nodeset(nodeset)
+    G = L_from_nodeset(nodeset)
     G.graph.update(
         M=M, N=N, B=B,
         C=routeset.C, D=routeset.D,

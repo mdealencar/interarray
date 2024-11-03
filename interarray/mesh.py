@@ -307,7 +307,7 @@ def _flip_triangles_exclusions_super(P: nx.PlanarEmbedding, N: int, B: int,
 
 
 def make_planar_embedding(
-        S: nx.Graph,
+        L: nx.Graph,
         #  M: int, VertexC: np.ndarray,
         #  boundaries: list[np.ndarray] | None = None,
         offset_scale: float = 1e-4,
@@ -318,7 +318,7 @@ def make_planar_embedding(
     The available edges graph `A` is arguably the main product.
 
     Args:
-        S: site graph
+        L: locations graph
         offset_scale: Fraction of the diagonal of the site's bbox to use as
             spacing between border and nodes in concavities (only where nodes
             are the border).
@@ -344,8 +344,8 @@ def make_planar_embedding(
     # J) Calculate the area of the concave hull.
     # X) Create hull_concave.
 
-    M, N, B, VertexCʹ = (S.graph[k] for k in 'M N B VertexC'.split())
-    border, exclusions = (S.graph.get(k, []) for k in ('border', 'exclusions'))
+    M, N, B, VertexCʹ = (L.graph[k] for k in 'M N B VertexC'.split())
+    border, exclusions = (L.graph.get(k, []) for k in ('border', 'exclusions'))
 
     # #############################################
     # A) Scale the coordinates to avoid CDT errors.
@@ -1017,8 +1017,8 @@ def make_planar_embedding(
         N=N, M=M, B=B,
         VertexC=VertexC,
         border=border,
-        name=S.name,
-        handle=S.graph['handle'],
+        name=L.name,
+        handle=L.graph['handle'],
         planar=P_A,
         diagonals=diagonals,
         d2roots=d2roots,
@@ -1032,7 +1032,7 @@ def make_planar_embedding(
     )
     if border_stunts:
         A.graph['border_stunts'] = border_stunts
-    landscape_angle = S.graph.get('landscape_angle')
+    landscape_angle = L.graph.get('landscape_angle')
     if landscape_angle is not None:
         A.graph['landscape_angle'] = landscape_angle
     # products:

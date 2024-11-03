@@ -20,7 +20,7 @@ import shapely.wkb as wkblib
 
 from .geometric import make_graph_metrics
 from .utils import NodeTagger
-from .interarraylib import S_from_site
+from .interarraylib import L_from_site
 
 F = NodeTagger()
 
@@ -54,7 +54,7 @@ def _tags_and_array_from_key(key, parsed_dict):
     return np.c_[eastings, northings], tags
 
 
-def S_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
+def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     '''Import wind farm data from .yaml file.
 
     Args:
@@ -62,7 +62,7 @@ def S_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
         handle: Short moniker for the site.
 
     Returns:
-        Unconnected site graph S.
+        Unconnected locations graph L.
     '''
     fpath = Path(filepath)
     # read wind power plant site YAML file
@@ -123,7 +123,7 @@ class GetAllData(osmium.SimpleHandler):
                                      members=list(r.members))))
 
 
-def S_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
+def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
     '''Import wind farm data from .osm.pbf file.
 
     Args:
@@ -131,7 +131,7 @@ def S_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
         handle: Short moniker for the site.
 
     Returns:
-        Unconnected site graph S.
+        Unconnected locations graph L.
     '''
     fpath = Path(filepath)
     assert ['.osm', '.pbf'] == fpath.suffixes[-2:], \
@@ -193,15 +193,15 @@ def S_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
     VertexC = np.c_[utm.from_latlon(*latlon.T)[:2]]
     # create networkx graph
     # TODO: use the wtg names as node labels if available
-    #       this means bringing the core of S_from_site here
-    S = S_from_site(
+    #       this means bringing the core of L_from_site here
+    L = L_from_site(
             N=N, M=M, B=B,
             VertexC=VertexC,
             border=np.arange(N, N + B),
             name=name,
             )
     if plant_name is not None:
-        S.graph['OSM_name'] = plant_name
+        L.graph['OSM_name'] = plant_name
     x, y = boundary.minimum_rotated_rectangle.exterior.coords.xy
     side0 = np.hypot(x[1] - x[0], y[1] - y[0])
     side1 = np.hypot(x[2] - x[1], y[2] - y[1])
@@ -211,9 +211,9 @@ def S_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
         angle = np.arctan2((x[2] - x[1]), (y[2] - y[1]))
     if abs(angle) > np.pi/2:
         angle += np.pi if angle < 0 else -np.pi
-    S.graph['landscape_angle'] = 180*angle/np.pi
-    make_graph_metrics(S)
-    return S
+    L.graph['landscape_angle'] = 180*angle/np.pi
+    make_graph_metrics(L)
+    return L
 
 
 _site_handles_yaml = dict(
@@ -308,8 +308,8 @@ _site_handles_pbf = dict(
 _site_handles = _site_handles_yaml | _site_handles_pbf
 
 _READERS = {
-        '.yaml': S_from_yaml,
-        '.osm.pbf': S_from_pbf,
+        '.yaml': L_from_yaml,
+        '.osm.pbf': L_from_pbf,
         }
 
 
@@ -321,7 +321,7 @@ def load_repository(handles2names=(
     if isinstance(handles2names, dict):
         # assume all files have .yaml extension
         return namedtuple('SiteRepository', handles2name)(
-            *(S_from_yaml(base_dir / fname, handle)
+            *(L_from_yaml(base_dir / fname, handle)
               for handle, fname in handles2names.items()))
     elif isinstance(handles2names, Iterable):
         # handle multiple file extensions

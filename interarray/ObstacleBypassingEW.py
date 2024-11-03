@@ -16,17 +16,17 @@ from .geometric import (angle, angle_helpers, apply_edge_exemptions, assign_root
 from .mesh import make_planar_embedding
 from .utils import Alerter, NodeStr, NodeTagger
 from .priorityqueue import PriorityQueue
-from .interarraylib import S_from_G, fun_fingerprint
+from .interarraylib import L_from_G, fun_fingerprint
 
 
 F = NodeTagger()
 
 
-def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
+def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
          MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None):
     '''Obstacle Bypassing Esau-Williams heuristic for C-MST
     inputs:
-    S: networkx.Graph
+    L: networkx.Graph
     c: capacity
     returns G_cmst: networkx.Graph
 
@@ -58,7 +58,7 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     options = dict(MARGIN=MARGIN, variant='C',
                    rootlust=rootlust)
 
-    M, N, B = (S.graph[k] for k in 'MNB')
+    M, N, B = (L.graph[k] for k in 'MNB')
     roots = range(-M, 0)
 
     # list of variables indexed by vertex id:
@@ -74,11 +74,11 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # need to have a table of vertex -> gate node
 
     # TODO: do away with pre-calculated crossings
-    Xings = S.graph.get('crossings')
+    Xings = L.graph.get('crossings')
 
-    # crossings = S.graph['crossings']
+    # crossings = L.graph['crossings']
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
-    _, A = make_planar_embedding(S)
+    _, A = make_planar_embedding(L)
     assign_root(A)
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
@@ -102,7 +102,7 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # END: prepare auxiliary graph with all allowed edges and metrics
 
     # BEGIN: create initial star graph
-    G = S_from_G(S) if S.number_of_edges() > 0 else S.copy()
+    G = L_from_G(L) if L.number_of_edges() > 0 else L.copy()
     G.add_weighted_edges_from(
         ((n, r, d2roots[n, r]) for n, r in A.nodes(data='root')),
         weight='length')
@@ -162,11 +162,7 @@ def OBEW(S, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     # edges2ban = deque()
     # TODO: this is not being used, decide what to do about it
     edges2ban = set()
-    VertexC = S.graph['VertexC']
-    # SiteC = S.graph['VertexC']
-    # VertexC = np.vstack((SiteC[:N],
-                         # np.full((Dmax, 2), np.nan, dtype=SiteC.dtype),
-                         # SiteC[N:]))
+    VertexC = L.graph['VertexC']
     # number of Detour nodes added
     D = 0
     # <DetourHop>: maps gate nodes to a list of nodes of the Detour path

@@ -385,18 +385,18 @@ def perimeter(VertexC, vertices_ordered):
                          - VertexC[vertices_ordered[0]])))
 
 
-def angle_helpers(S: nx.Graph) -> tuple[np.ndarray, np.ndarray,
+def angle_helpers(L: nx.Graph) -> tuple[np.ndarray, np.ndarray,
                                         np.ndarray, np.ndarray]:
     '''
     Args:
-        S: site
+        L: locations
 
     Returns:
         tuple of (angles, anglesRank, anglesYhp, anglesXhp)
     '''
 
-    N, M, VertexC = (S.graph[k] for k in ('N', 'M', 'VertexC'))
-    B = S.graph.get('B', 0)
+    N, M, VertexC = (L.graph[k] for k in ('N', 'M', 'VertexC'))
+    B = L.graph.get('B', 0)
     NodeC = VertexC[:N + B]
     RootC = VertexC[-M:]
 
