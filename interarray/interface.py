@@ -81,11 +81,11 @@ def assign_subtree(G):
         start = subtree + 1
 
 
-def G_from_XYM(X, Y, R=1, name='unnamed', borderC=None):
+def G_from_XYR(X, Y, R=1, name='unnamed', borderC=None):
     '''
-    This function assumes that the first R vertices are OSSs
-    X: x coordinates of vertices
-    Y: y coordinates of vertices
+    This function assumes that the first R coordinates are OSSs
+    X: x coordinates of nodes
+    Y: y coordinates of nodes
     R: number of OSSs
     '''
     assert len(X) == len(Y), 'ERROR: X and Y lengths must match'
@@ -108,7 +108,6 @@ def G_from_XYM(X, Y, R=1, name='unnamed', borderC=None):
                       for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-R, 0)))
-    make_graph_metrics(G)
     return G
 
 
