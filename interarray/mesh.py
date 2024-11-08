@@ -385,12 +385,12 @@ def make_planar_embedding(
                                       + border_poly.border.vertices)
     hull_poly = Polygon(border=Contour(hull))
 
-    border_vertice_from_point = {
+    border_vertex_from_point = {
             point: i for i, point in enumerate(points[T:-R], start=T)}
 
-    hull_border_vertices = [border_vertice_from_point[hullpt]
+    hull_border_vertices = [border_vertex_from_point[hullpt]
                             for hullpt in hull
-                            if hullpt in border_vertice_from_point]
+                            if hullpt in border_vertex_from_point]
 
     # Turn the main border's concave zones into exclusion polygons.
     hull_minus_border = hull_poly - border_poly
@@ -433,14 +433,14 @@ def make_planar_embedding(
         conc_points = []
         vertices = concavity.vertices
         rev = vertices[-1]
-        X = border_vertice_from_point[rev]
+        X = border_vertex_from_point[rev]
         X_is_hull = X in hull_border_vertices
         cur = vertices[0]
-        Y = border_vertice_from_point[cur]
+        Y = border_vertex_from_point[cur]
         Y_is_hull = Y in hull_border_vertices
         # X->Y->Z is in ccw direction
         for fwd in chain(vertices[1:], (cur,)):
-            Z = border_vertice_from_point[fwd]
+            Z = border_vertex_from_point[fwd]
             Z_is_hull = fwd in hull_poly.border.vertices
             if cur in points[:T] or cur in points[-R:]:
                 # Concavity border vertex coincides with node.
@@ -487,7 +487,7 @@ def make_planar_embedding(
                 stunt_coords.append(stunt_coord)
                 conc_points.append(stunt_point)
                 remove_from_border_pt_map.add(cur)
-                border_vertice_from_point[stunt_point] = T + B
+                border_vertex_from_point[stunt_point] = T + B
                 B += 1
                 changed = True
             else:
@@ -508,21 +508,21 @@ def make_planar_embedding(
               [len(nc) for nc in stuntC], B_old, B)
 
     for pt in remove_from_border_pt_map:
-        del border_vertice_from_point[pt]
+        del border_vertex_from_point[pt]
 
     # #############################################
     # B.2) Create a miriad of indices and mappings.
     # #############################################
     debug('PART B.2')
 
-    vertice_from_point = (
-        border_vertice_from_point
+    vertex_from_point = (
+        border_vertex_from_point
         | {point: i for i, point in enumerate(points[:T])}
         | {point: i for i, point in zip(range(-R, 0), points[-R:])}
     )
 
     if roots_outside:
-        border = [vertice_from_point[pt] for pt in hull]
+        border = [vertex_from_point[pt] for pt in hull]
 
     if exclusions is not None:
         exclusionsMPoly = Multipolygon(
@@ -534,25 +534,25 @@ def make_planar_embedding(
 
     # create the PythonCDT vertices
     verticesCDT = []
-    verticeCDT_from_point = {}
-    vertice_from_verticeCDT = np.empty((3 + T + R + len(points_used),),
+    vertexCDT_from_point = {}
+    vertex_from_vertexCDT = np.empty((3 + T + R + len(points_used),),
                                        dtype=int)
     # account for the supertriangle vertices that cdt.Triangulation() adds
     supertriangle = tuple(range(T + B, T + B + 3))
-    vertice_from_verticeCDT[:3] = supertriangle
+    vertex_from_vertexCDT[:3] = supertriangle
     for i, pt in enumerate(chain(points[:T], points[-R:], points_used)):
         verticesCDT.append(cdt.V2d(pt.x, pt.y))
         # this one is used before supertriangle (no + 3)
-        verticeCDT_from_point[pt] = i
+        vertexCDT_from_point[pt] = i
         # this one is used after supertriangle (hence, + 3)
-        vertice_from_verticeCDT[i + 3] = vertice_from_point[pt]
+        vertex_from_vertexCDT[i + 3] = vertex_from_point[pt]
 
     # Bundle concavities that share a common point.
     if len(concavities) > 1:
         # multiple concavities -> join concavities with a common vertex
         stack = [(set(conc.vertices), conc.vertices) for conc in concavities]
         # concavityVertexSeqs uses the unjoined concavity polygons' vertices
-        concavityVertexSeqs = [tuple(vertice_from_point[p] for p in points)
+        concavityVertexSeqs = [tuple(vertex_from_point[p] for p in points)
                                for _, points in stack]
         ready = []
         while stack:
@@ -574,12 +574,12 @@ def make_planar_embedding(
                 ready.append(reflst)
         concavities = [Contour(vertex_list) for vertex_list in ready]
     elif len(concavities) == 1:
-        concavityVertexSeqs = [tuple(vertice_from_point[v]
+        concavityVertexSeqs = [tuple(vertex_from_point[v]
                                      for v in concavities[0].vertices)]
     else:
         concavityVertexSeqs = []
 
-    vertex2conc_id_map = {vertice_from_point[p]: i
+    vertex2conc_id_map = {vertex_from_point[p]: i
                           for i, conc in enumerate(concavities)
                           for p in conc.vertices}
 
@@ -592,7 +592,7 @@ def make_planar_embedding(
                              cdt.IntersectingConstraintEdges.NOT_ALLOWED, 0.0)
     mesh.insert_vertices(verticesCDT[:T + R])
 
-    P_A = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
+    P_A = planar_from_cdt_triangles(mesh.triangles, vertex_from_vertexCDT)
 
     # ##############################################################
     # D) Build the available-edges graph A and its planar embedding.
@@ -723,11 +723,11 @@ def make_planar_embedding(
     edgesCDT = []
     for concavity in concavities:
         for seg in concavity.segments:
-            s, t = vertice_from_point[seg.start], vertice_from_point[seg.end]
+            s, t = vertex_from_point[seg.start], vertex_from_point[seg.end]
             st = (s, t) if s < t else (t, s)
             constraint_edges.add(st)
-            edgesCDT.append(cdt.Edge(verticeCDT_from_point[seg.start],
-                                     verticeCDT_from_point[seg.end]))
+            edgesCDT.append(cdt.Edge(vertexCDT_from_point[seg.start],
+                                     vertexCDT_from_point[seg.end]))
     # TODO: add exclusion zones
 
     mesh.insert_vertices(verticesCDT[T + R:])
@@ -768,7 +768,7 @@ def make_planar_embedding(
     # F) Build the planar embedding of the constrained triangulation.
     # ###############################################################
     debug('PART F')
-    P = planar_from_cdt_triangles(mesh.triangles, vertice_from_verticeCDT)
+    P = planar_from_cdt_triangles(mesh.triangles, vertex_from_vertexCDT)
 
     for conc in concavityVertexSeqs:
         for rev, cur, fwd in zip(chain((conc[-1],), conc[:-1]),
@@ -877,9 +877,9 @@ def make_planar_embedding(
                        path[-2:0:-1].copy())
             i = 0
             while i <= len(path) - 3:
-                # Check if each vertice at the border is necessary.
-                # The vertice is kept if the border angle and the path angle
-                # point to the same side. Otherwise, remove the vertice.
+                # Check if each vertex at the border is necessary.
+                # The vertex is kept if the border angle and the path angle
+                # point to the same side. Otherwise, remove the vertex.
                 s, b, t = path[i:i + 3]
                 # skip to shortcut if b is a neighbor of the supertriangle
                 if all(n not in P[b] for n in supertriangle):
