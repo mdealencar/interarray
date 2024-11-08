@@ -673,27 +673,23 @@ def make_planar_embedding(
             hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
-                edge_seg = Segment(points[u], points[v])
-                edge_to_border = segment_in_region(edge_seg, border_cont)
-                if (edge_to_border is Relation.CROSS
-                        or edge_to_border is Relation.TOUCH):
-                    t = P_A[u][v]['ccw']
-                    if t == u:
-                        # degenerate case 1
-                        hull_concave.append(v)
-                        t, v, u = v, u, t
-                        continue
-                    if t in hull_prunned:
-                        # degenerate case 2
-                        hull_concave.append(t)
-                        u = t
-                        continue
-                    hull_stack.append(v)
-                    v = t
-                else:
-                    hull_concave.append(v)
-                    u = v
-                    v = hull_stack.pop()
+               edge_seg = Segment(points[u], points[v])
+               edge_to_border = segment_in_region(edge_seg, border_cont)
+               if (edge_to_border is Relation.CROSS
+                       or edge_to_border is Relation.TOUCH):
+                   t = P_A[u][v]['ccw']
+                   if t == u:
+                       # degenerate case 1
+                       hull_concave.append(v)
+                       t, v, u = v, u, t
+                   else:
+                       # do not update hull_concave yet
+                       hull_stack.append(v)
+                       v = t
+               else:
+                   hull_concave.append(v)
+                   u = v
+                   v = hull_stack.pop()
     if not hull_concave:
         hull_concave = hull_prunned
     info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
