@@ -48,26 +48,27 @@ def normalize_site_single_oss(G: nx.Graph)\
     '''
     DEPRECATED: use interarraylib's `as_normalized()` and `as_single_oss()`
 
-    Calculate the area and scale the boundary so that it has area 1.
-    The boundary and OSS are translated to the 1st quadrant, near the origin.
+    Calculate the area and scale the border so that it has area 1.
+    The border and OSS are translated to the 1st quadrant, near the origin.
 
     IF SITE HAS MULTIPLE OSSs, ONLY 1 IS RETURNED (mean of the OSSs' coords).
     '''
     VertexC = G.graph['VertexC']
-    BoundaryC = VertexC[G.graph['border']]
-    bound_poly = shp.Polygon(BoundaryC)
+    BorderC = VertexC[G.graph['border']]
+    bound_poly = shp.Polygon(BorderC)
     corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
                                  for A, B in ((0, 2), (2, 4)))
     R = G.graph['R']
     factor = 1/np.sqrt(bound_poly.area)
-    BoundaryC -= corner_lo
-    BoundaryC *= factor
+    BorderC -= corner_lo
+    BorderC *= factor
     oss = ((VertexC[-R:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
-    return factor, corner_lo, BoundaryC, oss, (corner_hi - corner_lo)*factor
+    return factor, corner_lo, BorderC, oss, (corner_hi - corner_lo)*factor
 
 
 def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
                          landscape_angle=0):
+    # TODO: bring this to CDT era
     T = WTpos.shape[0]
     if oss is not None:
         R = oss.shape[0]
@@ -90,23 +91,28 @@ def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
 
 
 @nb.njit(cache=True, inline='always')
-def clears(repellers: nb.float64[:, :], clearance_sq: np.float64,
+def _clears(RepellerC: nb.float64[:, :], repel_radius_sq: float,
            point: nb.float64[:]) -> bool:
+    '''Check there is at least sqrt(repel_radius_sq) separating `point` (2,)
+    and each `RepellerC` (K, 2).
+
+    Returns:
+        True if `point` clears all `RepellerC`.
     '''
-    Evaluate if `point` (2,) is more that sqrt(clearance_sq) away from all
-    `repellers` (K×2).
-    Return boolean.
-    '''
-    return (((point[np.newaxis, :] - repellers)**2).sum(axis=1)
-            >= clearance_sq).all()
+    return (((point[np.newaxis, :] - RepellerC)**2).sum(axis=1)
+            >= repel_radius_sq).all()
 
 
-def contains_np(polygon: nb.float64[:, :],
-                pts: nb.float64[:, :]) -> nb.bool_[:]:
-    '''
-    Evaluate if 2D points in `pts` (T×2) are inside `polygon` (K×2, CCW vertex
-    order).
-    Return 1D boolean array (True if pts[i] inside `polygon`).
+def _contains_np(polygon: nb.float64[:, :],
+                 pts: nb.float64[:, :]) -> nb.bool_[:]:
+    '''Evaluate if `polygon` (K, 2) covers points in `pts` (T, 2).
+
+    Args:
+        polygon: coordinates of vertices (K, 2).
+        pts: coordinates of points to test (T, 2).
+
+    Returns:
+        boolean array shaped (T,) (True if pts[i] inside `polygon`).
     '''
     polygon_rolled = np.roll(polygon, -1, axis=0)
     vectors = polygon_rolled - polygon
@@ -125,11 +131,15 @@ def contains_np(polygon: nb.float64[:, :],
 
 
 @nb.njit(cache=True)
-def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
-    '''
-    Evaluate if `point` (2,) is inside `polygon` (K×2, CCW vertex
-    order).
-    Return boolean.
+def _contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
+    '''Evaluate if `polygon` (K, 2) covers `point` (2,).
+
+    Args:
+        polygon: coordinates of vertices (K, 2).
+        point: coordinates of point to test (2,).
+
+    Returns:
+        True if `point` inside `polygon`, False otherwise
     '''
     intersections = 0
     dx2, dy2 = point - polygon[-1]
@@ -150,33 +160,36 @@ def contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
     return intersections != 0
 
 
-def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
-                        repellers: nb.optional(nb.float64[:, :]) = None,
-                        clearance: float = 0, exclude=None, seed=None,
+def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
+                        RepellerC: nb.optional(nb.float64[:, :]) = None,
+                        repel_radius: float = 0., exclusion=None, seed=None,
                         iter_max_factor: int = 50, plot: bool = False,
                         partial_fulfilment: bool = True) -> nb.float64[:, :]:
     '''
-    Fills the area delimited by `boundary` with `T` randomly
+    Fills the area delimited by `BorderC` with `T` randomly
     placed points that are at least `min_dist` apart and that
-    don't fall inside any of the `repellers` discs or `exclude` areas.
-    :param T:
-    :param min_dist:
-    :param boundary: iterable (B × 2) with CCW-ordered vertices of a polygon
-    :param repellers: iterable (R × 2) with the centers of forbidden discs
-    :param clearance: the radius of the forbidden discs
-    :param exclude: iterable (E × X × 2)
-    :param iter_max_factor: factor to multiply by `T` to limit the number of
-                            iterations
-    :param partial_fulfilment: whether to return less than `T` points (True) or
-                               to raise exception (False) if unable to fulfill
-                               request.
-    :return numpy array shaped (T, 2) with points' positions
+    don't fall inside any of the `RepellerC` discs or `exclusion` areas.
+
+    Args:
+        T: number of points to place.
+        min_dist: minimum distance between place points.
+        BorderC: coordinates (B × 2) of border polygon.
+        RepellerC: coordinates (R × 2) of the centers of forbidden discs.
+        repel_radius: the radius of the forbidden discs.
+        exclusion: iterable (E × X × 2).
+        iter_max_factor: factor to multiply by `T` to limit the number of
+            iterations.
+        partial_fulfilment: whether to return less than `T` points (True) or
+            to raise exception (False) if unable to fulfill request.
+    
+    Returns:
+        coordinates (T, 2) of placed points
     '''
     # TODO: implement exclusion zones
-    if exclude is not None:
+    if exclusion is not None:
         raise NotImplementedError
 
-    bound_poly = shp.Polygon(boundary)
+    bound_poly = shp.Polygon(BorderC)
     area_avail = bound_poly.area
     corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
                                  for A, B in ((0, 2), (2, 4)))
@@ -198,19 +211,20 @@ def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
         else:
             raise ValueError(msg)
 
-    # create auxiliary grid covering the defined boundary
+    # create auxiliary grid covering the defined BorderC
     cell_size = min_dist/np.sqrt(2)
     i_len, j_len = np.ceil(
         (corner_hi - corner_lo)/cell_size
     ).astype(np.int_)
-    boundary_scaled = (boundary - corner_lo)/cell_size
-    if repellers is None:
+    BorderGrid = (BorderC - corner_lo)/cell_size
+    if RepellerC is None:
         repellers_scaled = None
-        clearance_sq = 0.
+        repel_radius_sq = 0.
     else:
-        repellers_scaled = (repellers - corner_lo)/cell_size
-        clearance_sq = (clearance/cell_size)**2
+        repellers_scaled = (RepellerC - corner_lo)/cell_size
+        repel_radius_sq = (repel_radius/cell_size)**2
 
+    #  return None
     # Alternate implementation using np.mgrid
     #  pts = np.reshape(
     #      np.moveaxis(np.mgrid[0: i_len + 1, 0: j_len + 1], 0, -1),
@@ -220,7 +234,7 @@ def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
     pts_temp = pts.reshape((i_len + 1, j_len + 1, 2))
     pts_temp[..., 0] = np.arange(i_len + 1)[:, np.newaxis]
     pts_temp[..., 1] = np.arange(j_len + 1)[np.newaxis, :]
-    inside = contains_np(boundary_scaled, pts).reshape((i_len + 1, j_len + 1))
+    inside = _contains_np(BorderGrid, pts).reshape((i_len + 1, j_len + 1))
 
     # reduce 2×2 sub-matrices of `inside` with logical_or (i.e. .any())
     cell_covers_polygon = np.lib.stride_tricks.as_strided(
@@ -229,10 +243,10 @@ def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
     ).any(axis=(0, 1))
 
     # check boundary's vertices
-    for k, (i, j) in enumerate(boundary_scaled.astype(int)):
+    for k, (i, j) in enumerate(BorderGrid.astype(int)):
         if not cell_covers_polygon[i, j]:
-            ij = boundary_scaled[k].copy()
-            direction = boundary_scaled[k - 1] - ij
+            ij = BorderGrid[k].copy()
+            direction = BorderGrid[k - 1] - ij
             direction /= np.linalg.norm(direction)
             to_mark = [(i, j)]
             while True:
@@ -261,15 +275,15 @@ def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
                   extent=[0, cell_covers_polygon.shape[0],
                           0, cell_covers_polygon.shape[1]])
         ax.scatter(*np.nonzero(inside), marker='.')
-        ax.scatter(*boundary_scaled.T, marker='x')
-        ax.plot(*np.vstack((boundary_scaled, boundary_scaled[:1])).T)
+        ax.scatter(*BorderGrid.T, marker='x')
+        ax.plot(*np.vstack((BorderGrid, BorderGrid[:1])).T)
         ax.xaxis.set_major_locator(MultipleLocator(1))
         ax.yaxis.set_major_locator(MultipleLocator(1))
         ax.grid()
 
     # point-placing function
-    points = wrapped_poisson_disc_filler(
-        T, iter_max, i_len, j_len, cell_idc, boundary_scaled, clearance_sq,
+    points = _poisson_disc_filler_core(
+        T, iter_max, i_len, j_len, cell_idc, BorderGrid, repel_radius_sq,
         repellers_scaled, rng)
 
     # check if request was fulfilled
@@ -283,12 +297,12 @@ def poisson_disc_filler(T: int, min_dist: float, boundary: nb.float64[:, :],
 
 
 @nb.njit(cache=True)
-def wrapped_poisson_disc_filler(
+def _poisson_disc_filler_core(
         T: int, iter_max: int, i_len: int, j_len: int,
-        cell_idc: nb.int64[:, :], boundary_scaled: nb.float64[:, :],
-        clearance_sq: float, repellers_scaled: nb.optional(nb.float64[:, :]),
+        cell_idc: nb.int64[:, :], BorderGrid: nb.float64[:, :],
+        repel_radius_sq: float, repellers_scaled: nb.optional(nb.float64[:, :]),
         rng: np.random.Generator) -> nb.float64[:, :]:
-    '''See `poisson_disc_filler()`.'''
+    '''This is the numba-compilable core called by `poisson_disc_filler()`.'''
     # [Poisson-Disc Sampling](https://www.jasondavies.com/poisson-disc/)
 
     # mask for the 20 neighbors
@@ -336,11 +350,11 @@ def wrapped_poisson_disc_filler(
         # dart throw inside cell
         dartC = ij + rng.random(2)
 
-        # check boundary, overlap and clearance
-        if contains(boundary_scaled, dartC):
+        # check border, overlap and repel_radius
+        if _contains(BorderGrid, dartC):
             if no_conflict(i, j, dartC):
                 if repellers_scaled is not None:
-                    if not clears(repellers_scaled, clearance_sq, dartC):
+                    if not _clears(repellers_scaled, repel_radius_sq, dartC):
                         continue
                 # add new point and remove cell from empty list
                 points[out_count] = dartC
