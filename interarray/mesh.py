@@ -522,7 +522,7 @@ def make_planar_embedding(
     )
 
     if roots_outside:
-        border = [vertex_from_point[pt] for pt in hull]
+        border = np.array([vertex_from_point[pt] for pt in hull], dtype=int)
 
     if exclusions is not None:
         exclusionsMPoly = Multipolygon(
