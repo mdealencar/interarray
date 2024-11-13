@@ -166,20 +166,20 @@ def L_from_site(*, VertexC: np.ndarray, T: int, R: int, **kwargs) -> nx.Graph:
         available as graph attributes.
     '''
     if 'handle' not in kwargs:
-        kwargs['handle'] = 'G_from_site'
+        kwargs['handle'] = 'L_from_site'
     if 'name' not in kwargs:
         kwargs['name'] = kwargs['handle']
     if 'B' not in kwargs:
         kwargs['B'] = 0
-    G = nx.Graph(T=T, R=R,
+    L = nx.Graph(T=T, R=R,
                  VertexC=VertexC,
                  **kwargs)
 
-    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
+    L.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(T)))
-    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
+    L.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-R, 0)))
-    return G
+    return L
 
 
 def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
