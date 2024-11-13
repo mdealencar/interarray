@@ -128,8 +128,9 @@ def packnodes(G: nx.Graph) -> PackType:
         T=T, R=R, B=B,
         name=name,
         VertexC=VertexCpkl,
-        constraint_groups=[len(p) for p in constraint_vertices],
-        constraint_vertices=sum(constraint_vertices, []),
+        constraint_groups=[p.shape[0] for p in constraint_vertices],
+        constraint_vertices=np.concatenate(constraint_vertices,
+                                           dtype=int, casting='unsafe'),
         landscape_angle=G.graph.get('landscape_angle', 0.),
         digest=digest,
     )
