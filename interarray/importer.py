@@ -199,6 +199,7 @@ def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
             VertexC=VertexC,
             border=np.arange(T, T + B),
             name=name,
+            handle=handle,
             )
     if plant_name is not None:
         L.graph['OSM_name'] = plant_name
