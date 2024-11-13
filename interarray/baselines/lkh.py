@@ -186,6 +186,7 @@ def lkh_acvrp(A: nx.Graph, *, capacity: int, time_limit: int,
     S = nx.Graph(
         creator='baselines.lkh',
         T=T, R=R,
+        handle=A.graph['handle'],
         has_loads=True,
         capacity=capacity,
         objective=float(minimum)/scale,

@@ -101,6 +101,7 @@ def hgs_cvrp(A: nx.Graph, *, capacity: float, time_limit: float,
     # create a topology graph S from the results
     S = nx.Graph(
         T=T, R=R,
+        handle=A.graph['handle'],
         capacity=capacity,
         has_loads=True,
         objective=result.cost,
