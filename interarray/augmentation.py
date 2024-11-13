@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-from typing import Callable
+import math
+from typing import Callable, Literal
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from .utils import NodeTagger
 
-import shapely as shp
 import numpy as np
 import numba as nb
 import networkx as nx
@@ -43,27 +43,53 @@ def iCDF_factory(T_min: int, T_max: int, η: float, d_lb: float)\
     return iCDF
 
 
-def normalize_site_single_oss(G: nx.Graph)\
-        -> tuple[float, np.ndarray, np.ndarray, np.ndarray]:
-    '''
-    DEPRECATED: use interarraylib's `as_normalized()` and `as_single_oss()`
+COLS = Literal[2]
 
+
+def get_border_scale_offset(
+        BorderC: np.ndarray[tuple[int, COLS], np.dtype[np.float64]]
+        ) -> tuple[np.ndarray[tuple[COLS], np.dtype[np.float64]],
+                   float,
+                   np.ndarray[tuple[COLS], np.dtype[np.float64]]]:
+    offsetC = BorderC.min(axis=0)
+    width_height = BorderC.max(axis=0) - offsetC
+    BorderX, BorderY = (BorderC - offsetC).T
+    # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
+    # Then take the sqrt() and invert for the linear factor such that area=1.
+    # assuming BorderC is in clockwise order (hence the minus sign: -0.5)
+    norm_scale = 1./math.sqrt(0.5*abs(
+        BorderX[-1]*BorderY[0] - BorderY[-1]*BorderX[0]
+        + np.dot(BorderX[:-1], BorderY[1:])
+        - np.dot(BorderY[:-1], BorderX[1:])))
+    return offsetC, norm_scale, width_height
+
+
+def normalize_site_single_oss(L: nx.Graph)\
+        -> tuple[np.ndarray[tuple[int, COLS], np.dtype[np.float64]],
+                 np.ndarray[tuple[COLS], np.dtype[np.float64]]]:
+    '''
     Calculate the area and scale the border so that it has area 1.
     The border and OSS are translated to the 1st quadrant, near the origin.
 
     IF SITE HAS MULTIPLE OSSs, ONLY 1 IS RETURNED (mean of the OSSs' coords).
     '''
-    VertexC = G.graph['VertexC']
-    BorderC = VertexC[G.graph['border']]
-    bound_poly = shp.Polygon(BorderC)
-    corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
-                                 for A, B in ((0, 2), (2, 4)))
-    R = G.graph['R']
-    factor = 1/np.sqrt(bound_poly.area)
-    BorderC -= corner_lo
-    BorderC *= factor
-    oss = ((VertexC[-R:].mean(axis=0) - corner_lo)*factor)[np.newaxis, :]
-    return factor, corner_lo, BorderC, oss, (corner_hi - corner_lo)*factor
+    R = L.graph['R']
+    #  T = L.graph['T']
+    VertexC = L.graph['VertexC']
+    BorderC = VertexC[L.graph['border']].copy()
+    offsetC, norm_scale, _ = get_border_scale_offset(BorderC)
+    # deal with multiple roots
+    if R > 1:
+        RootC = ((VertexC[-R:].mean(axis=0) - offsetC)*norm_scale)[np.newaxis, :]
+        L.graph['R'] = 1
+    else:
+        RootC = (VertexC[-1:] - offsetC)*norm_scale
+    BorderC -= offsetC
+    BorderC *= norm_scale
+    #  L.graph['border'] = np.arange(BorderC.shape[0])
+    #  L.graph['VertexC'] = np.vstack((BorderC, RootC))
+    #  L.remove_nodes_from(range(T))
+    return BorderC, RootC
 
 
 def build_instance_graph(WTpos, boundary, name='', handle='unnamed', oss=None,
@@ -189,10 +215,8 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
     if exclusion is not None:
         raise NotImplementedError
 
-    bound_poly = shp.Polygon(BorderC)
-    area_avail = bound_poly.area
-    corner_lo, corner_hi = tuple(np.array(bound_poly.bounds[A:B])
-                                 for A, B in ((0, 2), (2, 4)))
+    offsetC, norm_factor, width_height = get_border_scale_offset(BorderC)
+    area_avail = 1./norm_factor
 
     # quick check for outrageous densities
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
@@ -214,14 +238,14 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
     # create auxiliary grid covering the defined BorderC
     cell_size = min_dist/np.sqrt(2)
     i_len, j_len = np.ceil(
-        (corner_hi - corner_lo)/cell_size
+        width_height/cell_size
     ).astype(np.int_)
-    BorderGrid = (BorderC - corner_lo)/cell_size
+    BorderGrid = (BorderC - offsetC)/cell_size
     if RepellerC is None:
         repellers_scaled = None
         repel_radius_sq = 0.
     else:
-        repellers_scaled = (RepellerC - corner_lo)/cell_size
+        repellers_scaled = (RepellerC - offsetC)/cell_size
         repel_radius_sq = (repel_radius/cell_size)**2
 
     #  return None
@@ -293,7 +317,7 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
                f'efficiency limit: {efficiency_optimal:.3f})')
         print('WARNING:', msg)
 
-    return points*cell_size + corner_lo
+    return points*cell_size + offsetC
 
 
 @nb.njit(cache=True)
