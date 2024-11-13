@@ -251,7 +251,7 @@ _site_handles_yaml = dict(
 )
 
 _site_handles_pbf = dict(
-    amalia='Pricess Amalia',
+    amalia='Princess Amalia',
     amrumbank='Amrumbank West',
     arkona='Arkona',
     baltic2='Baltic 2',
