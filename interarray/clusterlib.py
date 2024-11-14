@@ -118,63 +118,35 @@ def cplex_load_solution_from_pool(solver, soln):
             pyomo_var.set_value(val, skip_validation=True)
 
 
-def cplex_investigate_pool(A, G, m, solver, info2store):
+def cplex_investigate_pool(P, A, m, solver, status):
     '''Go through the CPLEX solutions checking which has the shortest length
     after applying the detours with PathFinder.'''
-    # process the best layout first
-    H = try_pathfinding_with_exc_handling(info2store, solver, G)
-    H_incumbent = H
-    L_incumbent = H.size(weight='length')
-    print(f'First incumbent has length: {L_incumbent:.3f}')
-    # now check the additional layouts
     cplex = solver._solver_model
-    # G was generated with the first solution in the sorted Pool: skip it
-    Pool = sorted((cplex.solution.pool.get_objective_value(i), i)
-                  for i in range(cplex.solution.pool.get_num()))[1:]
-    print(f'Solution pool has {len(Pool)} solutions')
-    for L_pool, soln in Pool:
-        if L_incumbent < L_pool:
-            print('Finished analyzing solution pool.')
-            break
-        cplex_load_solution_from_pool(solver, soln)
+    # initialize incumbent total length
+    Λ = float('inf')
+    print(f'Solution pool has {cplex.solution.pool.get_num()} solutions.')
+    Pool = iter(sorted((cplex.solution.pool.get_objective_value(i), i)
+                       for i in range(cplex.solution.pool.get_num()))[1:])
+    # m comes loaded with minimal-length undetoured solution
+    while True:
         S = omo.S_from_solution(m, solver=solver, status=status)
         G = G_from_S(S, A)
-        H = try_pathfinding_with_exc_handling(info2store, solver, G)
-        L_contender = H.size(weight='length')
-        if L_contender < L_incumbent:
-            L_incumbent = L_contender
-            H_incumbent = H
-            print(f'New incumbent found with length: {L_incumbent:.3f}')
-    return H_incumbent
-
-
-def cplex_investigate_pool_inplace(A, G, m, solver, info2store):
-    '''Go through the CPLEX solutions checking which has the shortest length
-    after applying the detours with PathFinder.'''
-    # process the best layout first
-    try_pathfinding_with_exc_handling(info2store, solver, G, in_place=True)
-    G_incumbent = G
-    L_incumbent = G.size(weight='length')
-    print(f'First incumbent has length: {L_incumbent:.0f}')
-    # now check the additional layouts
-    cplex = solver._solver_model
-    # G was generated with the first solution in the sorted Pool: skip it
-    Pool = sorted((cplex.solution.pool.get_objective_value(i), i)
-                  for i in range(cplex.solution.pool.get_num()))[1:]
-    print(f'Solution pool has {len(Pool)} solutions')
-    for L_pool, soln in Pool:
-        if L_incumbent < L_pool:
-            print('Finished analyzing solution pool.')
+        Hʹ = PathFinder(G, planar=P, A=A).create_detours()
+        Λʹ = Hʹ.size(weight='length')
+        if Λʹ < Λ:
+            H, Λ = Hʹ, Λʹ
+            print(f'Incumbent has (detoured) length: {Λ:.3f}')
+        # check if next best solution is worth processing
+        try:
+            λ, soln = next(Pool)
+        except StopIteration:
+            print('Pool exhausted.')
+            break
+        if λ > Λ:
+            print(f'Done with pool - next best undetoured length: {λ:.3f}')
             break
         cplex_load_solution_from_pool(solver, soln)
-        G = cplex_MILP_solution_to_G(m, solver=solver, A=A)
-        try_pathfinding_with_exc_handling(info2store, solver, G, in_place=True)
-        L_contender = G.size(weight='length')
-        if L_contender < L_incumbent:
-            L_incumbent = L_contender
-            G_incumbent = G
-            print(f'New incumbent found with length: {L_incumbent:.3f}')
-    return G_incumbent
+    return H
 
 
 def try_pathfinding_with_exc_handling(info2store, solver, G, in_place=False):
