@@ -43,7 +43,7 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
     T = nodeset.T
     R = nodeset.R
     B, *exclusion_groups = nodeset.constraint_groups
-    border = nodeset.constraint_vertices[:B]
+    border = np.array(nodeset.constraint_vertices[:B])
     L = nx.Graph(
          R=R, T=T, B=B,
          name=nodeset.name,
