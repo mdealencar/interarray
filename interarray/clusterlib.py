@@ -20,7 +20,7 @@ from typing import Callable
 from .new_dbmodel import open_database
 from .new_storage import packmethod, packnodes
 from .pathfinding import PathFinder
-import .MILP.pyomo as omo
+from .MILP import pyomo as omo
 from .interarraylib import G_from_S, fun_fingerprint
 from .geometric import make_graph_metrics
 
