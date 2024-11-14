@@ -362,10 +362,11 @@ class CondaJob:
                         f'{mem_per_core*cores/1000:.1f} GB, time limit: '
                         f'{time_limit})')
 
-    def run(self, quiet=False):
-        subprocess.run(['bsub'], input=self.jobscript.encode())
+    def run(self, quiet: bool = False) -> int:
+        status = subprocess.run(['bsub'], input=self.jobscript.encode())
         if not quiet:
             print(self.summary)
+        return status.returncode
 
     def print(self):
         print(self.jobscript)
