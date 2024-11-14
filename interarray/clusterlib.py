@@ -14,12 +14,14 @@ from textwrap import dedent
 import dill
 from pony.orm import db_session
 import numpy as np
+from multiprocess import JoinableQueue, Queue
+from typing import Callable
 
 from .new_dbmodel import open_database
 from .new_storage import packmethod, packnodes
 from .pathfinding import PathFinder
-from .MILP.pyomo import MILP_solution_to_G as cplex_MILP_solution_to_G
-from .interarraylib import fun_fingerprint
+import .MILP.pyomo as omo
+from .interarraylib import G_from_S, fun_fingerprint
 from .geometric import make_graph_metrics
 
 
@@ -135,7 +137,8 @@ def cplex_investigate_pool(A, G, m, solver, info2store):
             print('Finished analyzing solution pool.')
             break
         cplex_load_solution_from_pool(solver, soln)
-        G = cplex_MILP_solution_to_G(m, solver=solver, A=A)
+        S = omo.S_from_solution(m, solver=solver, status=status)
+        G = G_from_S(S, A)
         H = try_pathfinding_with_exc_handling(info2store, solver, G)
         L_contender = H.size(weight='length')
         if L_contender < L_incumbent:
@@ -366,3 +369,36 @@ class CondaJob:
 
     def print(self):
         print(self.jobscript)
+
+
+def generic_processor(method: Callable, q_job: JoinableQueue, q_out: Queue) -> None:
+    '''Enters an infinite loop doing: q_out.put(method(q_job.get())).
+
+    Args:
+        method: function to process jobs
+        q_job: jobs queue
+        q_out: outputs queue
+
+    Returns:
+        None
+    '''
+    while True:
+        job_id, *job_args = q_job.get()
+        if not job_args:
+            print(f'[{job_id}] Got one empty job! -> empty output created')
+            q_job.task_done()
+            q_out.put((False, job_id))
+            continue
+        args, kwargs = job_args
+        try:
+            output = True, job_id, method(*args, **kwargs)
+        except Exception as exc:
+            print(f'[{job_id}] Exception raised! '
+                  f'args = {args} | kwargs = {kwargs}')
+            output = False, job_id
+        finally:
+            q_job.task_done()
+        q_out.put(output)
+
+
+
