@@ -326,7 +326,7 @@ class CondaJob:
             ## RAM per core/slot
             #BSUB -R "rusage[mem={round(mem_per_core)}MB]"
             ## job termination threshold: RAM per core/slot (Resident set size)
-            #BSUB -R {math.ceil(max_mem)}MB
+            #BSUB -M {math.ceil(max_mem)}MB
             ## job termination threshold: execution time (hh:mm)
             #BSUB -W {hours:02}:{minutes:02}
             ## stdout
@@ -352,20 +352,20 @@ class CondaJob:
                 ## email
                 #BSUB -u {email}
                 ## notify on end
-                #BSUB -T
+                #BSUB -N
                 ''')
         self.jobscript += ' '.join(
             [os.environ['CONDA_EXE'], 'run', '--no-capture-output',
              '-n', conda_env]
             + cmdlist)
-        self.summary = (f'submitted: {jobname} (# of cores: {cores}, memory: '
+        self.summary = (f'{jobname} (# of cores: {cores}, memory: '
                         f'{mem_per_core*cores/1000:.1f} GB, time limit: '
                         f'{time_limit})')
 
     def run(self, quiet: bool = False) -> int:
-        status = subprocess.run(['bsub'], input=self.jobscript.encode())
         if not quiet:
-            print(self.summary)
+            print('Submitting job:', self.summary)
+        status = subprocess.run(['bsub'], input=self.jobscript.encode())
         return status.returncode
 
     def print(self):
