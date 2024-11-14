@@ -320,7 +320,10 @@ def store_G(G: nx.Graph, db: orm.Database) -> int:
             method=db.Method[methodID],
             machine=db.Machine[machineID],
         )
-        return db.RouteSet(**packed_G).get_pk()
+        rs = db.RouteSet(**packed_G)
+        db.flush()
+        id = rs.id
+    return id
 
 
 def get_machine_pk(db: orm.Database) -> int:
