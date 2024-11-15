@@ -195,7 +195,7 @@ def try_pathfinding_with_exc_handling(info2store, solver, G, in_place=False):
 
 
 def memory_usage_model_MB(T, solver_name):
-    mem = 500*T + 0.8*T**2
+    mem = 15000 + 1300*T + 2*T**2
     if solver_name == 'cplex':
         return round(mem)
     elif solver_name == 'beta':
