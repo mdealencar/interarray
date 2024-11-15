@@ -195,7 +195,7 @@ def try_pathfinding_with_exc_handling(info2store, solver, G, in_place=False):
 
 
 def memory_usage_model_MB(T, solver_name):
-    mem = 15000 + 1300*T + 2*T**2
+    mem = 50000 + 2300*T
     if solver_name == 'cplex':
         return round(mem)
     elif solver_name == 'beta':
@@ -245,7 +245,7 @@ solvers_options['cplex'] = dict(
         _name='cplex',
         solver_io='python',),
     # threshold for switching node storage strategy
-    workmem=50000,  # in MB
+    workmem=100000,  # in MB
     # node storage file switch (activates when workmem is exceeded):
     #   0) in-memory
     #   1) (the default) fast compression algorithm in-memory
@@ -255,7 +255,7 @@ solvers_options['cplex'] = dict(
     # tree memory limit:
     #   limit the size of the tree so that it does not exceed available disk
     #   space, when you choose settings 2 or 3 in the node storage file switch
-    mip_limits_treememory=90000,  # in MB
+    mip_limits_treememory=150000,  # in MB
     # directory for working files (if ommited, uses $TMPDIR)
     #  workdir='/tmp',
     workdir=(os.environ.get('TMPDIR')
@@ -265,9 +265,6 @@ solvers_options['cplex'] = dict(
 solvers_options['beta'] = solvers_options['cplex']
 # Google OR-Tools CP-SAT
 solvers_options['ortools'] = {}
-
-# transitional binding (TODO: remove this)
-solver_options = solvers_options
 
 
 class CondaJob:
