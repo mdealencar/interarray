@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
+import io
 import json
-import pickle
 from collections.abc import Sequence
 from functools import partial
 from itertools import pairwise, chain
@@ -48,7 +48,7 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
          R=R, T=T, B=B,
          name=nodeset.name,
          border=border,
-         VertexC=pickle.loads(nodeset.VertexC),
+         VertexC=np.lib.format.read_array(io.BytesIO(nodeset.VertexC)),
          landscape_angle=nodeset.landscape_angle,
     )
     if exclusion_groups:
@@ -84,7 +84,7 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         **routeset.misc)
 
     if routeset.stuntC:
-        stuntC = pickle.loads(routeset.stuntC)
+        stuntC=np.lib.format.read_array(io.BytesIO(nodeset.stuntC))
         G.graph['B'] += len(stuntC)
         VertexC = G.graph['VertexC']
         G.graph['VertexC'] = np.vstack((VertexC[:-R], stuntC,
@@ -115,8 +115,10 @@ def packnodes(G: nx.Graph) -> PackType:
     if border_stunts:
         VertexC = np.vstack((VertexC[:T + B - len(border_stunts)],
                              VertexC[-R:]))
-    VertexCpkl = pickle.dumps(VertexC)
-    digest = sha256(VertexCpkl).digest()
+    VertexC_npy_io = io.BytesIO()
+    np.lib.format.write_array(VertexC_npy_io, VertexC, version=(3, 0))
+    VertexC_npy = VertexC_npy_io.getvalue()
+    digest = sha256(VertexC_npy).digest()
 
     if G.name[0] == '!':
         name = G.name + base64.b64encode(digest).decode('ascii')
@@ -127,7 +129,7 @@ def packnodes(G: nx.Graph) -> PackType:
     pack = dict(
         T=T, R=R, B=B,
         name=name,
-        VertexC=VertexCpkl,
+        VertexC=VertexC_npy,
         constraint_groups=[p.shape[0] for p in constraint_vertices],
         constraint_vertices=np.concatenate(constraint_vertices,
                                            dtype=int, casting='unsafe'),
@@ -284,7 +286,9 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
     if border_stunts:
         VertexC = G.graph['VertexC']
         stuntC = VertexC[T + B - len(border_stunts): T + B].copy()
-        packed_G['stuntC'] = pickle.dumps(stuntC)
+        stuntC_npy_io = io.BytesIO()
+        np.lib.format.write_array(stuntC_npy_io, stuntC, version=(3, 0))
+        packed_G['stuntC'] = stuntC_npy_io.getvalue()
     concatenate_tuples = partial(sum, start=())
     pack_if_given = (  # key, function to prepare data
         ('detextra', None),
