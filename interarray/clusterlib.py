@@ -245,7 +245,7 @@ solvers_options['cplex'] = dict(
         _name='cplex',
         solver_io='python',),
     # threshold for switching node storage strategy
-    workmem=30000,  # in MB
+    workmem=50000,  # in MB
     # node storage file switch (activates when workmem is exceeded):
     #   0) in-memory
     #   1) (the default) fast compression algorithm in-memory
@@ -255,7 +255,7 @@ solvers_options['cplex'] = dict(
     # tree memory limit:
     #   limit the size of the tree so that it does not exceed available disk
     #   space, when you choose settings 2 or 3 in the node storage file switch
-    mip_limits_treememory=50000,  # in MB
+    mip_limits_treememory=90000,  # in MB
     # directory for working files (if ommited, uses $TMPDIR)
     #  workdir='/tmp',
     workdir=(os.environ.get('TMPDIR')
