@@ -7,8 +7,9 @@ import time
 import numpy as np
 import networkx as nx
 
-from .geometric import (angle, apply_edge_exemptions, complete_graph, delaunay,
-                        is_same_side)
+from .mesh import delaunay
+from .geometric import (angle, apply_edge_exemptions, complete_graph,
+                        is_same_side, make_graph_metrics)
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -33,7 +34,10 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
     # roots = range(T, T + R)
     roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
-    d2roots = G_base.graph['d2roots']
+    d2roots = G_base.graph.get('d2roots')
+    if d2roots is None:
+        make_graph_metrics(G_base)
+        d2roots = G_base.graph['d2roots']
     d2rootsRank = G_base.graph['d2rootsRank']
     anglesRank = G_base.graph['anglesRank']
     anglesYhp = G_base.graph['anglesYhp']
@@ -64,7 +68,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
                                G_base.nodes(data='root') if n >= 0),
-                              weight_attr=weight_attr)
+                              weight=weight_attr)
     # END: create initial star graph
 
     # BEGIN: helper data structures

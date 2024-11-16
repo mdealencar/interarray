@@ -7,9 +7,9 @@ import time
 import numpy as np
 import networkx as nx
 
+from .mesh import delaunay
 from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        delaunay, edge_crossings, is_crossing,
-                        is_same_side)
+                        edge_crossings, is_crossing, is_same_side)
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -72,7 +72,7 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
                                G_base.nodes(data='root') if n >= 0),
-                              weight_attr=weight_attr)
+                              weight=weight_attr)
     # END: create initial star graph
 
     # BEGIN: helper data structures

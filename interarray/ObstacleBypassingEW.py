@@ -24,15 +24,19 @@ F = NodeTagger()
 
 def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
          MARGIN=1e-4, debug=False, warnwhere=None, weightfun=None):
-    '''Obstacle Bypassing Esau-Williams heuristic for C-MST
-    inputs:
-    L: networkx.Graph
-    c: capacity
-    returns G_cmst: networkx.Graph
+    '''Obstacle Bypassing Esau-Williams heuristic for C-MST.
 
-    warnwhere is for printing debugging info based on the iteration number and
-    function name (see
-    utils.Alerter)'''
+    Recommended `rootlust`: '0.6*cur_capacity/capacity'
+
+    Args:
+        L: networkx.Graph
+        capacity: max number of terminals in a subtree
+        rootlust: expression to use for biasing weights
+        warnwhere: print debug info based on utils.Alerter
+
+    Returns:
+        G_cmst: networkx.Graph
+    '''
 
     start_time = time.perf_counter()
 
@@ -106,6 +110,8 @@ def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
     G.add_weighted_edges_from(
         ((n, r, d2roots[n, r]) for n, r in A.nodes(data='root')),
         weight='length')
+    nx.set_node_attributes(
+        G, {n: r for n, r in A.nodes(data='root')}, 'root')
     # END: create initial star graph
 
     # BEGIN: helper data structures

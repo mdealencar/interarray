@@ -26,6 +26,7 @@ from .geometric import (
     is_triangle_pair_a_convex_quadrilateral,
     is_same_side,
     rotation_checkers_factory,
+    assign_root,
 )
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .interarraylib import NodeTagger
@@ -1037,27 +1038,21 @@ def make_planar_embedding(
     # P_A: PlanarEmbedding
     # P_paths: Graph
     # diagonals: dict
-
-    # TODO: This block came from deprecated `delaunay()`. Analyse whether to
-    #       include part of that here.
-    #  if bind2root:
-    #      for n, n_root in G_base.nodes(data='root'):
-    #          A.nodes[n]['root'] = n_root
-    #      # alternatively, if G_base nodes do not have 'root' attr:
-    #      #  for n, nodeD in A.nodes(data=True):
-    #      #      nodeD['root'] = -R + np.argmin(d2roots[n])
-    #      # assign each edge to the root closest to the edge's middle point
-    #      for u, v, edgeD in A.edges(data=True):
-    #          edgeD['root'] = -R + np.argmin(
-    #                  cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
-    #                        VertexC[-R:]))
-
     return P, A
 
 
-def delaunay(G: nx.Graph):
+def delaunay(L: nx.Graph, bind2root: bool = False):
     # TODO: deprecate the use of delaunay()
-    P, A = make_planar_embedding(G)
+    _, A = make_planar_embedding(L)
+    if bind2root:
+        assign_root(A)
+        R = L.graph['R']
+        # assign each edge to the root closest to the edge's middle point
+        VertexC = A.graph['VertexC']
+        for u, v, edgeD in A.edges(data=True):
+            edgeD['root'] = -R + np.argmin(
+                    cdist(((VertexC[u] + VertexC[v])/2)[np.newaxis, :],
+                          VertexC[-R:]))
     return A
 
 

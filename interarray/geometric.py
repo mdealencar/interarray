@@ -489,16 +489,17 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
     '''Creates a networkx graph connecting all non-root nodes to every
     other non-root node. Edges with an arc > pi/2 around root are discarded
     The length of each edge is the euclidean distance between its vertices.'''
-    R, T, B = (G.graph[k] for k in 'RTB')
+    R, T = (G_base.graph[k] for k in 'RT')
     VertexC = G_base.graph['VertexC']
-    NodeC = VertexC[:T]
+    TerminalC = VertexC[:T]
     RootC = VertexC[-R:]
+    NodeC = np.vstack((TerminalC, RootC))
     Root = range(-R, 0)
     V = T + (R if include_roots else 0)
     G = nx.complete_graph(V)
     EdgeComplete = np.column_stack(np.triu_indices(V, k=1))
     #  mask = np.zeros((V,), dtype=bool)
-    mask = np.zeros_like(EdgeComplete[0], dtype=bool)
+    mask = np.zeros_like(EdgeComplete[:, 0], dtype=bool)
     if include_roots:
         # mask root-root edges
         offset = 0
@@ -511,9 +512,9 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
         EdgeComplete -= R
         nx.relabel_nodes(G, dict(zip(range(T, T + R), Root)),
                          copy=False)
-        C = cdist(VertexC, VertexC)
-    else:
         C = cdist(NodeC, NodeC)
+    else:
+        C = cdist(TerminalC, TerminalC)
     if prune:
         # prune edges that cover more than 90° angle from any root
         SrcC = VertexC[EdgeComplete[:, 0]]

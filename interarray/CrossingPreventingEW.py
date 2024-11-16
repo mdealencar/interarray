@@ -7,9 +7,9 @@ import time
 import numpy as np
 import networkx as nx
 
+from .mesh import delaunay
 from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        delaunay, edge_crossings, is_crossing,
-                        is_same_side)
+                        edge_crossings, is_crossing, is_same_side, make_graph_metrics)
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -30,11 +30,13 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     options = dict(delaunay_based=delaunay_based)
 
     R = G_base.graph['R']
-    T = G_base.number_of_nodes() - R
-    # roots = range(T, T + R)
+    T = G_base.graph['T']
     roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
-    d2roots = G_base.graph['d2roots']
+    d2roots = G_base.graph.get('d2roots')
+    if d2roots is None:
+        make_graph_metrics(G_base)
+        d2roots = G_base.graph['d2roots']
     d2rootsRank = G_base.graph['d2rootsRank']
     anglesRank = G_base.graph['anglesRank']
     anglesYhp = G_base.graph['anglesYhp']
@@ -70,9 +72,9 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
 
     # BEGIN: create initial star graph
     G = nx.create_empty_copy(G_base)
-    G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n >= 0),
-                              weight_attr=weight_attr)
+    G.add_weighted_edges_from(
+        ((n, r, d2roots[n, r]) for n, r in A.nodes(data='root') if n >= 0),
+        weight=weight_attr)
     # END: create initial star graph
 
     # BEGIN: helper data structures
