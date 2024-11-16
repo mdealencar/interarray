@@ -154,7 +154,7 @@ class PathFinder():
             # G has edges that shortcut some longer paths along P edges.
             # We need to put these paths back in G to do P edge flips.
             # The changes made here are undone in `create_detours()`.
-            clone2prime = G.graph['clone2prime']
+            clone2prime = G.graph.get('clone2prime')
             clone_offset = T + B
             for (s, t), (midpath, shortpath) in shortened_contours.items():
                 # G follows shortpath, but we want it to follow midpath
