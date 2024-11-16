@@ -141,6 +141,9 @@ def packnodes(G: nx.Graph) -> PackType:
 
 def packmethod(method_options: dict) -> PackType:
     options = method_options.copy()
+    gates_limit = options.get('gates_limit')
+    if isinstance(gates_limit, int):
+        options['gates_limit'] = 'given'
     ffprint = options.pop('fun_fingerprint')
     solver_name = options.pop('solver_name')
     optionsstr = json.dumps(options)
