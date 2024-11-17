@@ -272,8 +272,8 @@ def warmup_model(model: pyo.ConcreteModel, S: nx.Graph) \
     return model
 
 
-def S_from_solution(model: pyo.ConcreteModel,
-                    solver: SolverBase, status: SolverResults) -> nx.Graph:
+def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
+                    status: SolverResults) -> nx.Graph:
     '''
     Create a topology `S` with the solution in `model` by `solver`.
     '''
@@ -292,7 +292,7 @@ def S_from_solution(model: pyo.ConcreteModel,
         bound=bound,
         runtime=status['Solver'][0]['Wallclock time'],
         termination=status['Solver'][0]['Termination condition'].name,
-        gap=objective/bound - 1.,
+        gap=1. - bound/objective,
         creator='MILP.pyomo.' + solver_name,
         warmstart=model.warmed_by,
         has_loads=True,
