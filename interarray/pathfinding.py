@@ -182,7 +182,8 @@ class PathFinder():
         P = planar_flipped_by_routeset(G, planar=planar, VertexC=VertexC,
                                        diagonals=diagonals)
         self.d2roots = d2roots
-        self.d2rootsRank = Rank or rankdata(d2roots, method='dense', axis=0)
+        self.d2rootsRank = (Rank if Rank is not None else
+                            rankdata(d2roots, method='dense', axis=0))
         self.predetour_length = Gʹ.size(weight='length')
         creator = G.graph.get('creator')
         if creator is not None and creator[:5] == 'MILP.':
