@@ -417,9 +417,10 @@ def S_from_G(G: nx.Graph):
         for edge in nx.dfs_edges(G, r):
             u, v = edge
             if v >= T:
-                on_hold = on_hold or u
+                on_hold = u if on_hold is None else on_hold
                 continue
-            u = on_hold or u
+            if on_hold is not None:
+                u = on_hold
             if has_loads:
                 v_load = G.nodes[v]['load']
                 S.add_node(v, kind='wtg', load=v_load,
