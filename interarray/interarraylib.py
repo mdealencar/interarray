@@ -170,7 +170,11 @@ def L_from_site(*, VertexC: np.ndarray, T: int, R: int, **kwargs) -> nx.Graph:
     if 'name' not in kwargs:
         kwargs['name'] = kwargs['handle']
     if 'B' not in kwargs:
-        kwargs['B'] = 0
+        border = kwargs.get('border')
+        if border is not None:
+            kwargs['B'] = border.shape[0]
+        else:
+            kwargs['B'] = 0
     L = nx.Graph(T=T, R=R,
                  VertexC=VertexC,
                  **kwargs)
