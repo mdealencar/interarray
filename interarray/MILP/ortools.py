@@ -3,9 +3,7 @@
 
 import math
 from collections import defaultdict
-
 import networkx as nx
-import numpy as np
 
 from ortools.sat.python import cp_model
 
@@ -37,7 +35,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
 
     # Prepare data from A
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
-    W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
+    W = sum(w for _, w in A_nodes.nodes(data='power', default=1))
     E = tuple(((u, v) if u < v else (v, u))
               for u, v in A_nodes.edges())
     G = tuple((r, n) for n in A_nodes.nodes for r in range(-R, 0))
@@ -184,6 +182,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     ##################
 
     m.handle = A.graph['handle']
+    m.name = A.graph.get('name', 'unnamed')
     m.method_options = dict(gateXings_constraint=gateXings_constraint,
                             gates_limit=gates_limit,
                             branching=branching)

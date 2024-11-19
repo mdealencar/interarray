@@ -2,11 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import math
-from collections import defaultdict
-
 import networkx as nx
-import numpy as np
-from varname.helpers import jsobj
 
 import pyomo.environ as pyo
 from pyomo.contrib.solver.base import SolverBase
@@ -38,7 +34,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     T = A.graph['T']
     d2roots = A.graph['d2roots']
     A_nodes = nx.subgraph_view(A, filter_node=lambda n: n >= 0)
-    W = sum(w for n, w in A_nodes.nodes(data='power', default=1))
+    W = sum(w for _, w in A_nodes.nodes(data='power', default=1))
 
     # Create model
     m = pyo.ConcreteModel()
@@ -239,6 +235,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     ##################
 
     m.handle = A.graph['handle']
+    m.name = A.graph.get('name', 'unnamed')
     m.method_options = dict(gateXings_constraint=gateXings_constraint,
                             gates_limit=gates_limit,
                             branching=branching)
