@@ -3,6 +3,7 @@
 
 from collections import defaultdict
 from collections.abc import Sequence
+from itertools import chain
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
@@ -219,7 +220,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             if root in labels:
                 labels.pop(root)
         if D:
-            for det in detour:
+            for det in chain(contour, detour):
                 if det in labels:
                     labels.pop(det)
         for n in range(T):
