@@ -292,15 +292,8 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
         u = s
         for prime, length in zip(path[1:-1], lengths):
             clone2prime.append(prime)
-            if prime not in G.nodes:
-                G.add_node(prime)
             v = iC
             iC += 1
-            clones = G.nodes[prime].get('clones')
-            if clones is None:
-                clones = [v]
-            else:
-                clones.append(v)
             G.add_node(v, kind='contour', load=load, subtree=subtree_id)
             reverse = st_reverse == (u < v)
             G.add_edge(u, v, length=length, load=load, kind='contour',
