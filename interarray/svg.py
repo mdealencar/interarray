@@ -29,7 +29,11 @@ class SvgRepr():
 
 
 def svgplot(G, landscape=True, dark=True, node_size=12):
-    '''NetworkX graph conversion to SVG'''
+    '''Make a NetworkX graph representation directly in SVG.
+
+    Because matplotlib's svg backend does not make efficient use of SVG
+    primitives.
+    '''
     w, h = 1920, 1080
     margin = 30
     root_side = round(1.77*node_size)
