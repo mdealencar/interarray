@@ -15,7 +15,7 @@ import networkx as nx
 import numpy as np
 from pony import orm
 
-from .interarraylib import calcload, site_fingerprint
+from .interarraylib import calcload
 from .utils import NodeTagger
 
 F = NodeTagger()
@@ -357,11 +357,11 @@ def G_by_method(G: nx.Graph, method: object, db: orm.Database) -> nx.Graph:
     '''
     farmname = G.name
     c = G.graph['capacity']
-    es = db.EdgeSet.get(lambda e:
-                        e.nodes.name == farmname and
-                        e.method is method and
-                        e.capacity == c)
-    Gdb = graph_from_edgeset(es)
+    rs = db.RouteSet.get(lambda rs:
+                         rs.nodes.name == farmname and
+                         rs.method is method and
+                         rs.capacity == c)
+    Gdb = G_from_routeset(rs)
     calcload(Gdb)
     return Gdb
 
@@ -383,11 +383,11 @@ def Gs_from_attrs(farm: object, methods: object | Sequence[object],
         capacities = (capacities,)
     for c in capacities:
         Gtuple = tuple(
-            graph_from_edgeset(
-                db.EdgeSet.get(lambda e:
-                               e.nodes.name == farm.name and
-                               e.method is m and
-                               e.capacity == c))
+            G_from_routeset(
+                db.RouteSet.get(lambda rs:
+                                rs.nodes.name == farm.name and
+                                rs.method is m and
+                                rs.capacity == c))
             for m in methods)
         for G in Gtuple:
             calcload(G)
