@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import numpy as np
 
+from ground.base import get_context
 import svg
 
 from .geometric import rotate
@@ -49,13 +50,14 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     if border is None:
         hull = G.graph.get('hull')
         if hull is not None:
-            BoundaryC = VertexC[hull]
+            border = VertexC[hull]
         else:
-            import shapely as shp
-            BoundaryC = np.array(tuple(zip(*shp.MultiPoint(
-                G.graph['VertexC']).convex_hull.exterior.coords.xy))[:-1])
-    else:
-        BoundaryC = VertexC[border]
+            context = get_context()
+            Point = context.point_cls
+            PointMap = {Point(float(x), float(y)): i for i, (x, y) in enumerate(VertexC)}
+            BorderPt = context.points_convex_hull(PointMap.keys())
+            border = np.array([PointMap[point] for point in BorderPt])
+    BorderC = VertexC[border]
 
     # viewport scaling
     idx_B = T + B
@@ -73,12 +75,12 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         #  w = round(W*r + 2*margin)
     offset = np.array((Woff, Hoff))
     VertexS = (VertexC - offset)*r + margin
-    BoundaryS = (BoundaryC - offset)*r + margin
+    BorderS = (BorderC - offset)*r + margin
     # y axis flipping
     VertexS[:, 1] = h - VertexS[:, 1]
-    BoundaryS[:, 1] = h - BoundaryS[:, 1]
+    BorderS[:, 1] = h - BorderS[:, 1]
     VertexS = VertexS.round().astype(int)
-    BoundaryS = BoundaryS.round().astype(int)
+    BorderS = BorderS.round().astype(int)
 
     # color settings
     kind2color = {}
@@ -146,7 +148,7 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         id='border',
         stroke=polygon_edge,
         fill=polygon_face,
-        points=' '.join(str(c) for c in BoundaryS.flat)
+        points=' '.join(str(c) for c in BorderS.flat)
     )
 
     if (not G.graph.get('has_loads', False)
