@@ -186,51 +186,50 @@ def _quantify_choices(S, A, swapS, src_path, dst_path, choices):
             (d2roots[freeS, rootS], freeS),
         )
         if swapS == src_path[0]:
-            gates_del.append((swapS, rootS))
+            gates_del.append((rootS, swapS))
             change -= d2roots[swapS, rootS]
-            gates_add.append((gateS, rootS))
+            gates_add.append((rootS, gateS))
             change += minSd2root
         elif gateS != src_path[0]:
-            gates_del.append((src_path[0], rootS))
+            gates_del.append((rootS, src_path[0]))
             change -= d2roots[src_path[0], rootS]
-            gates_add.append((gateS, rootS))
+            gates_add.append((rootS, gateS))
             change += minSd2root
         if gateD != dst_path[0]:
-            gates_del.append((dst_path[0], rootD))
+            gates_del.append((rootD, dst_path[0]))
             change -= d2roots[dst_path[0], rootD]
             minDd2root, gateD = min(
                 (d2roots[gateD, rootD], gateD),
                 (d2roots[dst_path[-1], rootD], dst_path[-1]),
             )
-            gates_add.append((gateD, rootD))
+            gates_add.append((rootD, gateD))
             change += minDd2root
         change += (sum(A[u][v]['length'] for u, v in edges_add)
                    - sum(A[u][v]['length'] for u, v in edges_del))
-        quant_choices.append((change, (swapD, edges_del, edges_add, gates_del,
+        quant_choices.append((change, (edges_del, edges_add, gates_del,
                                        gates_add)))
     return quant_choices
 
 
-def _apply_choice(
-        S: nx.Graph, A: nx.Graph, swapS: int, swapD: int,
-        edges_del: list[tuple[int, int]], edges_add: list[tuple[int, int]],
-        gates_del: list[tuple[int, int]], gates_add: list[tuple[int, int]]
-        ) -> nx.Graph:
+def _apply_choice(S: nx.Graph, A: nx.Graph, edges_del: list[tuple[int, int]],
+        edges_add: list[tuple[int, int]], gates_del: list[tuple[int, int]],
+        gates_add: list[tuple[int, int]]) -> nx.Graph:
     d2roots = A.graph['d2roots']
     # for edges: add first, then del
     S.add_edges_from(edges_add)
     S.remove_edges_from(edges_del)
     # for gates: del first, then add
-    for gate, root in gates_del:
-        S.remove_edge(gate, root)
-    for gate, root in gates_add:
-        S.add_edge(gate, root, length=d2roots[gate, root], kind='tentative')
+    for root, gate in gates_del:
+        S.remove_edge(root, gate)
+    for root, gate in gates_add:
+        S.add_edge(root, gate, length=d2roots[gate, root], kind='tentative')
     if gates_add:
         tentative = S.graph.get('tentative')
         if tentative is None:
             S.graph['tentative'] = gates_add
         else:
             tentative.extend(gates_add)
+    # the repair invalidates current load attributes -> recalculate them
     calcload(S)
     return S
 
@@ -254,7 +253,6 @@ def repair_routeset_path(Sʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
         print('ERROR: no changes made - `repair_routeset_path()` requires '
               '`Sʹ` as a topology.')
         return Sʹ
-    T = Sʹ.graph['T']
     P = A.graph['planar']
     diagonals = A.graph['diagonals']
     S = Sʹ.copy()
@@ -338,7 +336,6 @@ def repair_routeset_path(Sʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
             break
         if done:
             break
-        calcload(S)
         gateV, leafV = gate_and_leaf_path(S_T, v)
         gateT, leafT = gate_and_leaf_path(S_T, t)
         src_dst_swap = []
@@ -385,10 +382,8 @@ def repair_routeset_path(Sʹ: nx.Graph, A: nx.Graph) -> nx.Graph:
         #      print(line)
         _, choice = quant_choices[0]
         # apply_choice works on a copy of Sʹ
-        S = _apply_choice(S, A, swapS, *choice)
+        S = _apply_choice(S, A, *choice)
         S.graph['repaired'] = 'repair_routeset_path'
-        # the repair invalidates current load attributes
-        del S.graph['has_loads']
     if outstanding_crossings:
         S.graph['num_crossings'] = len(outstanding_crossings)
         S.graph['outstanding_crossings'] = outstanding_crossings
