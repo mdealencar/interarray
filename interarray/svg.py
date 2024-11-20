@@ -262,8 +262,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     # Aggregate all elements in the SVG figure.
     out = svg.SVG(
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
-        elements=[style, defs,
-                  svg.G(id=G.graph['handle'],
-                        elements=[border, *edges, edgesdt, svgnodes,
-                                  svgroots, svgdetours])])
+        elements=[
+            style, defs,
+            svg.G(id=G.graph.get('handle', G.graph.get('name', 'unnamed')),
+                  elements=[border, *edges, edgesdt, svgnodes, svgroots,
+                            svgdetours])
+        ]
+    )
     return SvgRepr(out.as_str())
