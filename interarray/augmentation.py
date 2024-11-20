@@ -10,6 +10,7 @@ from .utils import NodeTagger
 import numpy as np
 import numba as nb
 import networkx as nx
+from interarray.geometric import area_from_polygon_vertices
 
 F = NodeTagger()
 
@@ -53,14 +54,9 @@ def get_border_scale_offset(
                    np.ndarray[tuple[COLS], np.dtype[np.float64]]]:
     offsetC = BorderC.min(axis=0)
     width_height = BorderC.max(axis=0) - offsetC
-    BorderX, BorderY = (BorderC - offsetC).T
-    # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
-    # Then take the sqrt() and invert for the linear factor such that area=1.
-    # assuming BorderC is in clockwise order (hence the minus sign: -0.5)
-    norm_scale = 1./math.sqrt(0.5*abs(
-        BorderX[-1]*BorderY[0] - BorderY[-1]*BorderX[0]
-        + np.dot(BorderX[:-1], BorderY[1:])
-        - np.dot(BorderY[:-1], BorderX[1:])))
+    # Take the sqrt() of the area and invert for the linear factor such that
+    # area=1.
+    norm_scale = 1./math.sqrt(area_from_polygon_vertices(*(BorderC - offsetC).T))
     return offsetC, norm_scale, width_height
 
 

@@ -27,6 +27,7 @@ from .geometric import (
     is_same_side,
     rotation_checkers_factory,
     assign_root,
+    area_from_polygon_vertices,
 )
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .interarraylib import NodeTagger
@@ -1002,12 +1003,10 @@ def make_planar_embedding(
     bX, bY = np.vstack((VertexC[border], VertexC[-R:], *stuntC)).T
     # assuming that coordinates are UTM -> min() as bbox's offset to origin
     norm_offset = np.array((bX.min(), bY.min()), dtype=np.float64)
-    # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
-    # Then take the sqrt() and invert for the linear factor such that area=1.
-    hcX, hcY = VertexC[hull_concave].T
-    norm_scale = 1.0/math.sqrt(0.5*(hcX[-1]*hcY[0] - hcY[-1]*hcX[0]
-                               + np.dot(hcX[:-1], hcY[1:])
-                               - np.dot(hcY[:-1], hcX[1:])))
+    # Take the sqrt() of the area and invert for the linear factor such that
+    # area=1.
+    norm_scale = 1./math.sqrt(
+        area_from_polygon_vertices(*VertexC[hull_concave].T))
 
     # Set A's graph attributes.
     A.graph.update(

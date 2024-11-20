@@ -9,7 +9,6 @@ from itertools import chain, product
 from math import isclose
 from typing import Callable
 
-import shapely as shp
 import networkx as nx
 import numpy as np
 from scipy.sparse import coo_array
@@ -871,19 +870,17 @@ def normalize_area(G_base: nx.Graph, *, hull_nonroot: np.ndarray) -> nx.Graph:
                if landscape_angle else
                G_base.graph['VertexC'].copy())
     G.graph['VertexC'] = VertexC
-    offX = VertexC[:, 0].min()
-    offY = VertexC[:, 1].min()
-    nodes_poly = shp.Polygon(VertexC[hull_nonroot])
-    scale = 1/np.sqrt(nodes_poly.area)
+    offsetC = VertexC.min(axis=0)
+    scale = 1./np.sqrt(
+        area_from_polygon_vertices(*(VertexC[hull_nonroot] - offsetC).T))
     d2roots = G.graph.get('d2roots')
     if d2roots is not None:
         G.graph['d2roots'] = d2roots*scale
     G.graph['scale'] = scale
     G.graph['angle'] = landscape_angle
     G.graph['landscape_angle'] = 0
-    offset = np.array((offX, offY))
-    G.graph['offset'] = offset
-    VertexC -= offset
+    G.graph['offset'] = offsetC
+    VertexC -= offsetC
     VertexC *= scale
     return G
 
@@ -917,3 +914,22 @@ def denormalize(G_scaled, G_base):
     for u, v, edgeD in G.edges(data=True):
         edgeD['length'] = np.hypot(*(VertexC[fnT[u]] - VertexC[fnT[v]]).T)
     return G
+
+
+def area_from_polygon_vertices(X: np.ndarray, Y: np.ndarray) -> float:
+    '''Calculate the area enclosed by the polygon with the vertices (x, y).
+
+    Vertices must be in sequence around the perimeter (either clockwise or
+    counter-clockwise).
+
+    Args:
+        X: array of X coordinates
+        Y: array of Y coordinates
+    Returns:
+        area
+    '''
+    # Shoelace formula for area (https://stackoverflow.com/a/30408825/287217).
+    return 0.5*abs(X[-1]*Y[0] - Y[-1]*X[0]
+                   + np.dot(X[:-1], Y[1:])
+                   - np.dot(Y[:-1], X[1:]))
+
