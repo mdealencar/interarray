@@ -222,14 +222,9 @@ def _apply_choice(S: nx.Graph, A: nx.Graph, edges_del: list[tuple[int, int]],
     for root, gate in gates_del:
         S.remove_edge(root, gate)
     for root, gate in gates_add:
-        S.add_edge(root, gate, length=d2roots[gate, root], kind='tentative')
-    if gates_add:
-        tentative = S.graph.get('tentative')
-        if tentative is None:
-            S.graph['tentative'] = gates_add
-        else:
-            tentative.extend(gates_add)
+        S.add_edge(root, gate, length=d2roots[gate, root])
     # the repair invalidates current load attributes -> recalculate them
+    # TODO: do it in a smarter way by updating only affected subtrees
     calcload(S)
     return S
 
