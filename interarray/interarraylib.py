@@ -393,8 +393,11 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
 def S_from_G(G: nx.Graph):
     '''Get `G`'s topology (contours, detours, lengths, coords are dropped).
     
-    One might want to call `as_hooked_to_nearest()` or `as_hooked_to_head()`
-    afterwards.
+    If using S to warm-start a MILP model, call after `S_from_G()`:
+        - `as_hooked_to_nearest()`: for branching (tree) models
+        - `as_hooked_to_head()`: for non-branching (path) models
+    This ensures that topology S is feasible (if non-branching) and not
+    trivially suboptimal (if branching).
 
     Args:
         G: must contain a feasible solution (either tree or path)
