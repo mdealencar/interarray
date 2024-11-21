@@ -36,7 +36,7 @@ def define_entities(db):
         # vertices (nodes + roots) coordinates (UTM)
         # pickle.dumps(np.empty((R + T + B, 2), dtype=float)
         VertexC = Required(bytes)
-        # the first group is the border (ccw), then exclusions (cw)
+        # the first group is the border (ccw), then obstacles (cw)
         # B is sum(constraint_groups)
         constraint_groups = Required(IntArray)
         # indices to VertexC, concatenation of the groups' ordered vertices

@@ -173,7 +173,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     # save data structure as model attributes
     m.Be, m.Bg, m.De, m.Dg, m.R, m.T, m.k = Be, Bg, De, Dg, R, T, k
     #  m.site = {key: A.graph[key]
-    #            for key in ('T', 'R', 'B', 'VertexC', 'border', 'exclusions',
+    #            for key in ('T', 'R', 'B', 'VertexC', 'border', 'obstacles',
     #                        'name', 'handle')
     #            if key in A.graph}
 

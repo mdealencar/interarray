@@ -122,8 +122,8 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
     C, D = (G.graph.get(k, 0) for k in 'CD')
-    border, exclusions, landscape_angle = (
-        G.graph.get(k) for k in 'border exclusions landscape_angle'.split())
+    border, obstacles, landscape_angle = (
+        G.graph.get(k) for k in 'border obstacles landscape_angle'.split())
     if landscape and landscape_angle:
         # landscape_angle is not None and not 0
         VertexC = rotate(VertexC, landscape_angle)

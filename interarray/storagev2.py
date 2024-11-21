@@ -31,7 +31,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
              'planar', 'has_loads', 'R', 'Subtree', 'handle', 'non_A_edges',
              'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
-             'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'exclusions',
+             'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'obstacles',
              'num_diagonals', 'crossings_map', 'tentative', 'method_options',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
              'clone2prime', 'valid', 'path_in_P', 'shortened_contours',
@@ -42,7 +42,7 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     T = nodeset.T
     R = nodeset.R
-    B, *exclusion_groups = nodeset.constraint_groups
+    B, *obstacle_groups = nodeset.constraint_groups
     border = np.array(nodeset.constraint_vertices[:B])
     L = nx.Graph(
          R=R, T=T, B=B,
@@ -51,10 +51,10 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
          VertexC=np.lib.format.read_array(io.BytesIO(nodeset.VertexC)),
          landscape_angle=nodeset.landscape_angle,
     )
-    if exclusion_groups:
+    if obstacle_groups:
         L.graph.update(
-            exclusions=[nodeset.constraint_vertices[a:b] for a, b in
-                        pairwise([B] + exclusion_groups + [None])])
+            obstacles=[nodeset.constraint_vertices[a:b] for a, b in
+                        pairwise([B] + obstacle_groups + [None])])
     L.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(T)))
     L.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
@@ -125,7 +125,7 @@ def packnodes(G: nx.Graph) -> PackType:
     else:
         name = G.name
     constraint_vertices = list(chain((G.graph.get('border', ()),),
-                                     G.graph.get('exclusions', ())))
+                                     G.graph.get('obstacles', ())))
     pack = dict(
         T=T, R=R, B=B,
         name=name,

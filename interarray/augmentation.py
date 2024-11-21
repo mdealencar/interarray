@@ -184,13 +184,13 @@ def _contains(polygon: nb.float64[:, :], point: nb.float64[:]) -> bool:
 
 def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
                         RepellerC: nb.optional(nb.float64[:, :]) = None,
-                        repel_radius: float = 0., exclusion=None, seed=None,
+                        repel_radius: float = 0., obstacles=None, seed=None,
                         iter_max_factor: int = 50, plot: bool = False,
                         partial_fulfilment: bool = True) -> nb.float64[:, :]:
     '''
     Fills the area delimited by `BorderC` with `T` randomly
     placed points that are at least `min_dist` apart and that
-    don't fall inside any of the `RepellerC` discs or `exclusion` areas.
+    don't fall inside any of the `RepellerC` discs or `obstacles` areas.
 
     Args:
         T: number of points to place.
@@ -198,7 +198,7 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
         BorderC: coordinates (B × 2) of border polygon.
         RepellerC: coordinates (R × 2) of the centers of forbidden discs.
         repel_radius: the radius of the forbidden discs.
-        exclusion: iterable (E × X × 2).
+        obstacles: iterable (O × X × 2).
         iter_max_factor: factor to multiply by `T` to limit the number of
             iterations.
         partial_fulfilment: whether to return less than `T` points (True) or
@@ -207,8 +207,8 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
     Returns:
         coordinates (T, 2) of placed points
     '''
-    # TODO: implement exclusion zones
-    if exclusion is not None:
+    # TODO: implement obstacles zones
+    if obstacles is not None:
         raise NotImplementedError
 
     offsetC, norm_factor, width_height = get_border_scale_offset(BorderC)

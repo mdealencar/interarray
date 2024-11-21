@@ -157,9 +157,9 @@ def L_from_site(*, VertexC: np.ndarray, T: int, R: int, **kwargs) -> nx.Graph:
         **kwargs: Additional relevant arguments, for example:
             name: str site name
             handle: str site identifier
-            B: int number of border and exclusion zones' vertices
+            B: int number of border and obstacle zones' vertices
             border: array (B,) of VertexC indices that define the border (ccw)
-            exclusions: sequence of numpy.ndarray of VertexC indices
+            obstacles: sequence of numpy.ndarray of VertexC indices
 
     Returns:
         Graph containing V nodes and no edges. All keyword arguments are made
@@ -458,7 +458,7 @@ def L_from_G(G: nx.Graph) -> nx.Graph:
     '''
     R, T = (G.graph[k] for k in 'RT')
     transfer_fields = ('name', 'handle', 'VertexC', 'T', 'R', 'B', 'border',
-                       'exclusions', 'landscape_angle')
+                       'obstacles', 'landscape_angle')
     L = nx.Graph(**{k: G.graph[k] for k in transfer_fields if k in G.graph})
     L.add_nodes_from(((n, {'label': label})
                       for n, label in G.nodes(data='label')
