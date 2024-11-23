@@ -42,7 +42,7 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     T = nodeset.T
     R = nodeset.R
-    B, *obstacle_groups = nodeset.constraint_groups
+    B = nodeset.constraint_groups[0]
     border = np.array(nodeset.constraint_vertices[:B])
     L = nx.Graph(
          R=R, T=T, B=B,
@@ -51,10 +51,11 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
          VertexC=np.lib.format.read_array(io.BytesIO(nodeset.VertexC)),
          landscape_angle=nodeset.landscape_angle,
     )
-    if obstacle_groups:
+    if len(nodeset.constraint_groups) > 1:
+        obstacle_idx = np.cumsum(np.array(nodeset.constraint_groups))
         L.graph.update(
-            obstacles=[nodeset.constraint_vertices[a:b] for a, b in
-                        pairwise([B] + obstacle_groups + [None])])
+            obstacles=[np.array(nodeset.constraint_vertices[a:b])
+                       for a, b in pairwise(obstacle_idx)])
     L.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
                       for n in range(T)))
     L.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
