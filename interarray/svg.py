@@ -2,6 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 from collections import defaultdict
+from itertools import chain
 
 import numpy as np
 
@@ -57,7 +58,6 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             PointMap = {Point(float(x), float(y)): i for i, (x, y) in enumerate(VertexC)}
             BorderPt = context.points_convex_hull(PointMap.keys())
             border = np.array([PointMap[point] for point in BorderPt])
-    BorderC = VertexC[border]
 
     # viewport scaling
     idx_B = T + B
@@ -75,12 +75,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         #  w = round(W*r + 2*margin)
     offset = np.array((Woff, Hoff))
     VertexS = (VertexC - offset)*r + margin
-    BorderS = (BorderC - offset)*r + margin
     # y axis flipping
     VertexS[:, 1] = h - VertexS[:, 1]
-    BorderS[:, 1] = h - BorderS[:, 1]
     VertexS = VertexS.round().astype(int)
-    BorderS = BorderS.round().astype(int)
 
     # color settings
     kind2color = {}
@@ -143,12 +140,22 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
         fnT = np.arange(R + T + B + 3)
         fnT[-R:] = range(-R, 0)
 
-    # farm border shape
-    border = svg.Polygon(
+    draw_obstacles = []
+    if obstacles is not None:
+        for obstacle in obstacles:
+            draw_obstacles.append(
+                'M' + ' '.join(str(c) for c in VertexS[obstacle].flat) + 'z')
+    borderE = svg.Path(
         id='border',
         stroke=polygon_edge,
         fill=polygon_face,
-        points=' '.join(str(c) for c in BorderS.flat)
+        # fill_rule "evenodd" is agnostic to polygon vertices orientation
+        # "nonzero" would depend on orientation (if opposite, no fill)
+        fill_rule="evenodd",
+        d=' '.join(chain(
+            ('M' + ' '.join(str(c) for c in VertexS[border].flat) + 'z',),
+            draw_obstacles
+        )),
     )
 
     if (not G.graph.get('has_loads', False)
@@ -166,16 +173,16 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             fill=colors[sub % len(colors)],
             elements=[svg.Use(href='#wtg', x=VertexS[n, 0], y=VertexS[n, 1])
                       for n in nodes]))
-    svgnodes = svg.G(id='WTGgrp', elements=svgnodes)
+    svgnodesE = svg.G(id='WTGgrp', elements=svgnodes)
 
     # oss nodes
-    svgroots = svg.G(
+    svgrootsE = svg.G(
         id='OSSgrp',
         elements=[svg.Use(href='#oss', x=VertexS[r, 0] - root_side/2,
                           y=VertexS[r, 1] - root_side/2)
                   for r in range(-R, 0)])
     # Detour nodes
-    svgdetours = svg.G(
+    svgdetoursE = svg.G(
         id='DTgrp', elements=[svg.Use(href='#dt', x=VertexS[d, 0],
                                       y=VertexS[d, 1])
                               for d in fnT[T + B + C: T + B + C + D]])
@@ -195,15 +202,11 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     for u, v, edge_kind in edges_with_kind:
         if edge_kind == 'detour':
             continue
-        #  edge_lines[class_dict[edge_kind]].append(
-        #          svg.Line(*VertexS[fnT[u]], *VertexS[fnT[v]]))
         edge_lines[class_dict[edge_kind]].append(
-                svg.Line(x1=VertexS[fnT[u], 0], y1=VertexS[fnT[u], 1],
-                         x2=VertexS[fnT[v], 0], y2=VertexS[fnT[v], 1]))
-    edges = [svg.G(id='edges', class_=class_, elements=lines)
-             for class_, lines in edge_lines.items()]
-    #  for class_, lines in edge_lines.items():
-    #      edges.append(svg.G(id='edges', class_=class_, elements=lines))
+            svg.Line(x1=VertexS[fnT[u], 0], y1=VertexS[fnT[u], 1],
+                     x2=VertexS[fnT[v], 0], y2=VertexS[fnT[v], 1]))
+    edgesE_ = [svg.G(id='edges', class_=class_, elements=lines)
+               for class_, lines in edge_lines.items()]
     # Detour edges as polylines (to align the dashes among overlapping lines)
     Points = []
     if D:
@@ -222,28 +225,24 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                     s, t = t, u
                 Points.append(' '.join(str(c) for c in VertexS[hops].flat))
     if Points:
-        edgesdt = svg.G(
+        edgesdtE = svg.G(
             id='detours', class_='dt',
             elements=[svg.Polyline(points=points) for points in Points])
     else:
-        edgesdt = []
+        edgesdtE = []
 
     # Defs (i.e. reusable elements)
-    def_elements = []
-    wtg = svg.Circle(id='wtg',
-                     stroke=node_edge, stroke_width=2, r=node_size)
-    def_elements.append(wtg)
-    oss = svg.Rect(id='oss', fill=root_color, stroke=node_edge, stroke_width=2,
-                   width=root_side, height=root_side)
-    def_elements.append(oss)
-    detour = svg.Circle(id='dt', fill='none', stroke_opacity=0.3,
-                        stroke=detour_ring, stroke_width=4, r=23)
-    def_elements.append(detour)
-    defs = svg.Defs(elements=def_elements)
+    reusableE = svg.Defs(elements=[
+        svg.Circle(id='wtg', stroke=node_edge, stroke_width=2, r=node_size),
+        svg.Rect(id='oss', fill=root_color, stroke=node_edge, stroke_width=2,
+                 width=root_side, height=root_side),
+        svg.Circle(id='dt', fill='none', stroke_opacity=0.3,
+                   stroke=detour_ring, stroke_width=4, r=23),
+    ])
 
     # Style
     # TODO: use kind2style below
-    style = svg.Style(text=(
+    styleE = svg.Style(text=(
         f'polyline {{stroke-width: 4}} '
         f'line {{stroke-width: 4}} '
         f'.std {{stroke: {kind2color["unspecified"]}}} '
@@ -263,10 +262,10 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     out = svg.SVG(
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
         elements=[
-            style, defs,
+            styleE, reusableE,
             svg.G(id=G.graph.get('handle', G.graph.get('name', 'unnamed')),
-                  elements=[border, *edges, edgesdt, svgnodes, svgroots,
-                            svgdetours])
+                  elements=[borderE, *edgesE_, edgesdtE, svgnodesE,
+                            svgrootsE, svgdetoursE])
         ]
     )
     return SvgRepr(out.as_str())
