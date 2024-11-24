@@ -1,21 +1,19 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import os
+import re
 from itertools import chain
 from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import NamedTuple, Iterable
 from importlib.resources import files
 from functools import reduce
-from operator import attrgetter
 
 import networkx as nx
 import numpy as np
 import utm
 import yaml
 import osmium
-import shapely as shp
 import shapely.wkb as wkblib
 
 from .geometric import make_graph_metrics
@@ -25,15 +23,27 @@ from .interarraylib import L_from_site
 F = NodeTagger()
 
 
-def translate_latlonstr(entries):
-    '''
-    This requires a very specific string format:
-    TAG 11°22.333'N 44°55.666'E
-    (no spaces within one coordinate).
-    '''
+_coord_sep = r',\s*|;\s*|\s{1,}|,|;'
+_coord_lbraces = '(['
+_coord_rbraces = ')]'
+
+
+def _get_entries(entries):
+    if isinstance(entries, str):
+        for entry in entries.splitlines():
+            *tag, lat, lon = re.split(_coord_sep, entry)
+            lat = lat.lstrip(_coord_lbraces)
+            lon = lon.rstrip(_coord_rbraces)
+            yield tag, lat, lon
+    else:
+        for entry in entries:
+            *tag, lat, lon = entry
+            yield tag, lat, lon
+
+
+def _translate_latlonstr(entry_list):
     translated = []
-    for entry in entries.splitlines():
-        tag, lat, lon = entry.split(' ')
+    for tag, lat, lon in _get_entries(entry_list):
         latlon = []
         for ll in (lat, lon):
             val, hemisphere = ll.split("'")
@@ -44,18 +54,47 @@ def translate_latlonstr(entries):
     return translated
 
 
-def _tags_and_array_from_key(key, parsed_dict):
+def _parser_latlon(entry_list):
     # separate data into columns
     tags, eastings, northings, zone_numbers, zone_letters = \
-        zip(*translate_latlonstr(parsed_dict[key]))
+        zip(*_translate_latlonstr(entry_list))
     # all coordinates must belong to the same UTM zone
     assert all(num == zone_numbers[0] for num in zone_numbers[1:])
     assert all(letter == zone_letters[0] for letter in zone_letters[1:])
     return np.c_[eastings, northings], tags
 
 
+def _parser_planar(entry_list):
+    tags = []
+    coords = []
+    for tag, easting, northing in _get_entries(entry_list):
+        tags.append(tag)
+        coords.append((float(easting), float(northing)))
+    return np.array(coords, dtype=float), tags
+
+
+coordinate_parser = dict(
+    latlon=_parser_latlon,
+    planar=_parser_planar,
+)
+
+
 def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     '''Import wind farm data from .yaml file.
+
+    Two options available for COORDINATE_FORMAT: "planar" and "latlon".
+
+    Format "planar" is: [tag] easting northing. Example:
+    TAG 234.2 5212.5
+
+    Format "latlon" is: [tag] latitude longitude. Example:
+    TAG 11°22.333'N 44°55.666'E
+
+    The [tag] is optional. Only this specific latlon format is supported.
+
+    The coordinate pair may be separated by "," or ";" and may be enclosed in
+    "[]" or "()". Example:
+    TAG [234.2, 5212.5]
 
     Args:
         filepath: Path of `.yaml` file to read.
@@ -67,22 +106,45 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     fpath = Path(filepath)
     # read wind power plant site YAML file
     parsed_dict = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
-    Border, BorderTag = _tags_and_array_from_key('EXTENTS', parsed_dict)
-    Root, RootTag = _tags_and_array_from_key('SUBSTATIONS', parsed_dict)
-    Node, NodeTag = _tags_and_array_from_key('TURBINES', parsed_dict)
-
-    # create networkx graph
+    # default format is "latlon"
+    format = parsed_dict.get('COORDINATE_FORMAT', 'latlon')
+    Border, BorderTag = coordinate_parser[format](parsed_dict['EXTENTS'])
+    Root, RootTag = coordinate_parser[format](parsed_dict['SUBSTATIONS'])
+    Node, NodeTag = coordinate_parser[format](parsed_dict['TURBINES'])
     T = Node.shape[0]
     R = Root.shape[0]
     B = Border.shape[0]
-    G = nx.Graph(T=T, R=R, B=B,
-                 VertexC=np.vstack((Node, Border, Root)),
-                 border=np.arange(T, T + B),
-                 name=fpath.stem,
-                 handle=handle)
+    border=np.arange(T, T + B)
+    print(B)
+    optional = {}
+    obstacles = parsed_dict.get('OBSTACLES')
+    obstacleC_ = []
+    if obstacles is not None:
+        # obstacle has to be a list of lists, so parsing is a bit different
+        indices = []
+        for obstacle_entry in parsed_dict['OBSTACLES']:
+            obstacleC, poly_tag = coordinate_parser[format](obstacle_entry)
+            indices.append(np.arange(T + B, T + B + obstacleC.shape[0]))
+            B += obstacleC.shape[0]
+            obstacleC_.append(obstacleC)
+        optional['obstacles'] = indices
+
+    print(B)
+    VertexC=np.vstack((Node, Border, *obstacleC_, Root))
+
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
     if lsangle is not None:
-        G.graph['landscape_angle'] = lsangle
+        optional['landscape_angle'] = lsangle
+
+    # create networkx graph
+    G = nx.Graph(T=T, R=R, B=B,
+                 VertexC=VertexC,
+                 border=border,
+                 name=fpath.stem,
+                 handle=handle,
+                 **optional)
+
+    # populate graph G
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg', 'tag': NodeTag[n]})
                       for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss', 'tag': RootTag[r]})
