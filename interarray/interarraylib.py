@@ -199,7 +199,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     # TODO: rethink whether to copy from S or from A
     G = nx.create_empty_copy(S)
     G.graph.update(
-        {k: A.graph[k] for k in 'B border name handle norm_scale '
+        {k: A.graph[k] for k in 'B border obstacles name handle norm_scale '
          'norm_offset landscape_angle border_stunts'.split()
          if k in A.graph})
     if 'is_normalized' in A.graph:
