@@ -115,7 +115,6 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     R = Root.shape[0]
     B = Border.shape[0]
     border=np.arange(T, T + B)
-    print(B)
     optional = {}
     obstacles = parsed_dict.get('OBSTACLES')
     obstacleC_ = []
@@ -129,7 +128,6 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
             obstacleC_.append(obstacleC)
         optional['obstacles'] = indices
 
-    print(B)
     VertexC=np.vstack((Node, Border, *obstacleC_, Root))
 
     lsangle = parsed_dict.get('LANDSCAPE_ANGLE')
