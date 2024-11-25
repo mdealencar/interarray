@@ -594,7 +594,7 @@ class PathFinder():
             New networkx.Graph (shallow copy of G, with detours).
         '''
         # TODO: create_detours() cannot be called twice. Enforce that!
-        G, Xings, tentative = self.G, self.Xings, self.tentative.copy()
+        G, Xings, tentative = self.G.copy(), self.Xings, self.tentative.copy()
 
         if not Xings:
             for r, n in tentative:
