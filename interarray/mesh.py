@@ -394,7 +394,7 @@ def make_planar_embedding(
                             for hullpt in hull
                             if hullpt in border_vertex_from_point]
 
-    # Turn the main border's concave zones into obstacle polygons.
+    # Turn the main border's concave zones into concavity polygons.
     hull_minus_border = hull_poly - border_poly
 
     concavities = []
@@ -526,13 +526,12 @@ def make_planar_embedding(
     if roots_outside:
         border = np.array([vertex_from_point[pt] for pt in hull], dtype=int)
 
-    if obstacles is not None:
-        obstaclesMPoly = Multipolygon(
-            (Polygon(border=Contour(points[exc]))
-             for exc in obstacles))
+    holes = [Contour(points[obstacle]) for obstacle in obstacles]
 
-    # assemble all points actually used in concavityPoly
-    points_used = set(chain(*(conc.vertices for conc in concavities)))
+    # assemble all points actually used in concavities and obstacles
+    points_used = set(chain(
+        *(conc.vertices for conc in concavities),
+        *(hole.vertices for hole in holes)))
 
     # create the PythonCDT vertices
     verticesCDT = []
@@ -581,9 +580,13 @@ def make_planar_embedding(
     else:
         concavityVertexSeqs = []
 
+    #  vertex2conc_id_map = {vertex_from_point[p]: i
+    #                        for i, conc in enumerate(concavities)
+    #                        for p in conc.vertices}
+
     vertex2conc_id_map = {vertex_from_point[p]: i
-                          for i, conc in enumerate(concavities)
-                          for p in conc.vertices}
+                          for i, hole in enumerate(chain(concavities, holes))
+                          for p in hole.vertices}
 
     # ########################################################
     # C) Get Delaynay triangulation of the wtg+oss nodes only.
@@ -667,7 +670,7 @@ def make_planar_embedding(
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
     hull_concave = []
-    if border is not None:
+    if len(border) > 0:
         hull_prunned_cont = Contour(points[hull_prunned])
         border_cont = border_poly.border
         hull__border = contour_in_region(hull_prunned_cont, border_cont)
@@ -719,14 +722,14 @@ def make_planar_embedding(
     #  print('num_triangles_P_A', num_triangles_P_A)
 
     edgesCDT = []
-    for concavity in concavities:
-        for seg in concavity.segments:
+    # add concavities' and obstacles' edges
+    for hole in chain(concavities, holes):
+        for seg in hole.segments:
             s, t = vertex_from_point[seg.start], vertex_from_point[seg.end]
             st = (s, t) if s < t else (t, s)
             constraint_edges.add(st)
             edgesCDT.append(cdt.Edge(vertexCDT_from_point[seg.start],
                                      vertexCDT_from_point[seg.end]))
-    # TODO: add obstacles
 
     mesh.insert_vertices(verticesCDT[T + R:])
     mesh.insert_edges(edgesCDT)
@@ -768,9 +771,12 @@ def make_planar_embedding(
     debug('PART F')
     P = planar_from_cdt_triangles(mesh.triangles, vertex_from_vertexCDT)
 
-    for conc in concavityVertexSeqs:
-        for rev, cur, fwd in zip(chain((conc[-1],), conc[:-1]),
-                                 conc, chain(conc[1:], (conc[0],))):
+    for hole in chain(
+            concavityVertexSeqs,
+            (([vertex_from_point[v] for v in hole.vertices[::-1]]
+             for hole in holes) if obstacles else ())):
+        for rev, cur, fwd in zip(chain((hole[-1],), hole[:-1]),
+                                 hole, chain(hole[1:], (hole[0],))):
             # Remove edges inside the concavities
             while P[cur][fwd]['ccw'] != rev:
                 P.remove_edge(cur, P[cur][fwd]['ccw'])
@@ -976,7 +982,7 @@ def make_planar_embedding(
     debug('PART I')
     d2roots = cdist(VertexC[:T + B + 3], VertexC[-R:])
     # d2roots may not be the plain Euclidean distance if there are obstacles.
-    if len(concavityVertexSeqs) > 0 or (obstacles and len(obstacles) > 0):
+    if concavityVertexSeqs or obstacles:
         # Use P_paths to obtain estimates of d2roots taking into consideration
         # the concavities and obstacle zones.
         for r in range(-R, 0):
@@ -1026,6 +1032,8 @@ def make_planar_embedding(
         norm_offset=norm_offset,
         norm_scale=norm_scale,
     )
+    if obstacles:
+        A.graph['obstacles'] = obstacles
     if border_stunts:
         A.graph['border_stunts'] = border_stunts
     landscape_angle = L.graph.get('landscape_angle')
