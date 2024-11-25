@@ -5,10 +5,12 @@ from collections.abc import Sequence
 from itertools import chain
 
 from matplotlib.axes import Axes
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 from .geometric import rotate
 from .interarraylib import NodeTagger
@@ -138,8 +140,25 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     ax.axis(False)
     # draw farm border
     if border is not None:
-        ax.fill(*VertexC[border].T, polygon_face, edgecolor=polygon_edge,
-                linestyle='--', linewidth=0.2)
+        border_opt = dict(facecolor=polygon_face, edgecolor=polygon_edge,
+                          linestyle='--', linewidth=0.2)
+        borderC = VertexC[border] 
+        if obstacles is None:
+            ax.fill(*borderC.T, **border_opt)
+        else:
+            obstacleC_ = [VertexC[obstacle] for obstacle in obstacles]
+            # path for the external border
+            codes = [Path.MOVETO] + (borderC.shape[0] - 1)*[Path.LINETO] + [Path.CLOSEPOLY]
+            points = [row for row in borderC] + [borderC[0]]
+            # paths for the obstacle borders
+            for obstacleC in obstacleC_:
+                codes.extend([Path.MOVETO] + (obstacleC.shape[0] - 1)*[Path.LINETO] + [Path.CLOSEPOLY])
+                points.extend([row for row in obstacleC] + [obstacleC[0]])
+            # create and add matplotlib artists
+            path = Path(points, codes)
+            patch = PathPatch(path, **border_opt)
+            ax.add_patch(patch)
+            ax.autoscale()
 
     # setup
     roots = range(-R, 0)
