@@ -356,7 +356,7 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
         if attr in scaff.graph:
             del scaff.graph[attr]
     R, T, B, C, D = (G.graph.get(k, 0) for k in 'R T B C D'.split())
-    nx.set_edge_attributes(scaff, 'scaffold', 'kind')
+    nx.set_edge_attributes(scaff, 'scaffold', name='kind')
     constraints = P.graph.get('constraint_edges', [])
     for edge in constraints:
         scaff.edges[edge]['kind'] = 'constraint'
@@ -371,7 +371,7 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
         fnT[-R:] = range(-R, 0)
     for u, v in G.edges:
         st = fnT[u], fnT[v]
-        if st in scaff.edges:
+        if st in scaff.edges and 'kind' in scaff.edges[st]:
             del scaff.edges[st]['kind']
     VertexC = G.graph['VertexC']
     supertriangleC = P.graph['supertriangleC']
@@ -381,5 +381,5 @@ def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
     VertexC = np.vstack((VertexC[:-R],
                          supertriangleC,
                          VertexC[-R:]))
-    scaff.graph['VertexC'] = VertexC
+    scaff.graph.update(VertexC=VertexC, fnT=fnT)
     return scaff
