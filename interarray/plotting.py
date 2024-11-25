@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
+import math
 from collections.abc import Sequence
 from itertools import chain
 
@@ -260,16 +261,14 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         ax.add_artist(bar)
 
     if infobox:
-        if 'capacity' in G.graph:
-            info = [f'$\\kappa$ = {G.graph["capacity"]}, '
-                    f'$T$ = {T}']
-            feeder_info = [f'$\\phi_{{{rootL}}}$ = {len(G[r])}'
+        capacity = G.graph.get('capacity')
+        if capacity is not None:
+            info = [f'$\\kappa$ = {capacity}, $T$ = {T}']
+            feeder_info = [f'$\\phi_{{{rootL}}}$ = {G.degree[r]}'
                            for r, rootL in RootL.items()]
-            if 'overfed' in G.graph:
-                feeder_info = [fi + f' ({100*(overfed - 1):+.0f}%)'
-                               for fi, overfed in
-                               zip(feeder_info, G.graph['overfed'][::-1])]
-            info.extend(feeder_info)
+            min_feeder = math.ceil(T/capacity)
+            info.append(f'({sum(G.degree[r] for r in roots) - min_feeder:+d}) '
+                        + ', '.join(feeder_info))
             Gʹ = nx.subgraph_view(G,
                                   filter_edge=lambda u, v: 'length' in G[u][v])
             length = Gʹ.size(weight="length")
