@@ -308,6 +308,7 @@ _site_handles_yaml = dict(
     walney2='Walney 2',
     walneyext='Walney Extension',
     sands='West of Duddon Sands',
+    taylor='Taylor-2023',
 )
 
 _site_handles_pbf = dict(
