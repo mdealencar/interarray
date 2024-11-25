@@ -6,10 +6,11 @@ import time
 
 import numpy as np
 import networkx as nx
+from scipy.stats import rankdata
 
 from .mesh import delaunay
-from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        edge_crossings, is_crossing, is_same_side, make_graph_metrics)
+from .geometric import (angle, apply_edge_exemptions, assign_root, complete_graph,
+                        edge_crossings, is_crossing, is_same_side, angle_helpers)
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -33,14 +34,6 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
     T = G_base.graph['T']
     roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
-    d2roots = G_base.graph.get('d2roots')
-    if d2roots is None:
-        make_graph_metrics(G_base)
-        d2roots = G_base.graph['d2roots']
-    d2rootsRank = G_base.graph['d2rootsRank']
-    anglesRank = G_base.graph['anglesRank']
-    anglesYhp = G_base.graph['anglesYhp']
-    anglesXhp = G_base.graph['anglesXhp']
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
     if delaunay_based:
@@ -60,6 +53,12 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
             # apply_edge_exemptions(A)
     else:
         A = complete_graph(G_base)
+
+    assign_root(A)
+    d2roots = A.graph.get('d2roots')
+    d2rootsRank = rankdata(d2roots, method='dense', axis=0)
+    _, anglesRank, anglesXhp, anglesYhp = angle_helpers(G_base)
+
     if weightfun is not None:
         options['weightfun'] = weightfun.__name__
         options['weight_attr'] = weight_attr
