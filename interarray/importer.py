@@ -196,7 +196,7 @@ def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
     fpath = Path(filepath)
     assert ['.osm', '.pbf'] == fpath.suffixes[-2:], \
         'Argument `filepath` does not have `.osm.pbf` extension.'
-    name = filepath.stem[:-4]
+    name = fpath.stem[:-4]
     # read wind power plant site OpenStreetMap's Protobuffer file
     getter = GetAllData()
     getter.apply_file(fpath, locations=True, idx='flex_mem')
