@@ -21,7 +21,7 @@ from .interarraylib import NodeTagger
 FONTSIZE_LABEL = 5
 FONTSIZE_LOAD = 7
 FONTSIZE_ROOT_LABEL = 6
-FONTSIZE_LEGEND_BOX = 7
+FONTSIZE_LEGEND_BOX = 12
 FONTSIZE_LEGEND_STRIP = 6
 NODESIZE = 18
 NODESIZE_LABELED = 70
@@ -103,6 +103,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         node_edge = 'none'
         detour_ring = 'orange'
         border_face = '#111'
+        text_color = 'white'
     else:
         kind2color.update(
             detour='royalblue',
@@ -119,11 +120,11 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             border = 'dimgray',
             unspecified='black',
         )
-        #  root_color = 'black' if node_tag is None else 'yellow'
         root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
         border_face = '#eee'
+        text_color = 'black'
 
     R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
@@ -284,12 +285,13 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         if ('has_costs' in G.graph):
             info.append('{:.0f} €'.format(G.size(weight='cost')))
         if 'capacity' in G.graph:
-            infobox = ax.legend([], fontsize=FONTSIZE_LEGEND_BOX,
-                                title='\n'.join(info), labelspacing=0)
+            infobox = ax.legend([], labelspacing=0, facecolor=border_face,
+                edgecolor=text_color, title='\n'.join(info), framealpha=0.6)
             #                      loc='upper right'
             #                      bbox_to_anchor=(-0.04, 0.80, 1.08, 0)
             #                      bbox_to_anchor=(-0.04, 1.03, 1.08, 0)
-            plt.setp(infobox.get_title(), multialignment='center')
+            plt.setp(infobox.get_title(), multialignment='center',
+                     color=text_color, fontsize=FONTSIZE_LEGEND_BOX)
     if legend:
         ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
                   frameon=False, bbox_to_anchor=(0.5, -0.07),
