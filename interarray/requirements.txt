@@ -1,9 +1,0 @@
-matplotlib==3.5.1
-networkx==2.5
-numpy==1.21.5
-openpyxl==3.0.9
-pony==0.7.16
-pygifsicle==1.0.5
-PyYAML==6.0
-scipy==1.7.3
-utm==0.7.0

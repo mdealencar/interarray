@@ -1,0 +1,41 @@
+# «Remember to put a reference to the data source here.»
+# See `notebooks/01-data_input.ipynb` for additional info on coordinate format.
+
+# (optional)
+OPERATOR:
+
+# (optional)
+TURBINE:
+  make: 
+  model: 
+  power_MW: 
+
+# LANDSCAPE_ANGLE is used for plotting. `plotting.gplot()` and `svg.svgplot()`
+# rotate the site by this angle (degrees). Use `...plot(..., landscape=False)`
+# to plot the site with the north or y axis pointing up.
+# (optional)
+LANDSCAPE_ANGLE: 
+
+# If omitted, assumes "latlon" coordinates: 11°22.333'N 44°55.666'E
+# Alternatively, "planar" can be specified: 1951.2 200.5
+# (optional)
+COORDINATE_FORMAT: latlon
+
+# The fields below must be sequence of coordinate pairs according to
+# COORDINATE_FORMAT. Optionally, a tag for each coordinate may be provided:
+#   TAG 11°22.333'N 44°55.666'E
+
+# EXTENTS must define a polygon with vertices in counter-clockwise orientation.
+# (required)
+EXTENTS: |-
+
+# (required)
+SUBSTATIONS: |-
+
+# (required)
+TURBINES: |-
+
+# OBSTACLES must define a list of polygons with vertices oriented clockwise.
+# (optional)
+OBSTACLES:
+  - |-
