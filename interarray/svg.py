@@ -5,6 +5,7 @@ from collections import defaultdict
 from itertools import chain
 
 import numpy as np
+import darkdetect
 
 from ground.base import get_context
 import svg
@@ -30,12 +31,14 @@ class SvgRepr():
             file.write(self.data)
 
 
-def svgplot(G, landscape=True, dark=True, node_size=12):
+def svgplot(G, landscape=True, dark=None, node_size=12):
     '''Make a NetworkX graph representation directly in SVG.
 
     Because matplotlib's svg backend does not make efficient use of SVG
     primitives.
     '''
+    if dark is None:
+        dark = darkdetect.isDark()
     w, h = 1920, 1080
     margin = 30
     root_side = round(1.77*node_size)
@@ -84,13 +87,14 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
     kind2style = dict(
         detour='dashed',
         scaffold='dotted',
-        extended='dashed',
         delaunay='solid',
+        extended='dashed',
         tentative='dashed',
         rogue='dashed',
         contour='solid',
         contour_delaunay='solid',
         contour_extended='dashed',
+        border='dashed',
         unspecified='solid',
     )
     if dark:
@@ -98,37 +102,37 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
             detour='darkorange',
             scaffold='gray',
             delaunay='darkcyan',
+            extended='darkcyan',
             tentative='red',
             rogue='yellow',
             contour='red',
             contour_delaunay='green',
             contour_extended='green',
-            extended='darkcyan',
+            border = 'silver',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
         node_edge = 'none'
         detour_ring = 'orange'
-        polygon_edge = '#333'
-        polygon_face = '#111111'
+        border_face = '#111'
     else:
         kind2color.update(
             detour='royalblue',
             scaffold='gray',
             delaunay='black',
+            extended='black',
             tentative='magenta',
             rogue='darkorange',
             contour='magenta',
             contour_delaunay='darkgreen',
             contour_extended='darkgreen',
-            extended='black',
+            border = 'dimgray',
             unspecified='firebrick',
         )
         root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
-        polygon_edge = '#444444'
-        polygon_face = 'whitesmoke'
+        border_face = '#eee'
     # matplotlib tab20
     colors = ('#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c',
               '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5',
@@ -147,8 +151,9 @@ def svgplot(G, landscape=True, dark=True, node_size=12):
                 'M' + ' '.join(str(c) for c in VertexS[obstacle].flat) + 'z')
     borderE = svg.Path(
         id='border',
-        stroke=polygon_edge,
-        fill=polygon_face,
+        stroke=kind2color['border'],
+        stroke_dasharray=(15, 7),
+        fill=border_face,
         # fill_rule "evenodd" is agnostic to polygon vertices orientation
         # "nonzero" would depend on orientation (if opposite, no fill)
         fill_rule="evenodd",

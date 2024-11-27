@@ -5,6 +5,7 @@ import math
 from collections.abc import Sequence
 from itertools import chain
 
+import darkdetect
 from matplotlib.axes import Axes
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
@@ -32,11 +33,11 @@ F = NodeTagger()
 
 
 def gplot(G: nx.Graph, ax: Axes | None = None,
-          node_tag: str | None = 'label',
+          node_tag: str | None = None,
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
           hide_ST: bool = True, legend: bool = False,
-          min_dpi: int = 192) -> Axes:
+          min_dpi: int = 192, dark=None) -> Axes:
     '''Plot site and routeset contained in G.
 
     Args:
@@ -57,7 +58,8 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     Returns:
         Axes instance containing the plot.
     '''
-    dark = plt.rcParams['figure.facecolor'] != 'white'
+    if dark is None:
+        dark = darkdetect.isDark()
 
     root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
     detour_size = (NODESIZE_LABELED_DETOUR
@@ -79,6 +81,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         planar='dashdot',
         constraint='solid',
         unspecified='solid',
+        border='dashed',
     )
     if dark:
         kind2color.update(
@@ -91,15 +94,15 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             contour_delaunay='green',
             contour_extended='green',
             contour='red',
-            planar='brown',
+            planar='darkorchid',
             constraint='purple',
+            border = 'silver',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
         node_edge = 'none'
         detour_ring = 'orange'
-        polygon_edge = 'none'
-        polygon_face = '#111111'
+        border_face = '#111'
     else:
         kind2color.update(
             detour='royalblue',
@@ -113,14 +116,14 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             contour='black',
             planar='darkorchid',
             constraint='darkcyan',
+            border = 'dimgray',
             unspecified='black',
         )
         #  root_color = 'black' if node_tag is None else 'yellow'
         root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
-        polygon_edge = '#444444'
-        polygon_face = 'whitesmoke'
+        border_face = '#eee'
 
     R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
@@ -134,15 +137,18 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     if ax is None:
         fig, ax = plt.subplots(
             subplot_kw=dict(
-                aspect='equal', xmargin=0.002, ymargin=0.002),
-            layout='constrained', dpi=max(min_dpi, plt.rcParams['figure.dpi']))
+                aspect='equal', xmargin=0.002, ymargin=0.002
+            ),
+            layout='constrained', facecolor='none',
+            dpi=max(min_dpi, plt.rcParams['figure.dpi'])
+        )
     else:
         ax.set(aspect='equal')
     ax.axis(False)
     # draw farm border
     if border is not None:
-        border_opt = dict(facecolor=polygon_face, edgecolor=polygon_edge,
-                          linestyle='--', linewidth=0.2)
+        border_opt = dict(facecolor=border_face, linestyle='dashed',
+            edgecolor=kind2color['border'], linewidth=0.5)
         borderC = VertexC[border] 
         if obstacles is None:
             ax.fill(*borderC.T, **border_opt)
