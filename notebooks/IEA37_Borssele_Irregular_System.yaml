@@ -1,0 +1,9 @@
+name: IEA Wind Task 37 Borssele Reference Offshore Wind Plant system (irregular layout)
+site: !include IEA37_Borssele_site.yaml
+wind_farm: !include IEA37_Borssele_Irregular.yaml
+attributes:
+  net_AEP: 3476.25
+  analyses:
+    wake_model:
+      name: Jensen
+      

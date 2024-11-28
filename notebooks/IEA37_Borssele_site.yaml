@@ -1,0 +1,10 @@
+name: IEA Wind Task 37 case study Borssele, 74WT Wind Farm
+boundaries: 
+    polygons: [
+        {
+            x: [484178.55, 500129.9, 497318.1, 503163.37, 501266.5, 488951.0],
+            y: [5732482.8, 5737534.4, 5731880.24, 5729155.3, 5715990.05, 5.72794e+06]
+        }
+    ]
+# energy_resource: !include IEA37_Borssele_Wind_Resource.yaml
+# Bathymetry: !includeBathymetryNetCDF bathymetry.nc
