@@ -33,7 +33,7 @@ PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 
 class PathNodes(dict):
     '''Helper class to build a tree that uses clones of prime nodes
-    (i.e. where the same prime node can appear as more that one node).'''
+    (i.e. where the same prime node can appear as more than one node).'''
 
     def __init__(self):
         super().__init__()
@@ -223,17 +223,16 @@ class PathFinder():
 
     def _get_sector(self, _node: int, portal: tuple[int, int]):
         '''
-        Given a `_node` and a `portal` to which `_node` belongs, the sector is
-        the first neighbor of `_node` rotating in the counterclockwise
-        direction from the opposite node in `portal` that forms one of G's
-        edges with `_node`.
-        The sector is a way of identifying from which side of a boundary the
-        path is reaching `_node`.
+        Given a `_node` and a `portal` to which `_node` belongs, visit the
+        neighbors of `_node` starting from from the opposite node in `portal`
+        and rotating in the counter-clockwise direction.
+        The first neighbor that forms one of G's edges with `_node` is the
+        sector. The sector is a way of identifying from which side of a
+        non-traversable barrier the path is reaching `_node`.
         '''
-        # TODO: there is probably a better way to avoid spinning around _node
         if _node >= self.T:
-            # _node is in a border (which means it must only be reachable from
-            # one side, so that sector becomes irrelevant)
+            # _node is in a border or is in the supertriangle, which means it
+            # is only reachable from one side, hence an arbitrary sector id.
             return NULL
         is_gate = any(_node in Gate for Gate in self.hooks2check)
         _node_degree = self.G.degree[_node]
@@ -250,6 +249,7 @@ class PathFinder():
         # this `while` loop would in some cases loop forever
         #  while ((_node, _nbr) not in self.G.edges):
         #      _nbr = self.P[_node][_nbr]['ccw']
+        # TODO: there is probably a better way to avoid spinning around _node
         for _ in range(_node_degree):
             if (_node, _nbr) in self.G.edges:
                 break
@@ -283,7 +283,7 @@ class PathFinder():
             # look for children portals
             n = P[left][right]['ccw']
             if n not in P[right] or P[left][n]['ccw'] == right or n < 0:
-                # (u, v, n) not a new triangle
+                # (left, right, n) is not a triangle or n is a root
                 return
             # examine the other two sides of the triangle
             next_portals = []
@@ -294,7 +294,7 @@ class PathFinder():
                         or (s < T and t < T
                             and G.nodes[s]['subtree'] ==
                             G.nodes[t]['subtree'])):
-                    # (s, t) is in G or is bounded by a subtree
+                    # ⟨s, t⟩ is in G or is bounded by a subtree
                     continue
                 next_portals.append(((s, t), side))
             try:
@@ -326,7 +326,7 @@ class PathFinder():
         # variable naming notation:
         # for variables that represent a node, they may occur in two versions:
         #     - _node: the index it contains maps to a coordinate in VertexC
-        #     - node: contais a pseudonode index (i.e. an index in self.paths)
+        #     - node: contains a pseudonode index (i.e. an index in self.paths)
         #             translation: _node = paths.prime_from_id[node]
         cw, ccw = rotation_checkers_factory(self.VertexC)
         paths = self.paths
