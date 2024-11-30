@@ -830,12 +830,12 @@ def make_planar_embedding(
     P_paths = nx.Graph(P.to_undirected().edges)
     P_paths.remove_nodes_from(supertriangle)
 
-    # this adds diagonals to P_paths
-    # we don't want diagonals where P_paths[u][v]['kind'] is set ('concavity')
-    for u, v in [(u, v) for u, v in P_paths.edges
-                 if (((u, v) if u < v else (v, u)) not in hull_prunned_edges
-                     and not (u in vertex2conc_id_map
-                              and v in vertex2conc_id_map))]:
+    # this adds diagonals to P_paths, but not diagonals that cross constraints
+    for u, v in [
+        (u, v) for u, v in P_paths.edges
+        if (((u, v) if u < v else (v, u)) not in hull_prunned_edges
+             and not (u in vertex2conc_id_map and v in vertex2conc_id_map
+                      and vertex2conc_id_map[u] == vertex2conc_id_map[v]))]:
         uvD = P[u][v]
         s, t = uvD['cw'], uvD['ccw']
         if s >= T + B or t >= T + B:
