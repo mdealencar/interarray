@@ -28,6 +28,7 @@ from .geometric import (
     rotation_checkers_factory,
     assign_root,
     area_from_polygon_vertices,
+    is_crossing,
 )
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .interarraylib import NodeTagger
@@ -38,6 +39,7 @@ trace, debug, info, success, warn, error, critical = (
     logger.warning, logger.error, logger.critical)
 
 F = NodeTagger()
+NULL = np.iinfo(int).min
 
 
 def edges_and_hull_from_cdt(triangles: list[cdt.Triangle],
@@ -338,7 +340,8 @@ def make_planar_embedding(
     #    create stunt concavity vertices to the inside of the concavity.
     # C) Get Delaynay triangulation of the wtg+oss nodes only.
     # D) Build the available-edges graph A and its planar embedding.
-    # E) Add concavities+obstacles and get the Constrained Delaunay Triang.
+    # Y) Handle obstacles
+    # E) Add concavities and get the Constrained Delaunay Triang.
     # F) Build the planar embedding of the constrained triangulation.
     # G) Build P_paths.
     # H) Revisit A to update edges crossing borders with P_path contours.
@@ -529,24 +532,19 @@ def make_planar_embedding(
     holes = [Contour(points[obstacle]) for obstacle in obstacles]
 
     # assemble all points actually used in concavities and obstacles
-    points_used = set(chain(
-        *(conc.vertices for conc in concavities),
-        *(hole.vertices for hole in holes)))
+    num_pt_concavities = sum(len(conc.vertices) for conc in concavities)
+    num_pt_holes = sum(len(hole.vertices) for hole in holes)
 
-    # create the PythonCDT vertices
-    verticesCDT = []
-    vertexCDT_from_point = {}
-    vertex_from_vertexCDT = np.empty((3 + T + R + len(points_used),),
-                                       dtype=int)
     # account for the supertriangle vertices that cdt.Triangulation() adds
     supertriangle = tuple(range(T + B, T + B + 3))
-    vertex_from_vertexCDT[:3] = supertriangle
-    for i, pt in enumerate(chain(points[:T], points[-R:], points_used)):
-        verticesCDT.append(cdt.V2d(pt.x, pt.y))
-        # this one is used before supertriangle (no + 3)
-        vertexCDT_from_point[pt] = i
-        # this one is used after supertriangle (hence, + 3)
-        vertex_from_vertexCDT[i + 3] = vertex_from_point[pt]
+    iCDT = 0
+    vertex_from_iCDT = np.full(
+        (3 + T + R + num_pt_concavities + num_pt_holes,), NULL,  dtype=int)
+    vertex_from_iCDT[:3] = supertriangle
+    V2d_nodes = []
+    for iCDT, pt in enumerate(chain(points[:T], points[-R:]), start=iCDT):
+        V2d_nodes.append(cdt.V2d(pt.x, pt.y))
+        vertex_from_iCDT[iCDT + 3] = vertex_from_point[pt]
 
     # Bundle concavities that share a common point.
     if len(concavities) > 1:
@@ -580,10 +578,6 @@ def make_planar_embedding(
     else:
         concavityVertexSeqs = []
 
-    #  vertex2conc_id_map = {vertex_from_point[p]: i
-    #                        for i, conc in enumerate(concavities)
-    #                        for p in conc.vertices}
-
     vertex2conc_id_map = {vertex_from_point[p]: i
                           for i, hole in enumerate(chain(concavities, holes))
                           for p in hole.vertices}
@@ -595,9 +589,9 @@ def make_planar_embedding(
     # Create triangulation and add vertices and edges
     mesh = cdt.Triangulation(cdt.VertexInsertionOrder.AUTO,
                              cdt.IntersectingConstraintEdges.NOT_ALLOWED, 0.0)
-    mesh.insert_vertices(verticesCDT[:T + R])
+    mesh.insert_vertices(V2d_nodes)
 
-    P_A = planar_from_cdt_triangles(mesh.triangles, vertex_from_vertexCDT)
+    P_A = planar_from_cdt_triangles(mesh.triangles, vertex_from_iCDT)
 
     # ##############################################################
     # D) Build the available-edges graph A and its planar embedding.
@@ -640,7 +634,8 @@ def make_planar_embedding(
     debug('hull_prunned_edges: {}',
           ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
 
-    A = nx.Graph(P_A.to_undirected().edges)
+    P_A_undir = P_A.to_undirected()
+    A = nx.Graph(P_A_undir.edges)
     nx.set_edge_attributes(A, 'delaunay', name='kind')
     # TODO: ¿do we really need node attr kind? separate with test: node < 0
     nx.set_node_attributes(A, 'wtg', name='kind')
@@ -700,49 +695,108 @@ def make_planar_embedding(
     info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
 
     # ######################################################################
-    # E) Add concavities+obstacles and get the Constrained Delaunay Triang.
+    # Y) Handle obstacles
+    # ######################################################################
+    debug('PART Y')
+    constraint_edges = set()
+    edgesCDT_obstacles = []
+    pts_hard_constraints = set()
+    V2d_holes = []
+    # add obstacles' edges
+    for hole in holes:
+        for seg in hole.segments:
+            s, t = vertex_from_point[seg.start], vertex_from_point[seg.end]
+            edge = []
+            for n, pt in ((s, seg.start), (t, seg.end)):
+                if pt not in pts_hard_constraints:
+                    iCDT += 1
+                    vertex_from_iCDT[iCDT + 3] = n
+                    edge.append(iCDT)
+                    pts_hard_constraints.add(pt)
+                    V2d_holes.append(cdt.V2d(pt.x, pt.y))
+                else:
+                    edge.append(np.flatnonzero(vertex_from_iCDT == n)[0] - 3)
+            st = (s, t) if s < t else (t, s)
+            constraint_edges.add(st)
+            edgesCDT_obstacles.append(cdt.Edge(*edge))
+
+    # if adding obstacles, crossing-free edges might be removed from the mesh
+    justly_removed = set()
+    soft_constraints = set()
+    if edgesCDT_obstacles:
+        mesh.insert_vertices(V2d_holes)
+        mesh.insert_edges(edgesCDT_obstacles)
+        P = planar_from_cdt_triangles(mesh.triangles, vertex_from_iCDT)
+        # Here we use the changes in CDT triangulation to identify the P_A
+        # edges that cross obstacles or lay in their vicinity.
+        edges_to_examine = set(((u, v) if u < v else (v, u))
+                               for u, v in P_A_undir.edges - P.edges)
+        while edges_to_examine:
+            u, v = edges_to_examine.pop()
+            # if ⟨u, v⟩ does not cross any constraint_edges, add it to edgesCDT
+            if not any(is_crossing(*VertexC[[u, v, s, t]])
+                       for s, t in constraint_edges):
+                # ⟨u, v⟩ was removed from the triangulation but does not cross
+                soft_constraints.add((u, v))
+            else:
+                # ⟨u, v⟩ crosses some constraint_edge
+                justly_removed.add((u, v))
+                # enlist for examination the up to 4 edges surrounding ⟨u, v⟩
+                for s, t in ((u, v), (v, u)):
+                    nb = P_A[s][t]['cw']
+                    if nb == P_A[t][s]['cw']:
+                        for p, q in ((nb, s) if nb < s else (s, nb),
+                                     ((nb, t) if nb < t else (t, nb))):
+                            if ((p, q) not in soft_constraints
+                                and (p, q) not in justly_removed):
+                                edges_to_examine.add((p, q))
+        if soft_constraints:
+            # add the crossing-free edges around obstacles as constraints
+            mesh.insert_edges([cdt.Edge(u if u >= 0 else T + R + u,
+                                        v if v >= 0 else T + R + v)
+                               for u, v in soft_constraints])
+
+    # ######################################################################
+    # E) Add concavities and get the Constrained Delaunay Triang.
     # ######################################################################
     debug('PART E')
     # create the PythonCDT edges
-    constraint_edges = set()
     edgesCDT_P_A = []
 
-    # Add A's hull as constraint edges to ensure A's edges remain in P.
+    # Add A's hull_concave as soft constraints to ensure A's edges remain in P.
     for s, t in zip(hull_concave, hull_concave[1:] + [hull_concave[0]]):
+        s, t = (s, t) if s < t else (t, s)
+        if ((s, t) in justly_removed
+            or (s, t) in soft_constraints):
+            # skip if ⟨s, t⟩ is known to cross an obstacle or was added earlier
+            continue
         edgesCDT_P_A.append(cdt.Edge(s if s >= 0 else T + R + s,
                                      t if t >= 0 else T + R + t))
-
-    # This ensures P_A edges within the concave hull remain unaltered.
     mesh.insert_edges(edgesCDT_P_A)
-    # remove triangles outside the concave_hull of P_A
-    #  print(mesh.calculate_triangle_depths())
-    #  mesh.remove_triangles(set(np.flatnonzero(
-    #      ~np.array(mesh.calculate_triangle_depths(), dtype=bool))))
-    #  num_triangles_P_A = mesh.triangles_count()
-    #  print('num_triangles_P_A', num_triangles_P_A)
 
-    edgesCDT = []
-    # add concavities' and obstacles' edges
-    for hole in chain(concavities, holes):
-        for seg in hole.segments:
+    edgesCDT_concavities = []
+    V2d_concavities = []
+    # add concavities' edges
+    for conc in concavities:
+        for seg in conc.segments:
             s, t = vertex_from_point[seg.start], vertex_from_point[seg.end]
+            edge = []
+            for n, pt in ((s, seg.start), (t, seg.end)):
+                if pt not in pts_hard_constraints:
+                    iCDT += 1
+                    vertex_from_iCDT[iCDT + 3] = n
+                    edge.append(iCDT)
+                    pts_hard_constraints.add(pt)
+                    V2d_concavities.append(cdt.V2d(pt.x, pt.y))
+                else:
+                    edge.append(np.flatnonzero(vertex_from_iCDT == n)[0] - 3)
             st = (s, t) if s < t else (t, s)
             constraint_edges.add(st)
-            edgesCDT.append(cdt.Edge(vertexCDT_from_point[seg.start],
-                                     vertexCDT_from_point[seg.end]))
+            edgesCDT_concavities.append(cdt.Edge(*edge))
 
-    mesh.insert_vertices(verticesCDT[T + R:])
-    mesh.insert_edges(edgesCDT)
-    #  print('\n\n', mesh.calculate_triangle_depths(), '\n\n')
-
-    # this will remove all internal triangles, both in concavities and in the
-    # concave hull
-    #  mesh.remove_triangles(
-    #          set(np.flatnonzero(mesh.calculate_triangle_depths())))
-
-    # TODO: remove triangles inside obstacle zones (depth = 2)
-    #  mesh.remove_triangles(
-    #          set(np.flatnonzero(mesh.calculate_triangle_depths())))
+    if edgesCDT_concavities:
+        mesh.insert_vertices(V2d_concavities)
+        mesh.insert_edges(edgesCDT_concavities)
 
     # ##########################################
     # Z) Scale coordinates back.
@@ -769,15 +823,15 @@ def make_planar_embedding(
     # F) Build the planar embedding of the constrained triangulation.
     # ###############################################################
     debug('PART F')
-    P = planar_from_cdt_triangles(mesh.triangles, vertex_from_vertexCDT)
+    P = planar_from_cdt_triangles(mesh.triangles, vertex_from_iCDT)
 
+    # Remove edges inside the concavities
     for hole in chain(
             concavityVertexSeqs,
             (([vertex_from_point[v] for v in hole.vertices[::-1]]
              for hole in holes) if obstacles else ())):
         for rev, cur, fwd in zip(chain((hole[-1],), hole[:-1]),
                                  hole, chain(hole[1:], (hole[0],))):
-            # Remove edges inside the concavities
             while P[cur][fwd]['ccw'] != rev:
                 P.remove_edge(cur, P[cur][fwd]['ccw'])
 
