@@ -436,9 +436,9 @@ class PathFinder():
         ST = T + B
         edges_P = {((u, v) if u < v else (v, u))
                    for u, v in P.edges if u < ST or v < ST}
-        portal_set = edges_P - edges_G_primed
-        self.portal_set = portal_set
         constraint_edges = P.graph['constraint_edges']
+        portal_set = (edges_P - edges_G_primed) - constraint_edges
+        self.portal_set = portal_set
 
         # launch channel traversers around the roots to the prioqueue
         for r in range(-R, 0):
