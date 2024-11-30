@@ -13,7 +13,7 @@ def namedtuplify(namedtuple_typename='', **kwargs):
 
 class NodeTagger():
     # 50 digits, 'I' and 'l' were dropped
-    alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLRTOPQRSTUVWXYZ'
+    alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ'
     value = {c: i for i, c in enumerate(alphabet)}
 
     def __getattr__(self, b50):
