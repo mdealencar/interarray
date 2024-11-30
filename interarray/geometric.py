@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
-import functools
 import math
 import operator
 from collections import defaultdict
-from itertools import chain, product
+from itertools import product
 from math import isclose
 from typing import Callable
 
@@ -16,7 +15,6 @@ from scipy.sparse.csgraph import minimum_spanning_tree as scipy_mst
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
 
-from . import MAX_TRIANGLE_ASPECT_RATIO
 from .utils import NodeStr, NodeTagger
 
 F = NodeTagger()
@@ -155,8 +153,8 @@ def is_crossing_numpy(u, v, s, t):
     return True
 
 
-def is_crossing(u, v, s, t, touch_is_cross=True):
-    '''checks if (u, v) crosses (s, t);
+def is_crossing(uC, vC, sC, tC, touch_is_cross=True):
+    '''checks if (uC, vC) crosses (sC, tC);
     returns ¿? in case of superposition
     choices for `less`:
     -> operator.lt counts touching as crossing
@@ -168,22 +166,22 @@ def is_crossing(u, v, s, t, touch_is_cross=True):
     # Faster Line Segment Intersection
     # Graphic Gems III
 
-    A = v - u
-    B = s - t
+    A = vC - uC
+    B = sC - tC
 
     # bounding box check
     for i in (0, 1):  # X and Y
-        lo, hi = (v[i], u[i]) if A[i] < 0 else (u[i], v[i])
+        lo, hi = (vC[i], uC[i]) if A[i] < 0 else (uC[i], vC[i])
         if B[i] > 0:
-            if hi < t[i] or s[i] < lo:
+            if hi < tC[i] or sC[i] < lo:
                 return False
         else:
-            if hi < s[i] or t[i] < lo:
+            if hi < sC[i] or tC[i] < lo:
                 return False
 
     Ax, Ay = A
     Bx, By = B
-    Cx, Cy = C = u - s
+    Cx, Cy = C = uC - sC
 
     # denominator
     # print(Ax, Ay, Bx, By)
