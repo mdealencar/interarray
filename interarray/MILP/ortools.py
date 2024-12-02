@@ -8,12 +8,12 @@ import networkx as nx
 from ortools.sat.python import cp_model
 
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
-from ..interarraylib import calcload, fun_fingerprint
+from ..interarraylib import fun_fingerprint
 
 
 def make_min_length_model(A: nx.Graph, capacity: int, *,
                           gateXings_constraint: bool = False,
-                          gates_limit: bool = False,
+                          gates_limit: bool | int = False,
                           branching: bool = True) -> cp_model.CpModel:
     '''
     Build ILP CP OR-tools model for the collector system length minimization.
@@ -247,7 +247,6 @@ def S_from_solution(model: cp_model.CpModel,
         termination=solver.status_name(),
         gap=1. - bound/objective,
         creator='MILP.' + solver_name,
-        warmstart=model.warmed_by,
         has_loads=True,
         method_options=dict(
             solver_name=solver_name,
@@ -260,6 +259,9 @@ def S_from_solution(model: cp_model.CpModel,
             strategy=solver.SolutionInfo(),
         )
     )
+
+    if model.warmed_by is not None:
+        S.graph['warmstart'] = model.warmed_by
 
     # Graph data
     # gates

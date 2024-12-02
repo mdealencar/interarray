@@ -241,7 +241,7 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
                             branching=branching)
 
     m.fun_fingerprint = fun_fingerprint()
-    m.warmed = None
+    m.warmed_by = None
     return m
 
 
@@ -291,7 +291,6 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         termination=status['Solver'][0]['Termination condition'].name,
         gap=1. - bound/objective,
         creator='MILP.pyomo.' + solver_name,
-        warmstart=model.warmed_by,
         has_loads=True,
         method_options=dict(
             solver_name=solver_name,
@@ -303,6 +302,9 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         #  solver_details=dict(
         #  )
     )
+
+    if model.warmed_by is not None:
+        S.graph['warmstart'] = model.warmed_by
 
     # Graph data
     # gates
