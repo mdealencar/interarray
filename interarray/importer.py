@@ -283,6 +283,7 @@ _site_handles_yaml = dict(
     borkum2='Borkum Riffgrund 2',
     borssele='Borssele',
     butendiek='Butendiek',
+    cazzaro_2022='Cazzaro-2022',
     dantysk='DanTysk',
     doggerA='Dogger Bank A',
     dudgeon='Dudgeon',
@@ -308,7 +309,7 @@ _site_handles_yaml = dict(
     walney2='Walney 2',
     walneyext='Walney Extension',
     sands='West of Duddon Sands',
-    taylor='Taylor-2023',
+    taylor_2023='Taylor-2023',
 )
 
 _site_handles_pbf = dict(
