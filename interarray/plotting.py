@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # https://github.com/mdealencar/interarray
 
+from collections import defaultdict
 import math
 from collections.abc import Sequence
 from itertools import chain
@@ -67,59 +68,64 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
                    NODESIZE_DETOUR)
     node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
-    kind2color = {}
-    kind2style = dict(
-        detour=(0, (4, 4)),
-        scaffold='dotted',
-        extended='dashed',
-        delaunay='solid',
-        tentative='dashdot',
-        rogue='dashed',
-        contour_delaunay='solid',
-        contour_extended='dashed',
-        contour='solid',
-        planar='dashdot',
-        constraint='solid',
-        unspecified='solid',
-        border='dashed',
-    )
+    # theme settings
+    kind2alpha = defaultdict(lambda: 1.)
+    kind2alpha['virtual'] = 0.4
+    kind2style = {
+        'scaffold': 'dotted',
+        'delaunay': 'solid',
+        'extended': 'dashed',
+        'tentative': 'dashdot',
+        'rogue': 'dashed',
+        'contour_delaunay': 'solid',
+        'contour_extended': 'dashed',
+        'contour': 'solid',
+        'planar': 'dashdot',
+        'constraint': 'solid',
+        'border': 'dashed',
+        None: 'solid',
+        'detour': (0, (4, 4)),
+        'virtual': 'solid',
+        }
     if dark:
-        kind2color.update(
-            detour='darkorange',
-            scaffold='gray',
-            delaunay='darkcyan',
-            extended='darkcyan',
-            tentative='red',
-            rogue='yellow',
-            contour_delaunay='green',
-            contour_extended='green',
-            contour='red',
-            planar='darkorchid',
-            constraint='purple',
-            border = 'silver',
-            unspecified='crimson',
-        )
+        kind2color = {
+            'scaffold': 'gray',
+            'delaunay': 'darkcyan',
+            'extended': 'darkcyan',
+            'tentative': 'red',
+            'rogue': 'yellow',
+            'contour_delaunay': 'green',
+            'contour_extended': 'green',
+            'contour': 'red',
+            'planar': 'darkorchid',
+            'constraint': 'purple',
+            'border': 'silver',
+            None: 'crimson',
+            'detour': 'darkorange',
+            'virtual': 'yellow',
+        }
         root_color = 'lawngreen'
         node_edge = 'none'
         detour_ring = 'orange'
         border_face = '#111'
         text_color = 'white'
     else:
-        kind2color.update(
-            detour='royalblue',
-            scaffold='gray',
-            delaunay='darkgreen',
-            extended='darkgreen',
-            tentative='darkorange',
-            rogue='magenta',
-            contour_delaunay='firebrick',
-            contour_extended='firebrick',
-            contour='black',
-            planar='darkorchid',
-            constraint='darkcyan',
-            border = 'dimgray',
-            unspecified='black',
-        )
+        kind2color = {
+            'scaffold': 'gray',
+            'delaunay': 'darkgreen',
+            'extended': 'darkgreen',
+            'tentative': 'darkorange',
+            'rogue': 'magenta',
+            'contour_delaunay': 'firebrick',
+            'contour_extended': 'firebrick',
+            'contour': 'black',
+            'planar': 'darkorchid',
+            'constraint': 'darkcyan',
+            'border':  'dimgray',
+            None: 'black',
+            'detour': 'royalblue',
+            'virtual': 'yellow',
+        }
         root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
@@ -189,32 +195,24 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     edges_width = 0.7
     edges_capstyle = 'round'
     # draw edges
-    base_layer = ('scaffold',)
-    for edge_kind in base_layer:
-        art = nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color=kind2color[edge_kind], label=edge_kind,
-            style=kind2style[edge_kind], width=edges_width,
-            edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
-                      if kind == edge_kind])
-        if art:
-            art.set_capstyle(edges_capstyle)
-    art = nx.draw_networkx_edges(
-        G, pos, ax=ax, edge_color=kind2color['unspecified'], label='direct',
-        style=kind2style['unspecified'], width=edges_width,
-        edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
-                  if kind is None])
-    if art:
-        art.set_capstyle(edges_capstyle)
     for edge_kind in kind2style:
-        if edge_kind in base_layer:
-            continue
-        art = nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color=kind2color[edge_kind], label=edge_kind,
-            style=kind2style[edge_kind], width=edges_width,
-            edgelist=[(u, v) for u, v, kind in G.edges.data('kind')
-                      if kind == edge_kind])
-        if art:
+        edges = [(u, v) for u, v, kind in G.edges.data('kind')
+                 if kind == edge_kind]
+        if edges:
+            art = nx.draw_networkx_edges(G, pos, ax=ax, label=edge_kind,
+                edge_color=kind2color[edge_kind], style=kind2style[edge_kind],
+                width=edges_width, alpha=kind2alpha[edge_kind], edgelist=edges)
             art.set_capstyle(edges_capstyle)
+    overlay = G.graph.get('overlay')
+    if overlay is not None:
+        for edge_kind in kind2style:
+            edges = [(u, v) for u, v, kind in overlay.edges.data('kind')
+                     if kind == edge_kind]
+            if edges:
+                art = nx.draw_networkx_edges(overlay, pos, ax=ax, label=edge_kind,
+                    edge_color=kind2color[edge_kind], style=kind2style[edge_kind],
+                    width=edges_width, alpha=kind2alpha[edge_kind], edgelist=edges)
+                art.set_capstyle(edges_capstyle)
 
     # draw nodes
     if D:
@@ -354,39 +352,3 @@ def compare(positional=None, **title2G_dict):
         creator = G.graph.get("creator", 'no edges')
         ax.set_title(f'{title} – {G.graph["name"]} '
                      f'({creator})')
-
-
-def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
-    scaff = P.to_undirected()
-    scaff.graph.update(G.graph)
-    for attr in 'fnT C'.split():
-        if attr in scaff.graph:
-            del scaff.graph[attr]
-    R, T, B, C, D = (G.graph.get(k, 0) for k in 'R T B C D'.split())
-    nx.set_edge_attributes(scaff, 'scaffold', name='kind')
-    constraints = P.graph.get('constraint_edges', [])
-    for edge in constraints:
-        scaff.edges[edge]['kind'] = 'constraint'
-    for n, d in scaff.nodes(data=True):
-        if n not in G.nodes:
-            continue
-        d.update(G.nodes[n])
-    if C > 0 or D > 0:
-        fnT = G.graph['fnT']
-    else:
-        fnT = np.arange(R + T + B + C + D)
-        fnT[-R:] = range(-R, 0)
-    for u, v in G.edges:
-        st = fnT[u], fnT[v]
-        if st in scaff.edges and 'kind' in scaff.edges[st]:
-            del scaff.edges[st]['kind']
-    VertexC = G.graph['VertexC']
-    supertriangleC = P.graph['supertriangleC']
-    if G.graph.get('is_normalized'):
-        supertriangleC = G.graph['norm_scale']*(supertriangleC
-                                                - G.graph['norm_offset'])
-    VertexC = np.vstack((VertexC[:-R],
-                         supertriangleC,
-                         VertexC[-R:]))
-    scaff.graph.update(VertexC=VertexC, fnT=fnT)
-    return scaff

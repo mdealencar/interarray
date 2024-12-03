@@ -7,7 +7,6 @@ from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from itertools import chain
 
-from matplotlib.axes import Axes
 import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -16,10 +15,9 @@ from loguru import logger
 
 from .crossings import gateXing_iter
 from .mesh import planar_flipped_by_routeset
-from .geometric import rotate, rotation_checkers_factory
-from .interarraylib import bfs_subtree_loads
+from .geometric import rotation_checkers_factory
+from .interarraylib import bfs_subtree_loads, scaffolded
 from .utils import NodeStr, NodeTagger
-from .plotting import gplot, scaffolded
 
 trace, debug, info, success, warn, error, critical = (
     logger.trace, logger.debug, logger.info, logger.success,
@@ -558,34 +556,29 @@ class PathFinder():
             path, dists = get_best_path(n)
             nx.add_path(G, path, kind='virtual')
 
-    def plot_best_paths(self, ax: Axes | None = None, **kwargs) -> Axes:
+    def best_paths_overlay(self) -> nx.Graph:
+        '''Merges the shortest paths for all nodes with `G`.
+
+        The output includes `G`'s edges, excluding its gates.
+
+        Returns:
+          Merged graph (pass to `plotting.gplot()` or 'svg.svgplot()`).
         '''
-        Plot the subtrees of G (without gate edges) overlaid by the shortest
-        paths for all nodes.
-        '''
-        K = nx.subgraph_view(self.G,
-                             filter_edge=lambda u, v: u >= 0 and v >= 0)
-        ax = gplot(K, ax=ax, **{'infobox': False, 'node_tag': None} | kwargs)
         J = nx.Graph()
         J.add_nodes_from(self.G.nodes)
         self._apply_all_best_paths(J)
-        landscape_angle = self.G.graph.get('landscape_angle')
-        if landscape_angle:
-            VertexC = rotate(self.VertexC, landscape_angle)
-        else:
-            VertexC = self.VertexC
-        nx.draw_networkx_edges(J, pos=VertexC, edge_color='y',
-                               alpha=0.5, ax=ax, label='path to root')
+        self._apply_all_best_paths(J)
+        K = self.G.copy()
+        K.graph['overlay'] = J
+        if 'capacity' in K.graph:
+            # hack to prevent `gplot()` from showing infobox
+            del K.graph['capacity']
+        return nx.subgraph_view(
+            K, filter_edge=lambda u, v: u >= 0 and v >= 0)
 
-        return ax
-
-    def plot_scaffolded(self, ax: Axes | None = None, **kwargs) -> Axes:
-        '''
-        Plot the PlanarEmbedding of G, overlaid by the edges of G that coincide
-        with it.
-        '''
-        return gplot(scaffolded(self.G, P=self.P), ax=ax,
-                     **{'infobox': False} | kwargs)
+    def scaffolded(self) -> nx.Graph:
+        '''Wrapper for `interarraylib.scaffolded`.'''
+        return scaffolded(self.G, P=self.P)
 
     def create_detours(self):
         '''Reroute all gate edges in G with crossings using detour paths.

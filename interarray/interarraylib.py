@@ -742,3 +742,54 @@ def make_remap(G, refG, H, refH):
         j = np.argmin(np.hypot(*(GvertC - coordH).T))
         remap[j] = i
     return remap
+
+
+def scaffolded(G: nx.Graph, P: nx.PlanarEmbedding) -> nx.Graph:
+    '''Create a new graph merging G and P.
+
+    Useful for visualizing the funnels explored by `pathfinding.PathFinder`.
+    `G` must have been created using `P`.
+
+    Args:
+      G: network graph for location
+      P: planar embedding of location
+
+    Returns:
+      Merged graph (pass to `plotting.gplot()` or 'svg.svgplot()`).
+    '''
+    scaff = P.to_undirected()
+    scaff.graph.update(G.graph)
+    for attr in 'fnT C'.split():
+        if attr in scaff.graph:
+            del scaff.graph[attr]
+    R, T, B, C, D = (G.graph.get(k, 0) for k in 'R T B C D'.split())
+    nx.set_edge_attributes(scaff, 'scaffold', name='kind')
+    constraints = P.graph.get('constraint_edges', [])
+    for edge in constraints:
+        scaff.edges[edge]['kind'] = 'constraint'
+    for n, d in scaff.nodes(data=True):
+        if n not in G.nodes:
+            continue
+        d.update(G.nodes[n])
+    if C > 0 or D > 0:
+        fnT = G.graph['fnT']
+    else:
+        fnT = np.arange(R + T + B + C + D)
+        fnT[-R:] = range(-R, 0)
+    for u, v in G.edges:
+        st = fnT[u], fnT[v]
+        if st in scaff.edges and 'kind' in scaff.edges[st]:
+            del scaff.edges[st]['kind']
+    VertexC = G.graph['VertexC']
+    supertriangleC = P.graph['supertriangleC']
+    if G.graph.get('is_normalized'):
+        supertriangleC = G.graph['norm_scale']*(supertriangleC
+                                                - G.graph['norm_offset'])
+    VertexC = np.vstack((VertexC[:-R],
+                         supertriangleC,
+                         VertexC[-R:]))
+    scaff.graph.update(VertexC=VertexC, fnT=fnT)
+    if 'capacity' in scaff.graph:
+        # hack to prevent `gplot()` from showing infobox
+        del scaff.graph['capacity']
+    return scaff
