@@ -22,6 +22,7 @@ from orient.planar import (
 import PythonCDT as cdt
 
 from .geometric import (
+    halfedges_from_triangulation,
     is_crossing_no_bbox,
     triangle_AR,
     is_triangle_pair_a_convex_quadrilateral,
@@ -115,8 +116,8 @@ def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
                               vertmap: np.ndarray) -> nx.PlanarEmbedding:
     '''Convert from a PythonCDT.Triangulation to NetworkX.PlanarEmbedding.
 
-    Used internally in `make_planar_embedding()`.
-
+    Used internally in `make_planar_embedding()`. Wraps the numba-compiled `halfedges_from_triangulation()`, which does the intensive work.
+    
     Args:
         triangles: `PythonCDT.Triangulation().triangles` list
         vertmap: node number translation table, from CDT numbers to NetworkX
@@ -124,59 +125,21 @@ def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
     Returns:
         planar embedding
     '''
-    nodes_todo = {}
-    nodes_done = set()
+    num_tri = len(triangles)
+    triangleI = np.empty((num_tri, 3), dtype=np.int64)
+    neighborI = np.empty((num_tri, 3), dtype=np.int64)
+    for i, tri in enumerate(triangles):
+        triangleI[i] = vertmap[tri.vertices]
+        neighborI[i] = tuple((NULL if n == cdt.NO_NEIGHBOR else n)
+                             for n in tri.neighbors)
+    firstE, ccwE, cwE = halfedges_from_triangulation(triangleI, neighborI)
     P = nx.PlanarEmbedding()
-    tri = triangles[0]
-    tri_visited = {0}
-    # add the first three nodes to process
-    for pivot in tri.vertices:
-        nodes_todo[pivot] = 0
-    while nodes_todo:
-        pivot, tri_idx_start = nodes_todo.popitem()
-        tri = triangles[tri_idx_start]
-        pivot_idx = tri.vertices.index(pivot)
-        succ_start = tri.vertices[(pivot_idx + 1) % 3]
-        nb_idx_start_reverse = (pivot_idx - 1) % 3
-        succ_end = tri.vertices[(pivot_idx - 1) % 3]
-        # first half-edge from `pivot`
-        # print('INIT', *vertmap[[pivot, succ_start]])
-        P.add_half_edge(*vertmap[[pivot, succ_start]])
-        nb_idx = pivot_idx
-        ref = succ_start
-        refer_to = 'ccw'
-        cw = True
-        while True:
-            tri_idx = tri.neighbors[nb_idx]
-            if tri_idx == cdt.NO_NEIGHBOR:
-                if cw:
-                    # revert direction
-                    cw = False
-                    refer_to = 'cw'
-                    # print('REVE', *vertmap[[pivot, succ_end, ref]], refer_to)
-                    P.add_half_edge(*vertmap[[pivot, succ_end]],
-                                    **{refer_to: vertmap[succ_start]})
-                    ref = succ_end
-                    tri = triangles[tri_idx_start]
-                    nb_idx = nb_idx_start_reverse
-                    continue
-                else:
-                    break
-            tri = triangles[tri_idx]
-            pivot_idx = tri.vertices.index(pivot)
-            succ = (tri.vertices[(pivot_idx + 1) % 3]
-                    if cw else
-                    tri.vertices[(pivot_idx - 1) % 3])
-            nb_idx = pivot_idx if cw else (pivot_idx - 1) % 3
-            # print('NORM', *vertmap[[pivot, succ, ref]], refer_to)
-            P.add_half_edge(*vertmap[[pivot, succ]],
-                            **{refer_to: vertmap[ref]})
-            if succ not in nodes_todo and succ not in nodes_done:
-                nodes_todo[succ] = tri_idx
-            if succ == succ_end:
-                break
-            ref = succ
-        nodes_done.add(pivot)
+    for u, v in firstE:
+        P.add_half_edge(u, v)
+    for u, v, ref in ccwE:
+        P.add_half_edge(u, v, ccw=ref)
+    for u, v, ref in cwE:
+        P.add_half_edge(u, v, cw=ref)
     return P
 
 

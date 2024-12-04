@@ -19,7 +19,7 @@ from scipy.stats import rankdata
 from .utils import NodeStr, NodeTagger
 
 F = NodeTagger()
-
+NULL = np.iinfo(int).min
 
 def triangle_AR(uC, vC, tC):
     '''returns the aspect ratio of the triangle defined by the three 2D points
@@ -993,3 +993,81 @@ def area_from_polygon_vertices(X: np.ndarray, Y: np.ndarray) -> float:
                    + np.dot(X[:-1], Y[1:])
                    - np.dot(Y[:-1], X[1:]))
 
+
+@nb.njit(cache=True, inline='always')
+def index(array: nb.int64[:], item: nb.int64) -> nb.int64:
+    for idx, val in enumerate(array):
+        if val == item:
+            return idx
+    raise ValueError('value not found in array')
+
+
+@nb.njit(cache=True)
+def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[:, :]) \
+        -> list[tuple]:
+    '''
+    Meant to be called from `mesh.planar_from_cdt_triangles()`. Inputs are
+    derived from `PythonCDT.Triangulation().triangles`.
+
+    Args:
+        triangles: array of triangle.vertices for triangle in triangles
+        neighbors: array of triangle.neighbors for triangle in triangles
+
+    Returns:
+        3 lists of half-edges to be passed to `networkx.PlanarEmbedding`
+    '''
+    nodes_done = set()
+    halfedges = [(nb.int64(x), nb.int64(x)) for x in range(0)]
+    halfedges_ccw = [(nb.int64(x), nb.int64(x), nb.int64(x)) for x in range(0)]
+    halfedges_cw = [(nb.int64(x), nb.int64(x), nb.int64(x)) for x in range(0)]
+    orient = 0
+    # add the first three nodes to process
+    nodes_todo = {n: 0 for n in triangles[0]}
+    while nodes_todo:
+        pivot, tri_idx_start = nodes_todo.popitem()
+        tri = triangles[tri_idx_start]
+        tri_nb = neighbors[tri_idx_start]
+        pivot_idx = index(tri, pivot)
+        succ_start = tri[(pivot_idx + 1) % 3]
+        nb_idx_start_reverse = (pivot_idx - 1) % 3
+        succ_end = tri[(pivot_idx - 1) % 3]
+        # first half-edge from `pivot`
+        #  print('INIT', [pivot, succ_start])
+        halfedges.append((pivot, succ_start))
+        nb_idx = pivot_idx
+        ref = succ_start
+        #  orient = 1
+        halfedges_ref = halfedges_ccw
+        cw = True
+        while True:
+            tri_idx = tri_nb[nb_idx]
+            if tri_idx == NULL:
+                if cw:
+                    # revert direction
+                    cw = False
+                    #  orient = -1
+                    halfedges_ref = halfedges_cw
+                    #  print('REVE', [pivot, succ_end, ref], cw)
+                    halfedges_ref.append((pivot, succ_end, succ_start))
+                    ref = succ_end
+                    tri_nb = neighbors[tri_idx_start]
+                    nb_idx = nb_idx_start_reverse
+                    continue
+                else:
+                    break
+            tri = triangles[tri_idx]
+            tri_nb = neighbors[tri_idx]
+            pivot_idx = index(tri, pivot)
+            succ = (tri[(pivot_idx + 1) % 3]
+                    if cw else
+                    tri[(pivot_idx - 1) % 3])
+            nb_idx = pivot_idx if cw else (pivot_idx - 1) % 3
+            #  print('NORM', [pivot, succ, ref], cw)
+            halfedges_ref.append((pivot, succ, ref))
+            if succ not in nodes_todo and succ not in nodes_done:
+                nodes_todo[succ] = tri_idx
+            if succ == succ_end:
+                break
+            ref = succ
+        nodes_done.add(pivot)
+    return halfedges, halfedges_ccw, halfedges_cw
