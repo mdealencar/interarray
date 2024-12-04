@@ -188,7 +188,7 @@ def is_crossing(uC, vC, sC, tC, touch_is_cross=True):
     f = Bx*Ay - By*Ax
     # print('how close: ', f)
     # TODO: arbitrary threshold
-    if isclose(f, 0, abs_tol=1e-3):
+    if isclose(f, 0., abs_tol=1e-10):
         # segments are parallel
         return False
 
