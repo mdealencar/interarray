@@ -10,6 +10,7 @@ from typing import Callable
 
 import networkx as nx
 import numpy as np
+import numba as nb
 from scipy.sparse import coo_array
 from scipy.sparse.csgraph import minimum_spanning_tree as scipy_mst
 from scipy.spatial.distance import cdist
@@ -102,11 +103,27 @@ def angle(a, pivot, b):
     return ang
 
 
-def is_bb_overlapping(uv, st):
-    ''' checks if there is an overlap in the bounding boxes of `uv` and `st`
-    (per row)
-    `uv` and `st` have shape T×2, '''
-    pass
+def find_edges_bbox_overlaps(
+        VertexC: np.ndarray, u: int, v: int, edges: np.ndarray) -> np.ndarray:
+    '''Find which `edges` has a bounding box overlap with ⟨u, v⟩.
+    
+    This is a preliminary filter for crossing checks. Enables avoiding the more
+    costly geometric crossing calculations for segments that are clearly
+    disjoint.
+
+    Args:
+      VertexC: (N×2) point coordinates
+      u, v: indices of probed edge
+      edges: list of index pairs representing edges to check against
+    Returns:
+      numpy array with the indices of overlaps in `edges`
+    '''
+    uC, vC = VertexC[u], VertexC[v]
+    edgesC = VertexC[edges]
+    return np.flatnonzero(~np.logical_or(
+        (edgesC > np.maximum(uC, vC)).all(axis=1),
+        (edgesC < np.minimum(uC, vC)).all(axis=1)
+    ).any(axis=1))
 
 
 def is_crossing_numpy(u, v, s, t):
@@ -146,6 +163,48 @@ def is_crossing_numpy(u, v, s, t):
                 return False
         else:
             if num > 0 or num < f:
+                return False
+
+    # code to calculate intersection coordinates omitted
+    # segments do cross
+    return True
+
+
+@nb.njit(cache=True, inline='always')
+def _cross_prod_2d(P: nb.float64[:], Q: nb.float64[:]) -> float:
+    return P[0]*Q[1] - P[1]*Q[0]
+
+
+@nb.njit(cache=True, inline='always')
+def is_crossing_no_bbox(uC: nb.float64[:], vC: nb.float64[:],
+                        sC: nb.float64[:], tC: nb.float64[:]) -> bool:
+    '''checks if (uC, vC) crosses (sC, tC);
+    returns ¿? in case of superposition
+    '''
+    # adapted from Franklin Antonio's insectc.c lines_intersect()
+    # Faster Line Segment Intersection
+    # Graphic Gems III
+    A = vC - uC
+    B = sC - tC
+    C = uC - sC
+
+    # denominator
+    #  f = B[0]*A[1] - B[1]*A[0]
+    f = _cross_prod_2d(B, A)
+    # TODO: arbitrary threshold
+    if abs(f) < 1e-10:
+        # segments are parallel
+        return False
+
+    # alpha and beta numerators
+    #  for num in (Px*Qy - Py*Qx for (Px, Py), (Qx, Qy) in ((C, B), (A, C))):
+    for P, Q in ((C, B), (A, C)):
+        num = _cross_prod_2d(P, Q)
+        if f > 0:
+            if num < 0 or f < num:
+                return False
+        else:
+            if 0 < num or num < f:
                 return False
 
     # code to calculate intersection coordinates omitted
@@ -226,20 +285,23 @@ def is_bunch_split_by_corner(bunch, a, o, b, margin=1e-3):
     return split, np.flatnonzero(inside), np.flatnonzero(outside)
 
 
-def is_triangle_pair_a_convex_quadrilateral(u, v, s, t):
+@nb.njit(cache=True, inline='always')
+def is_triangle_pair_a_convex_quadrilateral(
+        uC: nb.float64[:], vC: nb.float64[:],
+        sC: nb.float64[:], tC: nb.float64[:]) -> bool:
     '''⟨u, v⟩ is the common side;
     ⟨s, t⟩ are the opposing vertices;
     returns False also if it is a triangle
     only works if ⟨s, t⟩ crosses the line defined by ⟨u, v⟩'''
     # this used to be called `is_quadrilateral_convex()`
     # us × ut
-    usut = np.cross(s - u, t - u)
+    usut = _cross_prod_2d(sC - uC, tC - uC)
     # vt × vs
-    vtvs = np.cross(t - v, s - v)
-    if usut == 0 or vtvs == 0:
+    vtvs = _cross_prod_2d(tC - vC, sC - vC)
+    if usut == 0. or vtvs == 0.:
         # the four vertices form a triangle
         return False
-    return (usut > 0) == (vtvs > 0)
+    return (usut > 0.) == (vtvs > 0.)
 
 
 def is_same_side(L1, L2, A, B, touch_is_cross=True):

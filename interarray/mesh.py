@@ -13,7 +13,7 @@ from itertools import chain, tee, combinations
 from bidict import bidict
 from ground.base import get_context
 from gon.base import (
-    Point, Segment, Contour, Polygon, Multipolygon, Relation, Location, EMPTY
+    Point, Segment, Contour, Polygon, Relation, Location, EMPTY
 )
 from orient.planar import (
     point_in_polygon, contour_in_region, segment_in_region
@@ -22,6 +22,7 @@ from orient.planar import (
 import PythonCDT as cdt
 
 from .geometric import (
+    is_crossing_no_bbox,
     triangle_AR,
     is_triangle_pair_a_convex_quadrilateral,
     is_same_side,
@@ -29,6 +30,7 @@ from .geometric import (
     assign_root,
     area_from_polygon_vertices,
     is_crossing,
+    find_edges_bbox_overlaps,
 )
 from . import MAX_TRIANGLE_ASPECT_RATIO
 from .interarraylib import NodeTagger
@@ -454,8 +456,8 @@ def make_planar_embedding(
                 YZ = VertexC[Z] - VertexC[Y]
                 _XY_ = np.hypot(*XY)
                 _YZ_ = np.hypot(*YZ)
-                nXY = XY[::-1].copy()/_XY_
-                nYZ = YZ[::-1].copy()/_YZ_
+                nXY = XY[::-1]/_XY_
+                nYZ = YZ[::-1]/_YZ_
                 # normal to XY, pointing inward
                 nXY[0] = -nXY[0]
                 # normal to YZ, pointing inward
@@ -731,11 +733,14 @@ def make_planar_embedding(
         # edges that cross obstacles or lay in their vicinity.
         edges_to_examine = set(((u, v) if u < v else (v, u))
                                for u, v in P_A_undir.edges - P.edges)
+        edges_check = np.array(list(constraint_edges))
         while edges_to_examine:
             u, v = edges_to_examine.pop()
+            uC, vC = VertexC[[u, v]]
             # if ⟨u, v⟩ does not cross any constraint_edges, add it to edgesCDT
-            if not any(is_crossing(*VertexC[[u, v, s, t]])
-                       for s, t in constraint_edges):
+            ovlap = find_edges_bbox_overlaps(VertexC, u, v, edges_check)
+            if not any(is_crossing_no_bbox(uC, vC, *VertexC[edge])
+                       for edge in edges_check[ovlap]):
                 # ⟨u, v⟩ was removed from the triangulation but does not cross
                 soft_constraints.add((u, v))
             else:
@@ -752,9 +757,10 @@ def make_planar_embedding(
                                 edges_to_examine.add((p, q))
         if soft_constraints:
             # add the crossing-free edges around obstacles as constraints
-            mesh.insert_edges([cdt.Edge(u if u >= 0 else T + R + u,
-                                        v if v >= 0 else T + R + v)
-                               for u, v in soft_constraints])
+            edgesCDT_soft = [cdt.Edge(u if u >= 0 else T + R + u,
+                                      v if v >= 0 else T + R + v)
+                             for u, v in soft_constraints]
+            mesh.insert_edges(edgesCDT_soft)
 
     # ######################################################################
     # E) Add concavities and get the Constrained Delaunay Triang.
@@ -881,7 +887,7 @@ def make_planar_embedding(
     # G) Build P_paths.
     # #################
     debug('PART G')
-    P_paths = nx.Graph(P.to_undirected().edges)
+    P_paths = P.to_undirected()
     P_paths.remove_nodes_from(supertriangle)
 
     # this adds diagonals to P_paths, but not diagonals that cross constraints
