@@ -32,15 +32,20 @@ PseudoNode = namedtuple('PseudoNode', 'node sector parent dist d_hop'.split())
 class PathNodes(dict):
     '''Helper class to build a tree that uses clones of prime nodes
     (i.e. where the same prime node can appear as more than one node).'''
+    count: int
+    prime_from_id: dict
+    ids_from_prime_sector: defaultdict
+    last_added: int
 
     def __init__(self):
         super().__init__()
         self.count = 0
         self.prime_from_id = {}
         self.ids_from_prime_sector = defaultdict(list)
-        self.last_added = None
+        self.last_added = NULL
 
-    def add(self, _source, sector, parent, dist, d_hop):
+    def add(self, _source: int, sector: int, parent: int, dist: float,
+            d_hop: float) -> int:
         if parent not in self:
             error('attempted to add an edge in `PathNodes` to nonexistent'
                   'parent ({})', parent)
@@ -233,6 +238,8 @@ class PathFinder():
         if _node >= self.T:
             # _node is in a border or is in the supertriangle, which means it
             # is only reachable from one side, hence an arbitrary sector id.
+            # _node may also be the prime of a contour node, which is ok, since
+            # the other side is a pinched portal and has a distinct sector.
             return NULL
         is_gate = any(_node in Gate for Gate in self.hooks2check)
         _node_degree = self.G.degree[_node]
