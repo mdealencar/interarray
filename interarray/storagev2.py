@@ -214,7 +214,7 @@ def terse_pack_from_G(G: nx.Graph) -> PackType:
 
 
 def untersify_to_G(G: nx.Graph, terse: np.ndarray,
-                   clone2prime: np.ndarray | None = None) -> None:
+                   clone2prime: list) -> None:
     '''
     Changes G in place!
     '''

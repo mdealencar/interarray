@@ -150,7 +150,7 @@ class PathFinder():
         shortened_contours = G.graph.get('shortened_contours')
         if shortened_contours is not None:
             # G has edges that shortcut some longer paths along P edges.
-            # We need to put these paths back in G to do P edge flips.
+            # We need to put these paths back in G to flip some of P's edges.
             # The changes made here are undone in `create_detours()`.
             clone_offset = T + B
             for (s, t), (midpath, shortpath) in shortened_contours.items():
@@ -160,8 +160,10 @@ class PathFinder():
                 path = [s] + shortpath + [t]
                 for u_, v_ in zip(path[:-1], path[1:]):
                     u = (u_ if u_ < T else
+                         (clone_offset + clone2prime.index(u_)))
                          clone_offset + np.flatnonzero(clone2prime == u_)[-1])
                     v = (v_ if v_ < T else
+                         (clone_offset + clone2prime.index(v_)))
                          clone_offset + np.flatnonzero(clone2prime == v_)[-1])
                     stored_edges.append((u, v, G[u][v]))
                     # the nodes are left for later reuse
