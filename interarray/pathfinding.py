@@ -166,10 +166,8 @@ class PathFinder():
                 for u_, v_ in zip(path[:-1], path[1:]):
                     u = (u_ if u_ < T else
                          (clone_offset + clone2prime.index(u_)))
-                         clone_offset + np.flatnonzero(clone2prime == u_)[-1])
                     v = (v_ if v_ < T else
                          (clone_offset + clone2prime.index(v_)))
-                         clone_offset + np.flatnonzero(clone2prime == v_)[-1])
                     stored_edges.append((u, v, G[u][v]))
                     # the nodes are left for later reuse
                     G.remove_edge(u, v)
