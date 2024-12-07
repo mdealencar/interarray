@@ -2,7 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import re
-from itertools import chain
+from itertools import chain, zip_longest
 from collections import namedtuple, defaultdict
 from pathlib import Path
 from typing import NamedTuple, Iterable
@@ -31,14 +31,19 @@ _coord_rbraces = ')]'
 def _get_entries(entries):
     if isinstance(entries, str):
         for entry in entries.splitlines():
-            *tag, lat, lon = re.split(_coord_sep, entry)
+            *opt, lat, lon = re.split(_coord_sep, entry)
             lat = lat.lstrip(_coord_lbraces)
             lon = lon.rstrip(_coord_rbraces)
-            yield tag, lat, lon
+            if opt:
+                yield opt[0], lat, lon
+            else:
+                yield None, lat, lon
     else:
         for entry in entries:
-            *tag, lat, lon = entry
-            yield tag, lat, lon
+            if len(entry) > 2:
+                yield entry
+            else:
+                yield (None, *entry)
 
 
 def _translate_latlonstr(entry_list):
@@ -61,7 +66,7 @@ def _parser_latlon(entry_list):
     # all coordinates must belong to the same UTM zone
     assert all(num == zone_numbers[0] for num in zone_numbers[1:])
     assert all(letter == zone_letters[0] for letter in zone_letters[1:])
-    return np.c_[eastings, northings], tags
+    return np.c_[eastings, northings], (tags if any(tags) else ())
 
 
 def _parser_planar(entry_list):
@@ -70,7 +75,7 @@ def _parser_planar(entry_list):
     for tag, easting, northing in _get_entries(entry_list):
         tags.append(tag)
         coords.append((float(easting), float(northing)))
-    return np.array(coords, dtype=float), tags
+    return np.array(coords, dtype=float), (tags if any(tags) else ())
 
 
 coordinate_parser = dict(
@@ -143,10 +148,10 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
                  **optional)
 
     # populate graph G
-    G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg', 'tag': NodeTag[n]})
-                      for n in range(T)))
-    G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss', 'tag': RootTag[r]})
-                      for r in range(-R, 0)))
+    G.add_nodes_from((n, {'kind': 'wtg', 'label': (tag if tag else F[n])})
+                      for n, tag in zip_longest(range(T), NodeTag))
+    G.add_nodes_from((r, {'kind': 'oss', 'label': (tag if tag else F[r])})
+                      for r, tag in zip_longest(range(-R, 0), RootTag))
     make_graph_metrics(G)
     return G
 
