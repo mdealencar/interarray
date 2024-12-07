@@ -170,14 +170,17 @@ def is_crossing_numpy(u, v, s, t):
     return True
 
 
-@nb.njit(cache=True, inline='always')
-def _cross_prod_2d(P: nb.float64[:], Q: nb.float64[:]) -> float:
+@nb.njit('f8(f8[:], f8[:])', cache=True, inline='always')
+def _cross_prod_2d(P: np.ndarray[tuple[int], np.dtype[np.float_]],
+                   Q: np.ndarray[tuple[int], np.dtype[np.float_]]) -> float:
     return P[0]*Q[1] - P[1]*Q[0]
 
 
-@nb.njit(cache=True, inline='always')
-def is_crossing_no_bbox(uC: nb.float64[:], vC: nb.float64[:],
-                        sC: nb.float64[:], tC: nb.float64[:]) -> bool:
+@nb.njit('b1(f8[:], f8[:], f8[:], f8[:])', cache=True, inline='always')
+def is_crossing_no_bbox(uC: np.ndarray[tuple[int], np.dtype[np.float_]],
+                        vC: np.ndarray[tuple[int], np.dtype[np.float_]],
+                        sC: np.ndarray[tuple[int], np.dtype[np.float_]],
+                        tC: np.ndarray[tuple[int], np.dtype[np.float_]]) -> bool:
     '''checks if (uC, vC) crosses (sC, tC);
     returns ¿? in case of superposition
     '''
@@ -285,10 +288,12 @@ def is_bunch_split_by_corner(bunch, a, o, b, margin=1e-3):
     return split, np.flatnonzero(inside), np.flatnonzero(outside)
 
 
-@nb.njit(cache=True, inline='always')
+@nb.njit('b1(f8[:], f8[:], f8[:], f8[:])', cache=True, inline='always')
 def is_triangle_pair_a_convex_quadrilateral(
-        uC: nb.float64[:], vC: nb.float64[:],
-        sC: nb.float64[:], tC: nb.float64[:]) -> bool:
+        uC: np.ndarray[tuple[int], np.dtype[np.float_]],
+        vC: np.ndarray[tuple[int], np.dtype[np.float_]],
+        sC: np.ndarray[tuple[int], np.dtype[np.float_]],
+        tC: np.ndarray[tuple[int], np.dtype[np.float_]]) -> bool:
     '''⟨u, v⟩ is the common side;
     ⟨s, t⟩ are the opposing vertices;
     returns False also if it is a triangle
@@ -994,17 +999,22 @@ def area_from_polygon_vertices(X: np.ndarray, Y: np.ndarray) -> float:
                    - np.dot(Y[:-1], X[1:]))
 
 
-@nb.njit(cache=True, inline='always')
-def index(array: nb.int64[:], item: nb.int64) -> nb.int64:
+@nb.njit(nb.int_(nb.int_[:], nb.int_), cache=True, inline='always')
+def index(array: np.ndarray[tuple[int], np.dtype[np.int_]], item: np.int_) -> int:
     for idx, val in enumerate(array):
         if val == item:
             return idx
-    raise ValueError('value not found in array')
+    # value not found (must not happen, maybe should throw exception)
+    # raise ValueError('value not found in array')
+    return 0
 
 
-@nb.njit(cache=True)
-def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[:, :]) \
-        -> list[tuple]:
+@nb.njit('void(int_[:, ::1], int_[:, ::1], int_[:, ::1], boolean[:])', cache=True)
+def halfedges_from_triangulation(
+       triangles: np.ndarray[tuple[int, int], np.dtype[np.int_]],
+       neighbors: np.ndarray[tuple[int, int], np.dtype[np.int_]],
+       halfedges: np.ndarray[tuple[int, int], np.dtype[np.int_]],
+       ref_is_cw_: np.ndarray[tuple[int], np.dtype[np.bool_]]) -> None:
     '''
     Meant to be called from `mesh.planar_from_cdt_triangles()`. Inputs are
     derived from `PythonCDT.Triangulation().triangles`.
@@ -1016,13 +1026,11 @@ def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[
     Returns:
         3 lists of half-edges to be passed to `networkx.PlanarEmbedding`
     '''
+    NULL_ = nb.int_(NULL)
     nodes_done = set()
-    halfedges = [(nb.int64(x), nb.int64(x)) for x in range(0)]
-    halfedges_ccw = [(nb.int64(x), nb.int64(x), nb.int64(x)) for x in range(0)]
-    halfedges_cw = [(nb.int64(x), nb.int64(x), nb.int64(x)) for x in range(0)]
-    orient = 0
     # add the first three nodes to process
-    nodes_todo = {n: 0 for n in triangles[0]}
+    nodes_todo = {n: nb.int_(0) for n in triangles[0]}
+    i = nb.int_(0)
     while nodes_todo:
         pivot, tri_idx_start = nodes_todo.popitem()
         tri = triangles[tri_idx_start]
@@ -1033,20 +1041,21 @@ def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[
         succ_end = tri[(pivot_idx - 1) % 3]
         # first half-edge from `pivot`
         #  print('INIT', [pivot, succ_start])
-        halfedges.append((pivot, succ_start))
+        halfedges[i] = pivot, succ_start, NULL_
+        i += 1
         nb_idx = pivot_idx
         ref = succ_start
-        halfedges_ref = halfedges_ccw
-        cw = True
+        ref_is_cw = False
         while True:
             tri_idx = tri_nb[nb_idx]
-            if tri_idx == NULL:
-                if cw:
+            if tri_idx == NULL_:
+                if not ref_is_cw:
                     # revert direction
-                    cw = False
-                    halfedges_ref = halfedges_cw
+                    ref_is_cw = True
                     #  print('REVE', [pivot, succ_end, ref], cw)
-                    halfedges_ref.append((pivot, succ_end, succ_start))
+                    ref_is_cw_[i] = ref_is_cw
+                    halfedges[i] = pivot, succ_end, succ_start
+                    i += 1
                     ref = succ_end
                     tri_nb = neighbors[tri_idx_start]
                     nb_idx = nb_idx_start_reverse
@@ -1056,16 +1065,18 @@ def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[
             tri = triangles[tri_idx]
             tri_nb = neighbors[tri_idx]
             pivot_idx = index(tri, pivot)
-            succ = (tri[(pivot_idx + 1) % 3]
-                    if cw else
-                    tri[(pivot_idx - 1) % 3])
-            nb_idx = pivot_idx if cw else (pivot_idx - 1) % 3
+            succ = (tri[(pivot_idx - 1) % 3]
+                    if ref_is_cw else
+                    tri[(pivot_idx + 1) % 3])
+            nb_idx = ((pivot_idx - 1) % 3) if ref_is_cw else pivot_idx
             #  print('NORM', [pivot, succ, ref], cw)
-            halfedges_ref.append((pivot, succ, ref))
+            ref_is_cw_[i] = ref_is_cw
+            halfedges[i] = pivot, succ, ref
+            i += 1
             if succ not in nodes_todo and succ not in nodes_done:
                 nodes_todo[succ] = tri_idx
             if succ == succ_end:
                 break
             ref = succ
         nodes_done.add(pivot)
-    return halfedges, halfedges_ccw, halfedges_cw
+    return

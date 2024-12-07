@@ -113,8 +113,8 @@ def edges_and_hull_from_cdt(triangles: list[cdt.Triangle],
     return ebunch, convex_hull
 
 
-def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
-        vertmap: np.ndarray) -> tuple[tuple[list, list, list], set]:
+def planar_from_cdt_triangles(mesh: cdt.Triangulation,
+        vertmap: np.ndarray) -> tuple[tuple[np.ndarray, np.ndarray], set]:
     '''Convert from a PythonCDT.Triangulation to NetworkX.PlanarEmbedding.
 
     Used internally in `make_planar_embedding()`. Wraps the numba-compiled `halfedges_from_triangulation()`, which does the intensive work.
@@ -126,34 +126,34 @@ def planar_from_cdt_triangles(triangles: list[cdt.Triangle],
     Returns:
         planar embedding
     '''
-    num_tri = len(triangles)
-    triangleI = np.empty((num_tri, 3), dtype=np.int64)
-    neighborI = np.empty((num_tri, 3), dtype=np.int64)
-    for i, tri in enumerate(triangles):
+    num_tri = mesh.triangles_count()
+    triangleI = np.empty((num_tri, 3), dtype=np.int_)
+    neighborI = np.empty((num_tri, 3), dtype=np.int_)
+
+    for i, tri in enumerate(mesh.triangles):
         triangleI[i] = vertmap[tri.vertices]
         neighborI[i] = tuple((NULL if n == cdt.NO_NEIGHBOR else n)
                              for n in tri.neighbors)
-    firstE, ccwE, cwE = halfedges_from_triangulation(triangleI, neighborI)
-    edges = set()
-    for u, v in firstE:
-        if u < v:
-            edges.add((u, v))
-    for u, v, _ in chain(ccwE, cwE):
-        if u < v:
-            edges.add((u, v))
-    return (firstE, ccwE, cwE), edges
+    # formula for number of triangulation's edges is: 3*V - H - 3
+    # H = 3 since CDT's Hull is always the supertriangle
+    # and because we count half-edges, use expression × 2 
+    num_half_edges = 6*mesh.vertices_count() - 12
+    halfedges = np.empty((num_half_edges, 3), dtype=np.int_)
+    ref_is_cw_ = np.empty((num_half_edges,), dtype=np.bool_)
+    halfedges_from_triangulation(triangleI, neighborI, halfedges, ref_is_cw_)
+    edges = set((u, v) for u, v in halfedges[:, :2] if u < v)
+    return (halfedges, ref_is_cw_), edges
 
 
-def P_from_halfedge_pack(halfedge_pack: tuple[list, list, list]) \
+def P_from_halfedge_pack(halfedge_pack: tuple[np.ndarray, np.ndarray]) \
         -> nx.PlanarEmbedding:
-    firstE, ccwE, cwE = halfedge_pack
+    halfedges, ref_is_cw_ = halfedge_pack
     P = nx.PlanarEmbedding()
-    for u, v in firstE:
-        P.add_half_edge(u, v)
-    for u, v, ref in ccwE:
-        P.add_half_edge(u, v, ccw=ref)
-    for u, v, ref in cwE:
-        P.add_half_edge(u, v, cw=ref)
+    for (u, v, ref), ref_is_cw in zip(halfedges, ref_is_cw_):
+        if ref == NULL:
+            P.add_half_edge(u, v)
+        else:
+            P.add_half_edge(u, v, **{('cw' if ref_is_cw else 'ccw'): ref})
     return P
 
 
@@ -569,7 +569,7 @@ def make_planar_embedding(
                              cdt.IntersectingConstraintEdges.NOT_ALLOWED, 0.0)
     mesh.insert_vertices(V2d_nodes)
 
-    P_A_halfedge_pack, P_A_edges = planar_from_cdt_triangles(mesh.triangles,
+    P_A_halfedge_pack, P_A_edges = planar_from_cdt_triangles(mesh,
                                                              vertex_from_iCDT)
     P_A = P_from_halfedge_pack(P_A_halfedge_pack)
     P_A_edges.difference_update((u, v) for v in supertriangle for u in P_A[v])
@@ -707,7 +707,7 @@ def make_planar_embedding(
     if edgesCDT_obstacles:
         mesh.insert_vertices(V2d_holes)
         mesh.insert_edges(edgesCDT_obstacles)
-        _, P_edges = planar_from_cdt_triangles(mesh.triangles,
+        _, P_edges = planar_from_cdt_triangles(mesh,
                                                vertex_from_iCDT)
         # Here we use the changes in CDT triangulation to identify the P_A
         # edges that cross obstacles or lay in their vicinity.
@@ -808,7 +808,7 @@ def make_planar_embedding(
     # F) Build the planar embedding of the constrained triangulation.
     # ###############################################################
     debug('PART F')
-    P_halfedge_pack, P_edges = planar_from_cdt_triangles(mesh.triangles,
+    P_halfedge_pack, P_edges = planar_from_cdt_triangles(mesh,
                                                          vertex_from_iCDT)
     P = P_from_halfedge_pack(P_halfedge_pack)
 
