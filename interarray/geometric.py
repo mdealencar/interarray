@@ -1036,7 +1036,6 @@ def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[
         halfedges.append((pivot, succ_start))
         nb_idx = pivot_idx
         ref = succ_start
-        #  orient = 1
         halfedges_ref = halfedges_ccw
         cw = True
         while True:
@@ -1045,7 +1044,6 @@ def halfedges_from_triangulation(triangles: nb.int64[:, :], neighbors: nb.int64[
                 if cw:
                     # revert direction
                     cw = False
-                    #  orient = -1
                     halfedges_ref = halfedges_cw
                     #  print('REVE', [pivot, succ_end, ref], cw)
                     halfedges_ref.append((pivot, succ_end, succ_start))
