@@ -294,13 +294,10 @@ class PathFinder():
             next_portals = []
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
-                trace('evaluating {}', self.n2s(s, t))
-                if (st_sorted not in self.portal_set
-                        or (s < T and t < T
-                            and G.nodes[s]['subtree'] ==
-                            G.nodes[t]['subtree'])):
-                    # ⟨s, t⟩ is in G or is bounded by a subtree
+                if st_sorted not in self.portal_set:
+                    debug('discarding {}', self.n2s(s, t))
                     continue
+                debug('including {}', self.n2s(s, t))
                 next_portals.append(((s, t), side))
             try:
                 # this `pop()` will raise IndexError if we are at a dead-end
