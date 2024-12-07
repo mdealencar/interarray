@@ -4,7 +4,7 @@
 from collections import defaultdict
 import math
 from collections.abc import Sequence
-from itertools import chain
+from itertools import chain, product
 
 import darkdetect
 from matplotlib.axes import Axes
@@ -22,7 +22,7 @@ from .interarraylib import NodeTagger
 FONTSIZE_LABEL = 5
 FONTSIZE_LOAD = 7
 FONTSIZE_ROOT_LABEL = 6
-FONTSIZE_LEGEND_BOX = 12
+FONTSIZE_INFO_BOX = 12
 FONTSIZE_LEGEND_STRIP = 6
 NODESIZE = 18
 NODESIZE_LABELED = 70
@@ -195,24 +195,17 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     edges_width = 0.7
     edges_capstyle = 'round'
     # draw edges
-    for edge_kind in kind2style:
-        edges = [(u, v) for u, v, kind in G.edges.data('kind')
+    for graph, edge_kind in product((G, G.graph.get('overlay')), kind2style):
+        if graph is None:
+            continue
+        edges = [(u, v) for u, v, kind in graph.edges.data('kind')
                  if kind == edge_kind]
         if edges:
-            art = nx.draw_networkx_edges(G, pos, ax=ax, label=edge_kind,
-                edge_color=kind2color[edge_kind], style=kind2style[edge_kind],
-                width=edges_width, alpha=kind2alpha[edge_kind], edgelist=edges)
+            art = nx.draw_networkx_edges(graph, pos, edgelist=edges,
+                label=(edge_kind or 'route'), width=edges_width,
+                style=kind2style[edge_kind], alpha=kind2alpha[edge_kind],
+                edge_color=kind2color[edge_kind], ax=ax)
             art.set_capstyle(edges_capstyle)
-    overlay = G.graph.get('overlay')
-    if overlay is not None:
-        for edge_kind in kind2style:
-            edges = [(u, v) for u, v, kind in overlay.edges.data('kind')
-                     if kind == edge_kind]
-            if edges:
-                art = nx.draw_networkx_edges(overlay, pos, ax=ax, label=edge_kind,
-                    edge_color=kind2color[edge_kind], style=kind2style[edge_kind],
-                    width=edges_width, alpha=kind2alpha[edge_kind], edgelist=edges)
-                art.set_capstyle(edges_capstyle)
 
     # draw nodes
     if D:
@@ -265,37 +258,37 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
                               frameon=False)
         ax.add_artist(bar)
 
-    if infobox:
-        capacity = G.graph.get('capacity')
-        if capacity is not None:
-            info = [f'$\\kappa$ = {capacity}, $T$ = {T}']
-            feeder_info = [f'$\\phi_{{{rootL}}}$ = {G.degree[r]}'
-                           for r, rootL in RootL.items()]
-            min_feeder = math.ceil(T/capacity)
-            info.append(f'({sum(G.degree[r] for r in roots) - min_feeder:+d}) '
-                        + ', '.join(feeder_info))
-            Gʹ = nx.subgraph_view(G,
-                                  filter_edge=lambda u, v: 'length' in G[u][v])
-            length = Gʹ.size(weight="length")
-            if length > 0:
-                intdigits = int(np.floor(np.log10(length))) + 1
-                info.append(f'Σl = {round(length, max(0, 5 - intdigits))} m')
+    capacity = G.graph.get('capacity')
+    if infobox and capacity is not None:
+        info = []
+        info.append(f'κ = {capacity}, T = {T}')
+        feeder_info = [f'{rootL}ᵩ = {G.degree[r]}'
+                       for r, rootL in RootL.items()]
+        excess_feeders = sum(G.degree[r] for r in roots) - math.ceil(T/capacity)
+        info.append(f'({excess_feeders:+d}) {", ".join(feeder_info)}')
+        length = G.size(weight="length")
+        if length > 0:
+            intdigits = int(np.floor(np.log10(length))) + 1
+            info.append(f'Σλ = {round(length, max(0, 5 - intdigits))} m')
         if ('has_costs' in G.graph):
             info.append('{:.0f} €'.format(G.size(weight='cost')))
-        if 'capacity' in G.graph:
-            infobox = ax.legend([], labelspacing=0, facecolor=border_face,
-                edgecolor=text_color, title='\n'.join(info), framealpha=0.6)
-            #                      loc='upper right'
-            #                      bbox_to_anchor=(-0.04, 0.80, 1.08, 0)
-            #                      bbox_to_anchor=(-0.04, 1.03, 1.08, 0)
-            plt.setp(infobox.get_title(), multialignment='center',
-                     color=text_color, fontsize=FONTSIZE_LEGEND_BOX)
+        # using the `legend()` method is a hack to get the `loc='best'` search
+        # algorithm of matplotlib to place the info box not covering nodes
+        info_art = ax.legend([], labelspacing=0, facecolor=border_face,
+            edgecolor=text_color, title='\n'.join(info), framealpha=0.6)
+        plt.setp(info_art.get_title(), multialignment='center',
+                 color=text_color, fontsize=FONTSIZE_INFO_BOX)
+    else:
+        info_art = None
     if legend:
-        ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP, loc='lower center',
-                  frameon=False, bbox_to_anchor=(0.5, -0.07),
-                  columnspacing=1, handletextpad=0.3)
-        if 'capacity' in G.graph and infobox:
-            ax.add_artist(infobox)
+        # even if calling `legend()` twice, the info box remains
+        leg_art = ax.legend(ncol=8, fontsize=FONTSIZE_LEGEND_STRIP,
+            loc='lower center', columnspacing=1, labelcolor=text_color,
+            handletextpad=0.3, bbox_to_anchor=(0.5, -0.07), frameon=False)
+        plt.setp(leg_art.get_title(), multialignment='center',
+                 color=text_color, fontsize=FONTSIZE_INFO_BOX)
+        if info_art is not None:
+            ax.add_artist(info_art)
     if hide_ST and VertexC.shape[0] > R + T + B:
         # coordinates include the supertriangle, adjust view limits to hide it
         nonStC = np.r_[VertexC[:T + B], VertexC[-R:]]
