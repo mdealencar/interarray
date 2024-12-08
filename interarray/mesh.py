@@ -1005,17 +1005,17 @@ def make_planar_embedding(
     A.graph['corner_to_A_edges'] = corner_to_A_edges
 
     # Diagonals in A which have a missing origin Delaunay edge become edges.
-    for u, v in (uv for uv in A_edges_to_revisit
-                 if uv not in hull_prunned_edges):
-        s = P_A[u][v]['cw']
-        t = P_A[u][v]['ccw']
-        s, t = (s, t) if s < t else (t, s)
-        if (s, t) in diagonals:
-            edgeD = A[s][t]
+    for uv in A_edges_to_revisit:
+        st = diagonals.inv.get(uv)
+        if st is not None:
+            edgeD = A.edges[st]
             edgeD['kind'] = ('contour_delaunay'
                              if 'midpath' in edgeD else
                              'delaunay')
-            del diagonals[(s, t)]
+            del diagonals[st]
+        # TODO: ¿how important is it to add ⟨s, t⟩ to P_A?
+        # before removing ⟨u, v⟩, we should discern if it is usvt or utsv
+        P_A.remove_edge(*uv)
 
     # ##################################################################
     # I) Revisit A to update d2roots according to lengths along P_paths.
