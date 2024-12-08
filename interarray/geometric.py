@@ -243,7 +243,7 @@ def is_crossing(uC, vC, sC, tC, touch_is_cross=True):
 
     Ax, Ay = A
     Bx, By = B
-    Cx, Cy = C = uC - sC
+    C = uC - sC
 
     # denominator
     # print(Ax, Ay, Bx, By)
@@ -374,7 +374,7 @@ def apply_edge_exemptions(G, allow_edge_deletion=True):
 
     # check if edges touching the hull should be exempted from blockage penalty
     for n_hull in N_hull:
-        for n_inner in (N_inner & set([v for u, v in G.edges(n_hull)])):
+        for n_inner in (N_inner & set([v for _, v in G.edges(n_hull)])):
             uv = frozenset((n_hull, n_inner))
             u, v = uv
             opposites = triangles[uv]
@@ -858,11 +858,17 @@ def rotating_calipers(convex_hull: np.ndarray) \
     """
     argument `convex_hull` is a (H, 2) array of coordinates of the convex hull
         in counter-clockwise order.
+    Args:
+        convex_hull: (H, 2) array of coordinates of the convex hull
+          in counter-clockwise order
+
+    Returns:
+
     Reference:
-        Toussaint, Godfried T. "Solving geometric problems with
-        the rotating calipers." Proc. IEEE Melecon. Vol. 83. 1983.
+        Toussaint, Godfried T. "Solving geometric problems with the rotating
+          calipers." Proc. IEEE Melecon. Vol. 83. 1983.
     """
-    caliper_angles = np.array([0.5*np.pi, 0, -0.5*np.pi, np.pi], dtype=np.float64)
+    caliper_angles = np.array([0.5*np.pi, 0, -0.5*np.pi, np.pi], dtype=float)
     area_min = np.inf
     H = convex_hull.shape[0]
     left, bottom = convex_hull.argmin(axis=0)
@@ -905,10 +911,11 @@ def rotating_calipers(convex_hull: np.ndarray) \
     t = best_bbox_rot_max
     b = best_bbox_rot_min
     # calculate bbox coordinates in original reference frame, ccw vertices
-    bbox = np.float64(((b[0], b[1]),
-                       (b[0], t[1]),
-                       (t[0], t[1]),
-                       (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
+    bbox = np.array(((b[0], b[1]),
+                     (b[0], t[1]),
+                     (t[0], t[1]),
+                     (t[0], b[1])),
+                    dtype=float) @ np.array(((c, -s), (s, c)))
 
     return best_calipers, best_caliper_angle, area_min, bbox
 
