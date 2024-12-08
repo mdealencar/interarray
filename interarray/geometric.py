@@ -4,7 +4,7 @@
 import math
 import operator
 from collections import defaultdict
-from itertools import product
+from itertools import pairwise, product, combinations
 from math import isclose
 from typing import Callable
 
@@ -608,27 +608,63 @@ def complete_graph(G_base: nx.Graph, *, include_roots: bool = False,
     return G
 
 
-def minimum_spanning_tree(G: nx.Graph) -> nx.Graph:
-    '''Return a graph of the minimum spanning tree connecting the node in G.'''
-    R, T, B = (G.graph[k] for k in 'RTB')
-    VertexC = G.graph['VertexC']
-    V = R + T
-    raise NotImplementedError('CDT changed make_planar_embedding()')
-    P = make_planar_embedding(R, VertexC)[0].to_undirected(as_view=True)
-    E_planar = np.array(P.edges, dtype=np.int32)
-    # E_planar = np.array(P.edges)
-    Length = np.hypot(*(VertexC[E_planar[:, 0]] - VertexC[E_planar[:, 1]]).T)
-    E_planar[E_planar < 0] += V
-    P_ = coo_array((Length, (*E_planar.T,)), shape=(V, V))
+def minimum_spanning_forest(A: nx.Graph) -> nx.Graph:
+    '''Create the minimum spanning tree from the Delaunay triangulation in `A`.
+    
+    If the graph has more than one root, the tree will be split on its longest
+    link between each root pair. The output will be a forest instead of a tree.
+
+    '''
+    R, T = (A.graph[k] for k in 'RT')
+    N = R + T
+    P_A = A.graph['planar']
+    num_edges= P_A.number_of_edges()
+    edges_ = np.empty((num_edges//2, 2), dtype=np.int32)
+    length_ = np.empty(edges_.shape[0], dtype=np.float64)
+    for i, (u, v) in enumerate((u, v) for u, v in P_A.edges if u < v):
+        edges_[i] = u, v
+        length_[i] = A[u][v]['length']
+    edges_[edges_ < 0] += N
+    P_ = coo_array((length_, (*edges_.T,)), shape=(N, N))
     Q_ = scipy_mst(P_)
-    S, T = Q_.nonzero()
-    H = nx.Graph()
-    H.add_nodes_from(G.nodes(data=True))
-    for s, t in zip(S, T):
-        H.add_edge(s if s < T else s - V, t if t < T else t - V,
-                   length=Q_[s, t])
-    H.graph.update(G.graph)
-    return H
+    U, V = Q_.nonzero()
+    U[U >= T] -= N
+    V[V >= T] -= N
+    S = nx.Graph(T=T, R=R, capacity=T,
+        handle=A.graph.get('handle'),
+        creator='minimum_spanning_forest',
+    )
+    for u, v in zip(U, V):
+        S.add_edge(u, v, length=Q_[u, v])
+    if R > 1:
+        # if multiple roots, split the MST in multiple trees
+        removals = R - 1
+        pair_checks = combinations(range(-R, 0), 2)
+        paths = []
+        while removals:
+            if not paths:
+                r1, r2 = next(pair_checks)
+                try:
+                    path = nx.bidirectional_shortest_path(S, r1, r2)
+                except nx.NetworkXNoPath:
+                    continue
+                i = 0
+                for j, p in enumerate(path[1:-1], 1):
+                    if p < 0:
+                        # split path
+                        paths.append(path[i:j+1])
+                        i = j
+                paths.append(path[i:])
+            path = paths.pop()
+            λ_incumbent = 0.
+            uv_incumbent = None
+            for u, v, λ_hop in ((u, v, A[u][v]['length']) for u, v in pairwise(path)):
+                if λ_hop > λ_incumbent:
+                    λ_incumbent = λ_hop
+                    uv_incumbent = u, v
+            S.remove_edge(*uv_incumbent)
+            removals -= 1
+    return S
 
 
 # TODO: MARGIN is ARBITRARY - depends on the scale
