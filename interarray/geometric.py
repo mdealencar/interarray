@@ -171,16 +171,16 @@ def is_crossing_numpy(u, v, s, t):
 
 
 @nb.njit('f8(f8[:], f8[:])', cache=True, inline='always')
-def _cross_prod_2d(P: np.ndarray[tuple[int], np.dtype[np.float_]],
-                   Q: np.ndarray[tuple[int], np.dtype[np.float_]]) -> float:
+def _cross_prod_2d(P: np.ndarray[tuple[int], np.dtype[np.float64]],
+                   Q: np.ndarray[tuple[int], np.dtype[np.float64]]) -> float:
     return P[0]*Q[1] - P[1]*Q[0]
 
 
 @nb.njit('b1(f8[:], f8[:], f8[:], f8[:])', cache=True, inline='always')
-def is_crossing_no_bbox(uC: np.ndarray[tuple[int], np.dtype[np.float_]],
-                        vC: np.ndarray[tuple[int], np.dtype[np.float_]],
-                        sC: np.ndarray[tuple[int], np.dtype[np.float_]],
-                        tC: np.ndarray[tuple[int], np.dtype[np.float_]]) -> bool:
+def is_crossing_no_bbox(uC: np.ndarray[tuple[int], np.dtype[np.float64]],
+                        vC: np.ndarray[tuple[int], np.dtype[np.float64]],
+                        sC: np.ndarray[tuple[int], np.dtype[np.float64]],
+                        tC: np.ndarray[tuple[int], np.dtype[np.float64]]) -> bool:
     '''checks if (uC, vC) crosses (sC, tC);
     returns ¿? in case of superposition
     '''
@@ -290,10 +290,10 @@ def is_bunch_split_by_corner(bunch, a, o, b, margin=1e-3):
 
 @nb.njit('b1(f8[:], f8[:], f8[:], f8[:])', cache=True, inline='always')
 def is_triangle_pair_a_convex_quadrilateral(
-        uC: np.ndarray[tuple[int], np.dtype[np.float_]],
-        vC: np.ndarray[tuple[int], np.dtype[np.float_]],
-        sC: np.ndarray[tuple[int], np.dtype[np.float_]],
-        tC: np.ndarray[tuple[int], np.dtype[np.float_]]) -> bool:
+        uC: np.ndarray[tuple[int], np.dtype[np.float64]],
+        vC: np.ndarray[tuple[int], np.dtype[np.float64]],
+        sC: np.ndarray[tuple[int], np.dtype[np.float64]],
+        tC: np.ndarray[tuple[int], np.dtype[np.float64]]) -> bool:
     '''⟨u, v⟩ is the common side;
     ⟨s, t⟩ are the opposing vertices;
     returns False also if it is a triangle
@@ -856,23 +856,23 @@ def rotating_calipers(convex_hull: np.ndarray) \
     #   CUDA and Numba implementations of computational geometry algorithms.
     # (https://github.com/jhultman/rotating-calipers)
     """
-    argument `convex_hull` is a (T, 2) array of coordinates of the convex hull
+    argument `convex_hull` is a (H, 2) array of coordinates of the convex hull
         in counter-clockwise order.
     Reference:
         Toussaint, Godfried T. "Solving geometric problems with
         the rotating calipers." Proc. IEEE Melecon. Vol. 83. 1983.
     """
-    caliper_angles = np.float_([0.5*np.pi, 0, -0.5*np.pi, np.pi])
+    caliper_angles = np.array([0.5*np.pi, 0, -0.5*np.pi, np.pi], dtype=np.float64)
     area_min = np.inf
-    T = convex_hull.shape[0]
+    H = convex_hull.shape[0]
     left, bottom = convex_hull.argmin(axis=0)
     right, top = convex_hull.argmax(axis=0)
 
-    calipers = np.int_([left, top, right, bottom])
+    calipers = np.array([left, top, right, bottom], dtype=np.int_)
 
-    for _ in range(T):
+    for _ in range(H):
         # Roll vertices counter-clockwise
-        calipers_advanced = (calipers - 1) % T
+        calipers_advanced = (calipers - 1) % H
         # Vectors from previous calipers to candidates
         vec = convex_hull[calipers_advanced] - convex_hull[calipers]
         # Find angles of candidate edgelines
@@ -905,10 +905,10 @@ def rotating_calipers(convex_hull: np.ndarray) \
     t = best_bbox_rot_max
     b = best_bbox_rot_min
     # calculate bbox coordinates in original reference frame, ccw vertices
-    bbox = np.float_(((b[0], b[1]),
-                      (b[0], t[1]),
-                      (t[0], t[1]),
-                      (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
+    bbox = np.float64(((b[0], b[1]),
+                       (b[0], t[1]),
+                       (t[0], t[1]),
+                       (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
 
     return best_calipers, best_caliper_angle, area_min, bbox
 
