@@ -11,8 +11,9 @@ from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
 
 from .geometric import (angle, angle_helpers, apply_edge_exemptions, assign_root,
-                        edge_crossings, is_bunch_split_by_corner, is_crossing,
+                        is_bunch_split_by_corner, is_crossing,
                         is_same_side)
+from .crossings import edge_crossings
 from .mesh import make_planar_embedding
 from .utils import Alerter, NodeStr, NodeTagger
 from .priorityqueue import PriorityQueue
@@ -415,7 +416,7 @@ def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         if st in P.edges or st in diagonals:
             # <(s_, t_) is in the expanded Delaunay edge set>
             #  Xlist = edge_crossings(s_, t_, G, triangles, triangles_exp)
-            Xlist = edge_crossings(s_, t_, G, diagonals, P)
+            Xlist = edge_crossings(s_, t_, G, diagonals)
             # crossings with expanded Delaunay already checked
             # just detour edges missing
             nbunch = list(range(T, T + D))
@@ -1080,7 +1081,7 @@ def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
             # look for crossing edges within the neighborhood of (u, v)
             # only works if using the expanded delaunay edges
             #  eX = edge_crossings(u, v, G, triangles, triangles_exp)
-            eX = edge_crossings(u, v, G, diagonals, P)
+            eX = edge_crossings(u, v, G, diagonals)
             # Detour edges need to be checked separately
             if not eX and D:
                 uC, vC = VertexC[fnT[[u, v]]]

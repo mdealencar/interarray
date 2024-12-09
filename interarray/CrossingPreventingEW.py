@@ -10,7 +10,8 @@ from scipy.stats import rankdata
 
 from .mesh import delaunay
 from .geometric import (angle, apply_edge_exemptions, assign_root, complete_graph,
-                        edge_crossings, is_crossing, is_same_side, angle_helpers)
+                        is_crossing, is_same_side, angle_helpers)
+from .crossings import edge_crossings
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -392,7 +393,7 @@ def CPEW(G_base, capacity=8, delaunay_based=True, maxiter=10000,
         if delaunay_based:
             # look for crossing edges within the neighborhood of (u, v)
             # faster, but only works if using the expanded delaunay edges
-            eX = edge_crossings(u, v, G, diagonals, P)
+            eX = edge_crossings(u, v, G, diagonals)
         else:
             # when using the edges of a complete graph
             # alternate way - slower

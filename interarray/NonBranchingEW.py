@@ -9,7 +9,8 @@ import networkx as nx
 
 from .mesh import delaunay
 from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        edge_crossings, is_crossing, is_same_side)
+                        is_crossing, is_same_side)
+from .crossings import edge_crossings
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -413,7 +414,7 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
             # look for crossing edges within the neighborhood of (u, v)
             # faster, but only works if using the expanded delaunay edges
             #  eX = edge_crossings(u, v, G, triangles, triangles_exp)
-            eX = edge_crossings(u, v, G, diagonals, P)
+            eX = edge_crossings(u, v, G, diagonals)
         else:
             # when using the edges of a complete graph
             # alternate way - slower
