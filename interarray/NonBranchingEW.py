@@ -618,8 +618,6 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
     G.graph['iterations'] = i
     G.graph['prevented_crossings'] = prevented_crossings
     G.graph['capacity'] = capacity
-    G.graph['overfed'] = [len(G[root])/np.ceil(T/capacity)*R
-                          for root in roots]
     G.graph['creator'] = 'NBEW'
     G.graph['edges_fun'] = NBEW
     G.graph['creation_options'] = options

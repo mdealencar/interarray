@@ -30,7 +30,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'landscape_angle', 'Root', 'creation_options', 'G_nodeset', 'T',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
              'planar', 'has_loads', 'R', 'Subtree', 'handle', 'non_A_edges',
-             'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
+             'max_load', 'fun_fingerprint', 'hull', 'solver_log',
              'length_mismatch_on_db_read', 'gnT', 'C', 'border', 'obstacles',
              'num_diagonals', 'crossings_map', 'tentative', 'method_options',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
@@ -65,10 +65,9 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
 
 def G_from_routeset(routeset: object) -> nx.Graph:
     nodeset = routeset.nodes
-    R, T, B = nodeset.R, nodeset.T, nodeset.B
+    R = nodeset.R
     G = L_from_nodeset(nodeset)
     G.graph.update(
-        R=R, T=T, B=B,
         C=routeset.C, D=routeset.D,
         handle=routeset.handle,
         capacity=routeset.capacity,
@@ -91,8 +90,6 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         G.graph['VertexC'] = np.vstack((VertexC[:-R], stuntC,
                                         VertexC[-R:]))
     untersify_to_G(G, terse=routeset.edges, clone2prime=routeset.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(T/routeset.capacity)*R
-                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     #  assert abs(calc_length/routeset.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "

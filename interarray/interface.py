@@ -140,8 +140,6 @@ def G_from_table(table: np.ndarray[:, :], G_base: nx.Graph,
     G.graph['creator'] = 'G_from_table()'
     if capacity is not None:
         G.graph['capacity'] = capacity
-        G.graph['overfed'] = [len(G[root])/np.ceil(T/capacity)*R
-                              for root in range(-R, 0)]
     return G
 
 
@@ -183,9 +181,6 @@ def G_from_TG(S, G_base, capacity=None, load_col=4):
     G.graph['has_loads'] = True
     G.graph['creator'] = 'G_from_TG()'
     G.graph['prevented_crossings'] = 0
-    if capacity is not None:
-        G.graph['overfed'] = [len(G[root])/np.ceil(T/capacity)*R
-                              for root in range(T, T + R)]
     return G
 
 

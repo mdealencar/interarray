@@ -105,7 +105,7 @@ def calcload(G):
     attribute (keys 'subtree' and 'load', respectively). Also the edges'
     'load' attributes are updated accordingly.
     '''
-    R, T = (G.graph.get(k) for k in ('R', 'T'))
+    R, T = (G.graph[k] for k in 'RT')
     roots = range(-R, 0)
     for _, data in G.nodes(data=True):
         if 'load' in data:
@@ -384,8 +384,6 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
 
     G.graph.update(
         num_diagonals=num_diagonals,
-        overfed=[len(G[r])/math.ceil(T/S.graph['capacity'])*R
-                 for r in range(-R, 0)],
     )
     return G
 

@@ -77,8 +77,6 @@ def graph_from_edgeset(edgeset):
     if D > 0:
         for _, _, edgeD in G.edges(detournodes, data=True):
             edgeD['kind'] = 'detour'
-    G.graph['overfed'] = [len(G[root])/np.ceil(T/edgeset.capacity)*R
-                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     assert abs(calc_length - edgeset.length) < 1, (
         f'{calc_length} != {edgeset.length}')

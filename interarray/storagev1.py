@@ -28,7 +28,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'landscape_angle', 'Root', 'creation_options', 'G_nodeset',
              'non_A_gates', 'funfile', 'funhash', 'funname', 'diagonals',
              'planar', 'has_loads', 'R', 'Subtree', 'handle', 'non_A_edges',
-             'max_load', 'fun_fingerprint', 'overfed', 'hull', 'solver_log',
+             'max_load', 'fun_fingerprint', 'hull', 'solver_log',
              'loading_length_mismatch', 'gnT', 'C', 'border'}
 
 
@@ -52,8 +52,6 @@ def base_graph_from_nodeset(nodeset: object) -> nx.Graph:
 
 def graph_from_edgeset(edgeset: object) -> nx.Graph:
     nodeset = edgeset.nodes
-    T = nodeset.T
-    R = nodeset.R
     G = base_graph_from_nodeset(nodeset)
     G.graph.update(handle=edgeset.handle,
                    capacity=edgeset.capacity,
@@ -65,8 +63,6 @@ def graph_from_edgeset(edgeset: object) -> nx.Graph:
                    **edgeset.misc)
 
     add_edges_to(G, edges=edgeset.edges, clone2prime=edgeset.clone2prime)
-    G.graph['overfed'] = [len(G[root])/np.ceil(T/edgeset.capacity)*R
-                          for root in range(-R, 0)]
     calc_length = G.size(weight='length')
     #  assert abs(calc_length/edgeset.length - 1) < 1e-5, (
     #      f"recreated graph's total length ({calc_length:.0f}) != "

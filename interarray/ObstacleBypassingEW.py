@@ -1263,8 +1263,6 @@ def OBEW(L, capacity=8, rootlust=None, maxiter=10000, maxDepth=4,
         creator='OBEW',
         capacity=capacity,
         runtime=time.perf_counter() - start_time,
-        overfed=[len(G[root])/np.ceil(T/capacity)*R
-                 for root in roots],
         d2roots=d2roots,
         method_options= options | dict(
             fun_fingerprint=fun_fingerprint(),
