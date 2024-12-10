@@ -287,7 +287,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         info_art = None
     if legend:
         # even if calling `legend()` twice, the info box remains
-        ax.legend(ncol=8, prop=text_prop | {'size': FONTSIZE_LEGEND_STRIP}
+        ax.legend(ncol=8, prop=text_prop | {'size': FONTSIZE_LEGEND_STRIP},
             loc='lower center', columnspacing=1, labelcolor=text_color,
             handletextpad=0.3, bbox_to_anchor=(0.5, -0.07), frameon=False)
         if info_art is not None:
