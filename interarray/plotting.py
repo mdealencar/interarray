@@ -24,11 +24,11 @@ FONTSIZE_LOAD = 7
 FONTSIZE_ROOT_LABEL = 6
 FONTSIZE_INFO_BOX = 12
 FONTSIZE_LEGEND_STRIP = 6
-NODESIZE = 18
-NODESIZE_LABELED = 70
-NODESIZE_LABELED_ROOT = 28
-NODESIZE_DETOUR = 80
-NODESIZE_LABELED_DETOUR = 150
+NODESIZE = 35
+NODESIZE_LABELED = 75
+NODESIZE_LABELED_ROOT = 32
+NODESIZE_DETOUR = 90
+NODESIZE_LABELED_DETOUR = 155
 
 F = NodeTagger()
 
@@ -38,8 +38,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
           hide_ST: bool = True, legend: bool = False,
-          min_dpi: int = 192, dark=None,
-          font_name: str = 'Dejavu Sans') -> Axes:
+          min_dpi: int = 192, dark=None) -> Axes:
     '''Plot site and routeset contained in G.
 
     Args:
@@ -85,7 +84,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         'constraint': 'solid',
         'border': 'dashed',
         None: 'solid',
-        'detour': (0, (4, 4)),
+        'detour': (0, (3, 3)),
         'virtual': 'solid',
         }
     if dark:
@@ -132,9 +131,6 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         detour_ring = 'deepskyblue'
         border_face = '#eee'
         text_color = 'black'
-    text_prop = dict(
-        family=font_name,
-    )
 
     R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
@@ -159,7 +155,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     # draw farm border
     if border is not None:
         border_opt = dict(facecolor=border_face, linestyle='dashed',
-            edgecolor=kind2color['border'], linewidth=0.5)
+            edgecolor=kind2color['border'], linewidth=0.7)
         borderC = VertexC[border] 
         if obstacles is None:
             ax.fill(*borderC.T, **border_opt)
@@ -196,7 +192,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     subtrees = G.nodes(data='subtree', default=19)
     node_colors = [colors[subtrees[n] % len(colors)] for n in range(T)]
 
-    edges_width = 0.7
+    edges_width = 1.
     edges_capstyle = 'round'
     # draw edges
     for graph, edge_kind in product((G, G.graph.get('overlay')), kind2style):
@@ -219,12 +215,12 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             node_color='none', node_size=detour_size, label='corner')
         arts.set_clip_on(False)
     arts = nx.draw_networkx_nodes(
-        G, pos, ax=ax, nodelist=roots, linewidths=0.2, node_color=root_color,
+        G, pos, ax=ax, nodelist=roots, linewidths=0.3, node_color=root_color,
         edgecolors=node_edge, node_size=root_size, node_shape='s', label='OSS')
     arts.set_clip_on(False)
     arts = nx.draw_networkx_nodes(
         G, pos, nodelist=range(T), edgecolors=node_edge, ax=ax, label='WTG',
-        node_color=node_colors, node_size=node_size, linewidths=0.2)
+        node_color=node_colors, node_size=node_size, linewidths=0.3)
     arts.set_clip_on(False)
 
     # draw labels
@@ -280,14 +276,14 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         # algorithm of matplotlib to place the info box not covering nodes
         info_art = ax.legend([], labelspacing=0, facecolor=border_face,
             edgecolor=text_color, title='\n'.join(info), framealpha=0.6,
-            title_fontproperties=text_prop | {'size': FONTSIZE_INFO_BOX})
+            title_fontproperties={'size': FONTSIZE_INFO_BOX})
         plt.setp(info_art.get_title(), multialignment='center',
                  color=text_color)
     else:
         info_art = None
     if legend:
         # even if calling `legend()` twice, the info box remains
-        ax.legend(ncol=8, prop=text_prop | {'size': FONTSIZE_LEGEND_STRIP},
+        ax.legend(ncol=8, font_size=FONTSIZE_LEGEND_STRIP,
             loc='lower center', columnspacing=1, labelcolor=text_color,
             handletextpad=0.3, bbox_to_anchor=(0.5, -0.07), frameon=False)
         if info_art is not None:
