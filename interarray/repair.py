@@ -2,17 +2,10 @@
 # https://github.com/mdealencar/interarray
 
 import networkx as nx
-from scipy.spatial.distance import cdist
-from loguru import logger
 
-from .pathfinding import PathFinder
-from .mesh import make_planar_embedding
 from .crossings import list_edge_crossings
 from .interarraylib import calcload, NodeTagger
-
-trace, debug, info, success, warn, error, critical = (
-    logger.trace, logger.debug, logger.info, logger.success,
-    logger.warning, logger.error, logger.critical)
+from . import warn
 
 
 F = NodeTagger()
@@ -70,7 +63,7 @@ def list_path(S: nx.Graph, n: int) -> list[int]:
 
 
 def _find_fix_choices_path(A: nx.Graph, swapS: int, src_path: list[int],
-                           dst_path: list[int]) -> tuple[tuple]:
+                           dst_path: list[int]) -> list[tuple]:
     # this is named «...»_path because we could make a version that allows
     # branching and call it «...»_tree.
     '''

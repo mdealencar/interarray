@@ -11,17 +11,13 @@ import networkx as nx
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
-from loguru import logger
 
 from .crossings import gateXing_iter
 from .mesh import planar_flipped_by_routeset
 from .geometric import rotation_checkers_factory
 from .interarraylib import bfs_subtree_loads, scaffolded
 from .utils import NodeStr, NodeTagger
-
-trace, debug, info, success, warn, error, critical = (
-    logger.trace, logger.debug, logger.info, logger.success,
-    logger.warning, logger.error, logger.critical)
+from . import info, warn, debug, error
 
 F = NodeTagger()
 
@@ -48,7 +44,7 @@ class PathNodes(dict):
             d_hop: float) -> int:
         if parent not in self:
             error('attempted to add an edge in `PathNodes` to nonexistent'
-                  'parent ({})', parent)
+                  'parent (%d)', parent)
         _parent = self.prime_from_id[parent]
         for prev_id in self.ids_from_prime_sector[_source, sector]:
             if self[prev_id].parent == parent:
@@ -59,7 +55,7 @@ class PathNodes(dict):
         self[id] = PseudoNode(_source, sector, parent, dist, d_hop)
         self.ids_from_prime_sector[_source, sector].append(id)
         self.prime_from_id[id] = _source
-        trace('pseudoedge «{}->{}» added', F[_source], F[_parent])
+        debug('pseudoedge «%s->%s» added', F[_source], F[_parent])
         self.last_added = id
         return id
 
@@ -99,7 +95,7 @@ class PathFinder():
         allnodes[-R:] = range(-R, 0)
         self.n2s = NodeStr(allnodes, T + B + 3)
 
-        info('BEGIN pathfinding on "{}" (#wtg = {})',
+        info('BEGIN pathfinding on "%s" (#wtg = %d)',
              G.graph.get('name') or G.graph.get('handle') or 'unnamed', T)
 
         # tentative will be copied later, by initializing a set from it.
@@ -221,7 +217,7 @@ class PathFinder():
                 pseudonode = paths[id]
             return path, dists
         else:
-            info('Path not found for «{}»', F[n])
+            info('Path not found for «%s»', F[n])
             return [], []
 
     def _get_sector(self, _node: int, portal: tuple[int, int]):
@@ -279,11 +275,11 @@ class PathFinder():
         incumbent = I_path[_new].get(new_sector)
         if incumbent is None or d_new < paths[incumbent].dist:
             self.I_path[_new][new_sector] = new
-            debug('{} added with d_path = {:.2f}',
+            debug('%s added with d_path = %.2f',
                   self.n2s(_new, _apex), d_new)
 
     def _advance_portal(self, left: int, right: int):
-        G, P, T = self.G, self.P, self.T
+        P = self.P
         while True:
             # look for children portals
             n = P[left][right]['ccw']
@@ -295,9 +291,9 @@ class PathFinder():
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
                 if st_sorted not in self.portal_set:
-                    debug('discarding {}', self.n2s(s, t))
+                    debug('discarding %s', self.n2s(s, t))
                     continue
-                debug('including {}', self.n2s(s, t))
+                debug('including %s', self.n2s(s, t))
                 next_portals.append(((s, t), side))
             try:
                 # this `pop()` will raise IndexError if we are at a dead-end
@@ -308,18 +304,18 @@ class PathFinder():
                 #          if next_portals
                 #          else None)
                 if next_portals:
+                    debug('branching %s and %s', self.n2s(*first),
+                          self.n2s(*second))
                     second, sside = next_portals[0]
-                    debug(f'branching {self.n2s(*first)} and '
-                          f'{self.n2s(*second)}')
                     yield (first, fside,
                            chain(((second, sside, None),),
                                  self._advance_portal(*second)))
                 else:
-                    trace('{}', self.n2s(*first))
+                    debug('%s', self.n2s(*first))
                     yield first, fside, None
             except IndexError:
                 # dead-end reached
-                trace('dead-end: {}–{}', F[left], F[right])
+                debug('dead-end: %s–%s', F[left], F[right])
                 return
             left, right = first
 
@@ -353,18 +349,15 @@ class PathFinder():
             #  if _nearside == _apex:  # debug info
             #      print(f"{'RIGHT' if side else 'LEFT '} "
             #            f'nearside({F[_nearside]}) == apex({F[_apex]})')
-            trace(f"{'RIGHT' if side else 'LEFT '} "
-                  f'new({F[_new]}) '
-                  f'nearside({F[_nearside]}) '
-                  f'farside({F[_farside]}) '
-                  f'apex({F[_apex]}), wedge ends: '
-                  f'{F[paths.prime_from_id[wedge_end[0]]]}, '
-                  f'{F[paths.prime_from_id[wedge_end[1]]]}')
+            debug('%s new(%s) nearside(%s) farside(%s) apex(%s), wedge ends: '
+                  '%s %s', 'RIGHT' if side else 'LEFT ', F[_new], F[_nearside],
+                  F[_farside], F[_apex], F[paths.prime_from_id[wedge_end[0]]],
+                  F[paths.prime_from_id[wedge_end[1]]])
             if _nearside == _apex or test(_nearside, _new, _apex):
                 # not infranear
                 if test(_farside, _new, _apex):
-                    # ultrafar (new overlaps farside)
-                    trace('ultrafar')
+                    # ultrafar (⟨new, apex⟩ cuts farside)
+                    debug('ultrafar')
                     current_wapex = wedge_end[not side]
                     _current_wapex = paths.prime_from_id[current_wapex]
                     _funnel[not side] = _current_wapex
@@ -388,13 +381,14 @@ class PathFinder():
                     _apex = _current_wapex
                     apex = current_wapex
                 else:
-                    trace('inside')
+                    # not ultrafar nor infranear (⟨new, apex⟩ in line-of-sight)
+                    debug('inside')
                 yield from self._rate_wait_add(portal, _new, _apex, apex)
                 wedge_end[side] = paths.last_added
                 _funnel[side] = _new
             else:
-                # infranear
-                trace('infranear')
+                # infranear (⟨new, apex⟩ cuts nearside)
+                debug('infranear')
                 current_wapex = wedge_end[side]
                 _current_wapex = paths.prime_from_id[current_wapex]
                 #  print(f'{F[_current_wapex]}')
@@ -545,7 +539,7 @@ class PathFinder():
                 #            'dropped (no better that previous traverser).')
         if counter == MAX_ITER:
             warn('Path-finding loop aborted at MAX_ITER!')
-        info('Path-finding loops performed: {}.', counter)
+        info('Path-finding loops performed: %d', counter)
 
     def _apply_all_best_paths(self, G: nx.Graph):
         '''
@@ -630,20 +624,20 @@ class PathFinder():
             hookchoices = ([n for n in subtree if n < T]
                            if self.branching else
                            [n, next(h for h in subtree if G.degree[h] == 1)])
-            debug('hookchoices: {}', self.n2s(*hookchoices))
+            debug('hookchoices: %s', self.n2s(*hookchoices))
 
             path_options = list(chain.from_iterable(
                 ((paths[id].dist, id, hook, sec)
                  for sec, id in I_path[hook].items())
                 for hook in hookchoices))
             if not path_options:
-                error('subtree of node {} has no non-crossing paths to any '
+                error('subtree of node %s has no non-crossing paths to any '
                       'root: leaving gate as-is', F[n])
                 # unable to fix this crossing
                 failed_detours.append((r, n))
                 continue
             dist, id, hook, sect = min(path_options)
-            debug('best: hook = {}, sector = {}, dist = {:.1f}',
+            debug('best: hook = %s, sector = %s, dist = %.2f',
                   F[hook], F[sect], dist)
 
             path = [hook]
@@ -655,13 +649,13 @@ class PathFinder():
                 path.append(paths.prime_from_id[id])
                 pseudonode = paths[id]
             if not math.isclose(sum(dists), dist):
-                error(f'distance sum ({sum(dists):.1f}) != '
-                      f'best distance ({dist:.1f}), hook = {F[hook]}, '
-                      f'path: {self.n2s(*path)}')
+                error('distance sum (%.1f) != best distance (%.1f), hook = %s,'
+                      ' path: %s', sum(dists):.1f, dist:.1f, F[hook],
+                      self.n2s(*path))
 
-            debug('path: {}', self.n2s(*path))
+            debug('path: %s', self.n2s(*path))
             if len(path) < 2:
-                error('no path found for {}-{}', F[r], F[n])
+                error('no path found for %s-%s', F[r], F[n])
                 continue
             added_clones = len(path) - 2
             Clone = list(range(clone_idx, clone_idx + added_clones))
@@ -677,9 +671,9 @@ class PathFinder():
                 #       maybe that's the place to prune contour clones
                 G.remove_edge(r, n)
                 if r != path[-1]:
-                    debug(f'root changed from {F[r]} to '
-                          f'{F[path[-1]]} for subtree of gate {F[n]}, now '
-                          f'hooked to {F[path[0]]}')
+                    debug('root changed from %s to %s for subtree of gate %s, '
+                          'now hooked to %s', F[r], F[path[-1]], F[n],
+                          F[path[0]])
                 G.add_weighted_edges_from(
                     zip(path[:1] + Clone, Clone + path[-1:], dists),
                     weight='length', load=subtree_load)
@@ -690,12 +684,12 @@ class PathFinder():
                     G[Clone[-1]][path[-1]]['reverse'] = False
             else:
                 del G[n][r]['kind']
-                debug(f'gate {F[n]}–{F[r]} touches a '
-                      'node (touched node does not become a detour).')
+                debug('gate %s–%s touches a node (touched node does not become'
+                      ' a detour).', F[n], F[r])
             if n != path[0]:
                 # the hook changed: update 'load' attributes of edges/nodes
-                debug('hook changed from {} to {}: recalculating loads',
-                      F[n], F[path[0]])
+                debug('hook changed from %s to %s: recalculating loads', F[n],
+                      F[path[0]])
 
                 for node in subtree:
                     del G.nodes[node]['load']
@@ -719,8 +713,8 @@ class PathFinder():
             del G[r][n]['kind']
 
         if failed_detours:
-            warn('Failed: ', ' '.join(f'{F[u]}–{F[v]}'
-                                      for u, v in failed_detours))
+            warn('Failed: %s', ' '.join(f'{F[u]}–{F[v]}'
+                                        for u, v in failed_detours))
             G.graph['tentative'] = failed_detours
         else:
             del G.graph['tentative']

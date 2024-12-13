@@ -5,7 +5,6 @@ import math
 import numpy as np
 import networkx as nx
 from scipy.spatial.distance import cdist
-from loguru import logger
 
 from collections import defaultdict
 from itertools import chain, tee, combinations
@@ -34,13 +33,9 @@ from .geometric import (
     apply_edge_exemptions,
     complete_graph,
 )
-from . import MAX_TRIANGLE_ASPECT_RATIO
+from . import MAX_TRIANGLE_ASPECT_RATIO, info, debug, warn
 from .interarraylib import NodeTagger
 from .geometric import is_triangle_pair_a_convex_quadrilateral
-
-trace, debug, info, success, warn, error, critical = (
-    logger.trace, logger.debug, logger.info, logger.success,
-    logger.warning, logger.error, logger.critical)
 
 F = NodeTagger()
 NULL = np.iinfo(int).min
@@ -184,23 +179,23 @@ def hull_processor(P: nx.PlanarEmbedding, T: int,
     for pivot, begin, end in ((a, c, b),
                               (b, a, c),
                               (c, b, a)):
-        trace('==== pivot', pivot, '====')
+        debug('==== pivot %d ====', pivot)
         source, target = tee(P.neighbors_cw_order(pivot))
         outer = begin
         for u, v in zip(source, chain(target, (next(target),))):
             if u >= T and v >= T:
                 if u == outer:
                     to_remove.append((pivot, u))
-                    trace('del_sup', pivot, u)
+                    debug('del_sup %d %d', pivot, u)
                     outer = v
                 elif v == end:
                     to_remove.append((pivot, v))
-                    trace('del_sup', pivot, v)
+                    debug('del_sup %d %d', pivot, v)
                 if (vertex2conc_id_map.get(u, -1)
                         == vertex2conc_id_map.get(v, -2)):
                     to_remove.append((u, v))
                     conc_outer_edges.add((u, v) if u < v else (v, u))
-                    trace('del_int', u, v)
+                    debug('del_int %d %d', u, v)
                     outer = v
             if u != begin and u != end and v != end:
                 # if u is not in supertriangle, it is convex_hull
@@ -224,7 +219,7 @@ def _flip_triangles_near_obstacles(P: nx.PlanarEmbedding, T: int, B: int,
         rev = next(nbcw)
         cur = next(nbcw)
         for fwd in chain(nbcw, (rev, cur)):
-            trace('looking at:', F[u], F[cur])
+            debug('looking at: %s %s', F[u], F[cur])
             if ((rev < T)
                     and (fwd < T)
                     and (u, cur) in P.edges
@@ -232,7 +227,7 @@ def _flip_triangles_near_obstacles(P: nx.PlanarEmbedding, T: int, B: int,
                     and not is_same_side(*VertexC[[rev, fwd, u, cur]])
                     and P[rev][u]['ccw'] == cur
                     and P[fwd][u]['cw'] == cur):
-                trace('changing to:', F[rev], F[fwd])
+                debug('changing to: %s %s', F[rev], F[fwd])
                 changes[(u, cur)] = rev, fwd
                 P.remove_edge(u, cur)
                 P.add_half_edge(rev, fwd, cw=u)
@@ -241,7 +236,6 @@ def _flip_triangles_near_obstacles(P: nx.PlanarEmbedding, T: int, B: int,
                 break
             rev = cur
             cur = fwd
-    trace('')
     return changes
 
 
@@ -411,7 +405,7 @@ def make_planar_embedding(
     # replace coinciding vertices with stunts and save concavities here
     for i, concavity in enumerate(concavities):
         changed = False
-        trace('concavity: {}', concavity)
+        debug('concavity: %s', concavity)
         stunt_coords = []
         conc_points = []
         vertices = concavity.vertices
@@ -441,27 +435,27 @@ def make_planar_embedding(
                 angle = np.arccos(np.dot(-XY, YZ)/_XY_/_YZ_)
                 if abs(angle) < np.pi/2:
                     # XYZ acute
-                    trace('acute')
+                    debug('acute')
                     # project nXY on YZ
                     proj = YZ/_YZ_/max(0.5, np.sin(abs(angle)))
                 else:
                     # XYZ obtuse
-                    trace('obtuse')
+                    debug('obtuse')
                     # project nXY on YZ
                     proj = YZ*np.dot(nXY, YZ)/_YZ_**2
                 if Y_is_hull:
                     if X_is_hull:
-                        trace('XY hull')
+                        debug('XY hull')
                         # project nYZ on XY
                         S = offset*(-XY/_XY_/max(0.5, np.sin(angle)) - nXY)
                     else:
                         assert Z_is_hull
                         # project nXY on YZ
                         S = offset*(YZ/_YZ_/max(0.5, np.sin(angle)) - nYZ)
-                        trace('YZ hull')
+                        debug('YZ hull')
                 else:
                     S = offset*(nYZ+proj)
-                trace('translation: {}', S)
+                debug('translation: %s', S)
                 # to extract stunts' coordinates:
                 # stuntsC = VertexC[T + B - len(border_stunts): T + B]
                 border_stunts.append(Y)
@@ -487,7 +481,7 @@ def make_planar_embedding(
     # Alternatively, one could convert stunts to clones of their primes, but
     # this could create some small interferences between edges.
     if stuntC:
-        debug('stuntC lengths: {}; former B: {}; new B: {}',
+        debug('stuntC lengths: %s; former B: %d; new B: %d',
               [len(nc) for nc in stuntC], B_old, B)
 
     for pt in remove_from_border_pt_map:
@@ -542,7 +536,7 @@ def make_planar_embedding(
                     iref, itst = reflst.index(common), tstlst.index(common)
                     joined = (reflst[:iref] + tstlst[itst:]
                               + tstlst[:itst] + reflst[iref:])
-                    trace('common vertex:', common, '-> new contour:', joined)
+                    debug('common vertex: %d -> new contour: %s', common, joined)
                     del stack[iconc]
                     stack.append((refset | tstset, joined))
                     stable = False
@@ -588,7 +582,7 @@ def make_planar_embedding(
         for u, v in zip(source, chain(target, (next(target),))):
             if u != begin and u != end and v != end:
                 convex_hull_A.append(u)
-    debug('convex_hull_A: {}', '–'.join(F[n] for n in convex_hull_A))
+    debug('convex_hull_A: %s', '–'.join(F[n] for n in convex_hull_A))
     P_A.remove_nodes_from(supertriangle)
 
     # Prune flat triangles from P_A (criterion is aspect_ratio > `max_tri_AR`).
@@ -615,8 +609,8 @@ def make_planar_embedding(
     u, v = hull_prunned[0], hull_prunned[-1]
     uv = (u, v) if u < v else (v, u)
     hull_prunned_edges.add(uv)
-    debug('hull_prunned: {}', '–'.join(F[n] for n in hull_prunned))
-    debug('hull_prunned_edges: {}',
+    debug('hull_prunned: %s', '–'.join(F[n] for n in hull_prunned))
+    debug('hull_prunned_edges: %s',
           ','.join(f'{F[u]}–{F[v]}' for u, v in hull_prunned_edges))
 
     A = nx.Graph(P_A_edges)
@@ -1035,7 +1029,7 @@ def make_planar_embedding(
                 if any(p >= T for p in path):
                     # This estimate may be slightly longer that just going
                     # around the border.
-                    trace(f'changing {n} with path', path)
+                    debug('changing %d with path %s', n, path)
                     node_d2roots = A.nodes[n].get('d2roots')
                     if node_d2roots is None:
                         A.nodes[n]['d2roots'] = {r: d2roots[n, r]}
@@ -1276,10 +1270,10 @@ def planar_flipped_by_routeset(
         u, v = stack.pop()
         if u < 0 and (u, v) not in diags:
             continue
-        debug('{}–{}', u, v)
+        debug('%d–%d', u, v)
         intersection = set(planar[u]) & set(planar[v])
         if len(intersection) < 2:
-            debug('share {} neighbors.', len(intersection))
+            debug('share %d neighbors.', len(intersection))
             continue
         diagonal_found = False
         for s, t in combinations(intersection, 2):
@@ -1302,7 +1296,7 @@ def planar_flipped_by_routeset(
             # reassign so that u-s-v-t is in ccw orientation
             s, t = t, s
         else:
-            debug('{}–{}–{}–{} is not in two triangles.', u, s, v, t)
+            debug('%d–%d–%d–%d is not in two triangles.', u, s, v, t)
             continue
         #  if not (s == planar[v][u]['ccw']
         #          and t == planar[v][u]['cw']):
@@ -1311,7 +1305,7 @@ def planar_flipped_by_routeset(
         #  if (s, t) not in planar:
         #      print(f'{F[s]}–{F[t]} is not in planar')
         #      continue
-        debug('flipping {}–{} to {}–{}', s, t, u, v)
+        debug('flipping %d–%d to %d–%d', s, t, u, v)
         P.remove_edge(s, t)
         if diags:
             # diagonal (u_, v_) is added to P -> forbid diagonals that cross it

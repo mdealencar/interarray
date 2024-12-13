@@ -14,9 +14,14 @@ https://github.com/mdealencar/interarray
 
 __license__ = "LGPL-2.1-or-later"
 
-from loguru import logger
+import logging
+logger = logging.getLogger('interarray')
+logging.basicConfig(level=logging.WARNING)
 
-logger.disable("interarray")
+info = logger.info
+debug = logger.debug
+warn = logger.warning
+error = logger.error
 
 # global module constants
 MAX_TRIANGLE_ASPECT_RATIO = 50.
