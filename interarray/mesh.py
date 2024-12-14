@@ -667,7 +667,7 @@ def make_planar_embedding(
                    v = hull_stack.pop()
     if not hull_concave:
         hull_concave = hull_prunned
-    info('hull_concave: {}', '–'.join(F[n] for n in hull_concave))
+    debug('hull_concave: %d', '–'.join(F[n] for n in hull_concave))
 
     # ######################################################################
     # Y) Handle obstacles
@@ -907,7 +907,7 @@ def make_planar_embedding(
         # shortest path in P_path and update the length attribute in A.
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        warn('A_edge: {}–{} length: {}; path: {}', F[u], F[v], length, path)
+        debug('A_edge: %s–%s length: %s; path: %s', F[u], F[v], length, path)
         if all(n >= T for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
@@ -923,8 +923,8 @@ def make_planar_embedding(
                 # skip to shortcut if b is a neighbor of the supertriangle
                 if all(n not in P[b] for n in supertriangle):
                     b_conc_id = vertex2conc_id_map[b]
-                    warn('s: {}; b: {}; t: {}; b_conc_id: {}', F[s], F[b], F[t], b_conc_id)
-                    warn([(F[n], vertex2conc_id_map.get(n)) for n in P.neighbors(b)])
+                    debug('s: %s; b: %s; t: %s; b_conc_id: %s', F[s], F[b], F[t], b_conc_id)
+                    debug([(F[n], vertex2conc_id_map.get(n)) for n in P.neighbors(b)])
                     nbs = P.neighbors_cw_order(b)
                     skip_test = True
                     for a in nbs:
@@ -933,7 +933,7 @@ def make_planar_embedding(
                             break
                     if skip_test:
                         i += 1
-                        warn('Took the 1st continue.')
+                        debug('Took the 1st continue.')
                         continue
                     skip_test = True
                     for c in nbs:
@@ -948,13 +948,13 @@ def make_planar_embedding(
                         c = next(P.neighbors_cw_order(b))
                         if P[b][a]['cw'] == c:
                             skip_test = False
-                    warn('a: {} {}; c: {} {}; s: {} {}, t: {} {}; {}',
+                    debug('a: %d %s; c: %d %s; s: %d %s, t: %d %s; %s',
                          a, F[a], c, F[c], s, F[s], t, F[t], skip_test)
                     if (skip_test or not (cw(a, b, c)
                                           or ((a == s or cw(a, b, s))
                                               == cw(s, b, t)))):
                         i += 1
-                        warn('Took the 2nd continue.')
+                        debug('Took the 2nd continue.')
                         continue
                 # PERFORM SHORTCUT
                 # TODO: The entire new path should go for a 2nd pass if it
@@ -972,7 +972,7 @@ def make_planar_embedding(
                     edgeD['shortcuts'] = [b]
                 else:
                     shortcuts.append(b)
-                warn('({}) {} {} {} shortcut', i, F[s], F[b], F[t])
+                debug('(%d) %s %s %s shortcut', i, F[s], F[b], F[t])
             if len(path) > 2:
                 edgeD.update(length=length,
                              # path-> P edges used to calculate A edge's length
@@ -1284,7 +1284,7 @@ def planar_flipped_by_routeset(
                 diagonal_found = True
                 break
         if not diagonal_found:
-            warn('Failed to find flippable for non-planar {}–{}', u, v)
+            warn('Failed to find flippable for non-planar %d–%d', u, v)
             continue
         if (s, t) in edges_G and u < 0:
             # not replacing edge with gate
