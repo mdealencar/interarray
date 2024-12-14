@@ -84,7 +84,7 @@ coordinate_parser = dict(
 )
 
 
-def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
+def L_from_yaml(filepath: Path | str, handle: str | None = None) -> nx.Graph:
     '''Import wind farm data from .yaml file.
 
     Two options available for COORDINATE_FORMAT: "planar" and "latlon".
@@ -102,15 +102,16 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     TAG [234.2, 5212.5]
 
     Args:
-        filepath: Path of `.yaml` file to read.
+        filepath: path to `.yaml` file to read.
         handle: Short moniker for the site.
 
     Returns:
         Unconnected locations graph L.
     '''
-    fpath = Path(filepath)
+    if isinstance(filepath, str):
+        filepath = Path(filepath)
     # read wind power plant site YAML file
-    parsed_dict = yaml.safe_load(open(fpath, 'r', encoding='utf8'))
+    parsed_dict = yaml.safe_load(open(filepath, 'r', encoding='utf8'))
     # default format is "latlon"
     format = parsed_dict.get('COORDINATE_FORMAT', 'latlon')
     Border, BorderTag = coordinate_parser[format](parsed_dict['EXTENTS'])
@@ -143,7 +144,7 @@ def L_from_yaml(filepath: Path, handle: str | None = None) -> nx.Graph:
     G = nx.Graph(T=T, R=R, B=B,
                  VertexC=VertexC,
                  border=border,
-                 name=fpath.stem,
+                 name=filepath.stem,
                  handle=handle,
                  **optional)
 
@@ -188,23 +189,24 @@ class GetAllData(osmium.SimpleHandler):
                                      members=list(r.members))))
 
 
-def L_from_pbf(filepath: Path, handle: str | None = None) -> nx.Graph:
+def L_from_pbf(filepath: Path | str, handle: str | None = None) -> nx.Graph:
     '''Import wind farm data from .osm.pbf file.
 
     Args:
-        filepath: Path of `.osm.pbf` file to read.
+        filepath: path to `.osm.pbf` file to read.
         handle: Short moniker for the site.
 
     Returns:
         Unconnected locations graph L.
     '''
-    fpath = Path(filepath)
-    assert ['.osm', '.pbf'] == fpath.suffixes[-2:], \
+    if isinstance(filepath, str):
+        filepath = Path(filepath)
+    assert ['.osm', '.pbf'] == filepath.suffixes[-2:], \
         'Argument `filepath` does not have `.osm.pbf` extension.'
-    name = fpath.stem[:-4]
+    name = filepath.stem[:-4]
     # read wind power plant site OpenStreetMap's Protobuffer file
     getter = GetAllData()
-    getter.apply_file(fpath, locations=True, idx='flex_mem')
+    getter.apply_file(filepath, locations=True, idx='flex_mem')
     data = getter.elements
 
     # Generators
