@@ -650,7 +650,7 @@ class PathFinder():
                 pseudonode = paths[id]
             if not math.isclose(sum(dists), dist):
                 error('distance sum (%.1f) != best distance (%.1f), hook = %s,'
-                      ' path: %s', sum(dists):.1f, dist:.1f, F[hook],
+                      ' path: %s', sum(dists), dist, F[hook],
                       self.n2s(*path))
 
             debug('path: %s', self.n2s(*path))
