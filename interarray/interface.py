@@ -47,15 +47,15 @@ def assign_cables(G, cables):
         cable_ = nprec.unstructured_to_structured(cables, dtype=dt)
     else:
         cable_ = np.fromiter(cables, dtype=dt, count=Nc)
-    κ_ = cable_['capacity']
+    capacity_ = cable_['capacity']
     capacity = 1
 
     # for e, data in G.edges.items():
     for u, v, data in G.edges(data=True):
-        i = κ_.searchsorted(data['load'])
-        if i >= len(κ_):
+        i = capacity_.searchsorted(data['load'])
+        if i >= len(capacity_):
             print(f'ERROR: Load for edge ⟨{u, v}⟩: {data["load"]} '
-                  f'exceeds maximum cable capacity {κ_[-1]}.')
+                  f'exceeds maximum cable capacity {capacity_[-1]}.')
         data['cable'] = i
         data['cost'] = data['length']*cable_['cost'][i]
         if data['load'] > capacity:
