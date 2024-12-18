@@ -72,16 +72,13 @@ class PathFinder():
     These paths can be used to replace the existing gates that cross other
     edges by gate paths with detours.
 
-    All of `G`'s edges must be in `planar` (may need to call
-    `planar_flipped_by_routeset()` beforehand).
-
     Example:
     ========
 
     H = PathFinder(G, planar=P, A=A).create_detours()
     '''
 
-    def __init__(self, Gʹ: nx.Graph, *,
+    def __init__(self, Gʹ: nx.Graph,
                  planar: nx.PlanarEmbedding,
                  A: nx.Graph | None = None,
                  branching: bool = True) -> None:
