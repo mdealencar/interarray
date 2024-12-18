@@ -142,13 +142,12 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         VertexC = rotate(VertexC, landscape_angle)
 
     if ax is None:
-        fig, ax = plt.subplots(
+        fig, ax = plt.subplots(layout='compressed', facecolor='none',
             subplot_kw=dict(
-                aspect='equal', xmargin=0.002, ymargin=0.002
-            ),
-            layout='constrained', facecolor='none',
-            dpi=max(min_dpi, plt.rcParams['figure.dpi'])
+                aspect='equal', xmargin=0.002, ymargin=0.002  # relative
+            ), dpi=max(min_dpi, plt.rcParams['figure.dpi'])
         )
+        fig.get_layout_engine().set(w_pad=0.01, h_pad=0.01)  # inches
     else:
         ax.set(aspect='equal')
     ax.axis(False)
@@ -262,7 +261,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     if infobox and capacity is not None:
         info = []
         info.append(f'κ = {capacity}, T = {T}')
-        feeder_info = [f'{rootL}ᵩ = {G.degree[r]}'
+        feeder_info = [f'{rootL}: {G.degree[r]}'
                        for r, rootL in RootL.items()]
         excess_feeders = sum(G.degree[r] for r in roots) - math.ceil(T/capacity)
         info.append(f'({excess_feeders:+d}) {", ".join(feeder_info)}')
