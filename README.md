@@ -6,7 +6,7 @@ Tools for designing the electrical cable network (collection system) for offshor
 About interarray
 ----------------
 
-``interarray`` provides a framework to obtain optimal or near-optimal cable routes for a given turbine layout within the cable laying boundaries. It provides high-level access to heuristic, meta-heuristic and mathematical optimization approaches to the problem.
+``interarray`` provides a framework to obtain optimal or near-optimal cable routes for a given turbine layout within the cable-laying boundaries. It provides high-level access to heuristic, meta-heuristic and mathematical optimization approaches to the problem.
 
 The design of the collection system is subject to constraints:
 - circuits can only branch inside a wind turbine, if at all;

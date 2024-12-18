@@ -5,11 +5,10 @@ darkdetect==0.8.0
 gon==6.0.0
 ground==9.0.0
 hygese==0.0.0.8
-loguru==0.7.2
-matplotlib==3.9.2
+matplotlib==3.9.3
 networkx==3.4.2
 numba==0.60.0
-numpy==1.26.4
+numpy==2.0.2
 orient==7.0.0
 ortools==9.11.4210
 osmium==3.7.0
