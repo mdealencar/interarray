@@ -1,9 +1,3 @@
-# files not to be sent to repo
-sandbox.ipynb
-example_Gwynt_y_Mor-popper.ipynb
-example_London_Array-popper.ipynb
-videos
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -31,6 +25,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# auto-generated backup files
+*.backup
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
