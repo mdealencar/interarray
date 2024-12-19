@@ -642,7 +642,7 @@ def as_hooked_to_nearest(Gʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
 
 
 def as_hooked_to_head(Sʹ: nx.Graph, d2roots: np.ndarray) -> nx.Graph:
-    '''Only works with solutions where branches are paths.
+    '''Only works with solutions where subtrees are paths (radial topology).
 
     Sifts through all 'tentative' gates' subtrees and re-hook that path to
     the one of its end-nodes that is neares to the respective root according
