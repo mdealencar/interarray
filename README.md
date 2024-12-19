@@ -39,6 +39,8 @@ Requirements
 
 External requirements are in [requirements.txt](requirements.txt). Branch-and-cut solvers for the MILP formulations called via ``pyomo`` are not listed as requirements.
 
+[PythonCDT](https://github.com/artem-ogre/PythonCDT) is a requirement that is not `pip`- nor `conda`-installable. Please install it from the repository as indicated there.
+
 ```
 conda create --name «env_interarray» --file requirements.txt
 ```
