@@ -212,7 +212,7 @@ def poisson_disc_filler(T: int, min_dist: float, BorderC: nb.float64[:, :],
         raise NotImplementedError
 
     offsetC, norm_factor, width_height = get_border_scale_offset(BorderC)
-    area_avail = 1./norm_factor
+    area_avail = 1./norm_factor**2
 
     # quick check for outrageous densities
     # circle packing efficiency limit: η = π srqt(3)/6 = 0.9069
