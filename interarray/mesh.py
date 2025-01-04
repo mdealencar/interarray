@@ -648,26 +648,33 @@ def make_planar_embedding(
             hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
-               edge_seg = Segment(points[u], points[v])
-               edge_to_border = segment_in_region(edge_seg, border_cont)
-               if (edge_to_border is Relation.CROSS
-                       or edge_to_border is Relation.TOUCH):
-                   t = P_A[u][v]['ccw']
-                   if t == u:
-                       # degenerate case 1
-                       hull_concave.append(v)
-                       t, v, u = v, u, t
-                   else:
-                       # do not update hull_concave yet
-                       hull_stack.append(v)
-                       v = t
-               else:
-                   hull_concave.append(v)
-                   u = v
-                   v = hull_stack.pop()
+                #  print(F[u], F[v], [F[n] for n in hull_stack[::-1]])
+                edge_seg = Segment(points[u], points[v])
+                edge_to_border = segment_in_region(edge_seg, border_cont)
+                if (edge_to_border is Relation.CROSS
+                        or edge_to_border is Relation.TOUCH):
+                    t = P_A[u][v]['ccw']
+                    if t == u:
+                        # degenerate case 1
+                        hull_concave.append(v)
+                        t, v, u = v, u, t
+                    else:
+                        # do not update hull_concave yet
+                        if v in hull_stack:
+                            i = hull_stack.index(v)
+                            warn('unable to include in hull_concave: %s',
+                                 ' '.join(F[n] for n in hull_stack[i:]))
+                            del hull_stack[i:]
+                        else:
+                            hull_stack.append(v)
+                        v = t
+                else:
+                    hull_concave.append(v)
+                    u = v
+                    v = hull_stack.pop()
     if not hull_concave:
         hull_concave = hull_prunned
-    debug('hull_concave: %d', '–'.join(F[n] for n in hull_concave))
+    debug('hull_concave: %s', '–'.join(F[n] for n in hull_concave))
 
     # ######################################################################
     # Y) Handle obstacles
@@ -907,7 +914,7 @@ def make_planar_embedding(
         # shortest path in P_path and update the length attribute in A.
         length, path = nx.bidirectional_dijkstra(P_paths, u, v,
                                                  weight='length')
-        debug('A_edge: %s–%s length: %s; path: %s', F[u], F[v], length, path)
+        debug('A_edge: %s–%s length: %.3f; path: %s', F[u], F[v], length, path)
         if all(n >= T for n in path[1:-1]):
             # keep only paths that only have border vertices between nodes
             edgeD = A[path[0]][path[-1]]
@@ -973,19 +980,17 @@ def make_planar_embedding(
                 else:
                     shortcuts.append(b)
                 debug('(%d) %s %s %s shortcut', i, F[s], F[b], F[t])
+            edgeD.update(# midpath-> which P edges the A edge maps to
+                         # (so that PathFinder works)
+                         midpath=midpath,
+                         # contour_... edges may include direct ones that are
+                         # diverted because P_paths does not include them
+                         kind='contour_'+edgeD['kind'])
             if len(path) > 2:
-                edgeD.update(length=length,
-                             # path-> P edges used to calculate A edge's length
-                             # path=path[1:-1],
-                             # midpath-> which P edges the A edge maps to
-                             # (so that PathFinder works)
-                             midpath=midpath,
-                             kind='contour_'+edgeD['kind'])
+                edgeD['length'] = length
                 u, v = (u, v) if u < v else (v, u)
                 for p in path[1:-1]:
                     corner_to_A_edges[p].append((u, v))
-            else:
-                edgeD['midpath'] = midpath
         else:
             # remove edge because the path goes through some wtg node
             u, v = (u, v) if u < v else (v, u)
