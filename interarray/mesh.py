@@ -644,33 +644,47 @@ def make_planar_embedding(
         hull_prunned_cont = Contour(points[hull_prunned])
         border_cont = border_poly.border
         hull__border = contour_in_region(hull_prunned_cont, border_cont)
+        pushed = 0
         if hull__border in (Relation.CROSS, Relation.TOUCH, Relation.OVERLAP):
             hull_stack = hull_prunned[0:1] + hull_prunned[::-1]
             u, v = hull_prunned[-1], hull_stack.pop()
             while hull_stack:
-                #  print(F[u], F[v], [F[n] for n in hull_stack[::-1]])
                 edge_seg = Segment(points[u], points[v])
                 edge_to_border = segment_in_region(edge_seg, border_cont)
                 if (edge_to_border is Relation.CROSS
                         or edge_to_border is Relation.TOUCH):
                     t = P_A[u][v]['ccw']
+                    #  print(f'[{pushed}]', F[u], F[v], f'⟨{F[t]}⟩', [F[n] for n in hull_stack[::-1]])
                     if t == u:
                         # degenerate case 1
                         hull_concave.append(v)
                         t, v, u = v, u, t
-                    else:
-                        # do not update hull_concave yet
-                        if v in hull_stack:
-                            i = hull_stack.index(v)
-                            warn('unable to include in hull_concave: %s',
-                                 ' '.join(F[n] for n in hull_stack[i:]))
-                            del hull_stack[i:]
+                        continue
+                    pushed += 1
+                    hull_stack.append(v)
+                    if pushed and not any(n in A[t] for n in hull_stack[-pushed:]):
+                        # TODO: figure out how to avoid repeated outlier nodes
+                        warn('unable to include in hull_concave: %s',
+                             ' '.join(F[n] for n in hull_stack[-pushed:]))
+                        hull_outliers = A.graph.get('hull_outliers')
+                        if hull_outliers is not None:
+                            hull_outliers.extend(hull_stack[-pushed:])
                         else:
-                            hull_stack.append(v)
-                        v = t
+                            A.graph['hull_outliers'] = hull_stack[-pushed:]
+                        del hull_stack[-pushed:]
+                        pushed = 0
+                        while hull_stack:
+                            v = hull_stack.pop()
+                            if v not in hull_concave:
+                                break
+                        continue
+                    v = t
                 else:
+                    #  print(f'[{pushed}]', F[u], F[v], [F[n] for n in hull_stack[::-1]])
                     hull_concave.append(v)
                     u = v
+                    if pushed:
+                        pushed -= 1
                     v = hull_stack.pop()
     if not hull_concave:
         hull_concave = hull_prunned
@@ -1060,7 +1074,7 @@ def make_planar_embedding(
         VertexC=VertexC,
         border=border,
         name=L.name,
-        handle=L.graph['handle'],
+        handle=L.graph.get('handle', 'handleless'),
         planar=P_A,
         diagonals=diagonals,
         d2roots=d2roots,
