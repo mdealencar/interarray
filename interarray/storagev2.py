@@ -42,11 +42,15 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     T = nodeset.T
     R = nodeset.R
-    B = nodeset.constraint_groups[0]
+    #  B = nodeset.constraint_groups[0]
+    B = nodeset.B
     border = np.array(nodeset.constraint_vertices[:B])
+    name=nodeset.name
     L = nx.Graph(
          R=R, T=T, B=B,
-         name=nodeset.name,
+         name=name,
+         handle=((name if name[0] != '!' else name[1:name.index('!', 1)])
+                 .strip().lower().replace(' ', '_')),
          border=border,
          VertexC=np.lib.format.read_array(io.BytesIO(nodeset.VertexC)),
          landscape_angle=nodeset.landscape_angle,
