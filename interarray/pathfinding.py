@@ -301,9 +301,9 @@ class PathFinder():
                 #          if next_portals
                 #          else None)
                 if next_portals:
+                    second, sside = next_portals[0]
                     debug('branching %s and %s', self.n2s(*first),
                           self.n2s(*second))
-                    second, sside = next_portals[0]
                     yield (first, fside,
                            chain(((second, sside, None),),
                                  self._advance_portal(*second)))
