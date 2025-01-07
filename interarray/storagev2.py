@@ -42,9 +42,9 @@ def L_from_nodeset(nodeset: object) -> nx.Graph:
     '''Create the networkx Graph (nodes only) for a given nodeset.'''
     T = nodeset.T
     R = nodeset.R
-    #  B = nodeset.constraint_groups[0]
+    # assert B == sum(n >= T for n in nodeset.constraint_vertices)
     B = nodeset.B
-    border = np.array(nodeset.constraint_vertices[:B])
+    border = np.array(nodeset.constraint_vertices[:nodeset.constraint_groups[0]])
     name=nodeset.name
     L = nx.Graph(
          R=R, T=T, B=B,
