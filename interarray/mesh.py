@@ -1043,7 +1043,8 @@ def make_planar_embedding(
             lengths, paths = nx.single_source_dijkstra(P_paths, r,
                                                        weight='length')
             for n, path in paths.items():
-                if n >= T:
+                if n >= T or n < 0:
+                    # skip border and root vertices
                     continue
                 if any(p >= T for p in path):
                     # This estimate may be slightly longer that just going
