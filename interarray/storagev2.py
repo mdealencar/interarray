@@ -115,7 +115,8 @@ def packnodes(G: nx.Graph) -> PackType:
     # border_stunts, stuntC
     border_stunts = G.graph.get('border_stunts')
     if border_stunts:
-        VertexC = np.vstack((VertexC[:T + B - len(border_stunts)],
+        B -= len(border_stunts)
+        VertexC = np.vstack((VertexC[:T + B],
                              VertexC[-R:]))
     VertexC_npy_io = io.BytesIO()
     np.lib.format.write_array(VertexC_npy_io, VertexC, version=(3, 0))
