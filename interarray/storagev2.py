@@ -90,7 +90,7 @@ def G_from_routeset(routeset: object) -> nx.Graph:
     if routeset.stuntC:
         stuntC=np.lib.format.read_array(io.BytesIO(routeset.stuntC))
         border_stunts = len(stuntC)
-        G.graph['border_stunts'] += border_stunts
+        G.graph['border_stunts'] = border_stunts
         G.graph['B'] += border_stunts
         VertexC = G.graph['VertexC']
         G.graph['VertexC'] = np.vstack((VertexC[:-R], stuntC,
