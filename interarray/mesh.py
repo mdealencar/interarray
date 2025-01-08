@@ -399,7 +399,7 @@ def make_planar_embedding(
                                      - VertexC.min(axis=0)))
     #  debug(f'offset: {offset}')
     stuntC = []
-    border_stunts = []
+    stunts_primes = []
     remove_from_border_pt_map = set()
     B_old = B
     # replace coinciding vertices with stunts and save concavities here
@@ -457,8 +457,8 @@ def make_planar_embedding(
                     S = offset*(nYZ+proj)
                 debug('translation: %s', S)
                 # to extract stunts' coordinates:
-                # stuntsC = VertexC[T + B - len(border_stunts): T + B]
-                border_stunts.append(Y)
+                # stuntsC = VertexC[T + B - len(stunts_primes): T + B]
+                stunts_primes.append(Y)
                 stunt_coord = VertexC[Y] + S
                 stunt_point = Point(*(float(sc) for sc in stunt_coord))
                 stunt_coords.append(stunt_coord)
@@ -1089,8 +1089,8 @@ def make_planar_embedding(
     )
     if obstacles:
         A.graph['obstacles'] = obstacles
-    if border_stunts:
-        A.graph['border_stunts'] = border_stunts
+    if stunts_primes:
+        A.graph['num_stunts'] = len(stunts_primes)
     landscape_angle = L.graph.get('landscape_angle')
     if landscape_angle is not None:
         A.graph['landscape_angle'] = landscape_angle

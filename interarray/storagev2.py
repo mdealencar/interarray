@@ -35,7 +35,7 @@ _misc_not = {'VertexC', 'anglesYhp', 'anglesXhp', 'anglesRank', 'angles',
              'num_diagonals', 'crossings_map', 'tentative', 'method_options',
              'is_normalized', 'norm_scale', 'norm_offset', 'detextra', 'rogue',
              'clone2prime', 'valid', 'path_in_P', 'shortened_contours',
-             'nonAedges', 'method', 'border_stunts', 'crossings', 'creator'}
+             'nonAedges', 'method', 'num_stunts', 'crossings', 'creator'}
 
 
 def L_from_nodeset(nodeset: object) -> nx.Graph:
@@ -89,9 +89,9 @@ def G_from_routeset(routeset: object) -> nx.Graph:
 
     if routeset.stuntC:
         stuntC=np.lib.format.read_array(io.BytesIO(routeset.stuntC))
-        border_stunts = len(stuntC)
-        G.graph['border_stunts'] = border_stunts
-        G.graph['B'] += border_stunts
+        num_stunts = len(stuntC)
+        G.graph['num_stunts'] = num_stunts
+        G.graph['B'] += num_stunts
         VertexC = G.graph['VertexC']
         G.graph['VertexC'] = np.vstack((VertexC[:-R], stuntC,
                                         VertexC[-R:]))
@@ -114,10 +114,9 @@ def G_from_routeset(routeset: object) -> nx.Graph:
 def packnodes(G: nx.Graph) -> PackType:
     R, T, B = (G.graph[k] for k in 'RTB')
     VertexC = G.graph['VertexC']
-    # border_stunts, stuntC
-    border_stunts = G.graph.get('border_stunts')
-    if border_stunts:
-        B -= len(border_stunts)
+    num_stunts = G.graph.get('num_stunts')
+    if num_stunts:
+        B -= num_stunts
         VertexC = np.vstack((VertexC[:T + B],
                              VertexC[-R:]))
     VertexC_npy_io = io.BytesIO()
@@ -290,10 +289,10 @@ def pack_G(G: nx.Graph) -> dict[str, Any]:
         **terse_pack,
     )
     # Optional fields
-    border_stunts = G.graph.get('border_stunts')
-    if border_stunts:
+    num_stunts = G.graph.get('num_stunts')
+    if num_stunts:
         VertexC = G.graph['VertexC']
-        stuntC = VertexC[T + B - len(border_stunts): T + B].copy()
+        stuntC = VertexC[T + B - num_stunts: T + B].copy()
         stuntC_npy_io = io.BytesIO()
         np.lib.format.write_array(stuntC_npy_io, stuntC, version=(3, 0))
         packed_G['stuntC'] = stuntC_npy_io.getvalue()
