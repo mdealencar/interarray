@@ -16,7 +16,7 @@ F = NodeTagger()
 
 _essential_graph_attrs = (
     'R', 'T', 'B', 'VertexC', 'name', 'handle', 'border',  # required
-    'obstacles', 'num_stunts', 'landscape_angle',  # optional
+    'obstacles', 'landscape_angle',  # optional
     'norm_scale', 'norm_offset',  # optional
 )
 
@@ -205,7 +205,8 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
     # TODO: rethink whether to copy from S or from A
     G = nx.create_empty_copy(S)
     G.graph.update(
-        {k: A.graph[k] for k in _essential_graph_attrs if k in A.graph})
+        {k: A.graph[k] for k in _essential_graph_attrs + ('num_stunts',)
+         if k in A.graph})
     if 'is_normalized' in A.graph:
         G.graph['is_normalized'] = True
     # remove supertriangle coordinates from VertexC
@@ -464,6 +465,12 @@ def L_from_G(G: nx.Graph) -> nx.Graph:
     R, T = (G.graph[k] for k in 'RT')
     L = nx.Graph(**{k: G.graph[k]
                     for k in _essential_graph_attrs if k in G.graph})
+    num_stunts = G.graph.get('num_stunts')
+    if num_stunts:
+        VertexC = G.graph['VertexC']
+        L.graph['VertexC'] = np.vstack((VertexC[:-R - num_stunts],
+                                        VertexC[-R:]))
+        L.graph['B'] -= num_stunts
     L.add_nodes_from(((n, {'label': label})
                       for n, label in G.nodes(data='label')
                       if 0 <= n < T), kind='wtg')
