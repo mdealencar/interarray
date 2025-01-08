@@ -199,17 +199,23 @@ def warmup_model(model: cp_model.CpModel, S: nx.Graph) -> cp_model.CpModel:
     '''
     model.ClearHints()
     upstream = getattr(model, 'upstream', None)
-    if upstream is not None:
-        let_branch = True
+    branched = upstream is not None
     for (u, v), Be in model.Be.items():
         is_in_G = (u, v) in S.edges
         model.AddHint(Be, is_in_G)
         De = model.De[u, v]
         if is_in_G:
             edgeD = S.edges[u, v]
-            model.AddHint(De, edgeD['load']*(1 if edgeD['reverse'] else -1))
+            reverse = edgeD['reverse']
+            model.AddHint(De, edgeD['load']*(1 if reverse else -1))
+            if branched:
+                model.AddHint(upstream[u][v], reverse)
+                model.AddHint(upstream[v][u], not reverse)
         else:
             model.AddHint(De, 0)
+            if branched:
+                model.AddHint(upstream[u][v], False)
+                model.AddHint(upstream[v][u], False)
     for rn, Bg in model.Bg.items():
         is_in_G = rn in S.edges
         model.AddHint(Bg, is_in_G)
