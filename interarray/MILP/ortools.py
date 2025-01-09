@@ -262,7 +262,7 @@ def S_from_solution(model: cp_model.CpModel,
             **model.method_options,
         ),
         solver_details=dict(
-            strategy=solver.SolutionInfo(),
+            strategy=solver.solution_info(),
         )
     )
 
@@ -271,15 +271,15 @@ def S_from_solution(model: cp_model.CpModel,
 
     # Graph data
     # gates
-    gates_and_loads = tuple((r, n, solver.Value(model.Dg[r, n]))
+    gates_and_loads = tuple((r, n, solver.value(model.Dg[r, n]))
                             for (r, n), bg in model.Bg.items()
-                            if solver.BooleanValue(bg))
+                            if solver.boolean_value(bg))
     S.add_weighted_edges_from(gates_and_loads, weight='load')
     # node-node edges
     S.add_weighted_edges_from(
-        ((u, v, abs(solver.Value(model.De[u, v])))
+        ((u, v, abs(solver.value(model.De[u, v])))
          for (u, v), be in model.Be.items()
-         if solver.BooleanValue(be)),
+         if solver.boolean_value(be)),
         weight='load'
     )
 
@@ -287,8 +287,8 @@ def S_from_solution(model: cp_model.CpModel,
     # node-node edges
     nx.set_edge_attributes(
         S,
-        {(u, v): solver.Value(model.De[u, v]) > 0
-         for (u, v), be in model.Be.items() if solver.BooleanValue(be)},
+        {(u, v): solver.value(model.De[u, v]) > 0
+         for (u, v), be in model.Be.items() if solver.boolean_value(be)},
         name='reverse')
 
     # propagate loads from edges to nodes
