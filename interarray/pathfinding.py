@@ -92,8 +92,8 @@ class PathFinder():
         allnodes[-R:] = range(-R, 0)
         self.n2s = NodeStr(allnodes, T + B + 3)
 
-        info('BEGIN pathfinding on "%s" (#wtg = %d)',
-             G.graph.get('name') or G.graph.get('handle') or 'unnamed', T)
+        debug('>PathFinder: "%s" (T = %d)',
+              G.graph.get('name') or G.graph.get('handle') or 'unnamed', T)
 
         # tentative will be copied later, by initializing a set from it.
         tentative = G.graph.get('tentative')
@@ -120,7 +120,6 @@ class PathFinder():
         self.G, self.Xings, self.tentative = G, Xings, set(tentative)
         if not Xings:
             # no crossings, there is no point in pathfinding
-            info('Graph has no crossings, skipping path-finding.')
             return
 
         # clone2prime must be a copy of the one from Gʹ
@@ -535,8 +534,8 @@ class PathFinder():
                 #      print(f'[exp]_traverser {self.n2s(*hop)} was '
                 #            'dropped (no better that previous traverser).')
         if counter == MAX_ITER:
-            warn('Path-finding loop aborted at MAX_ITER!')
-        info('Path-finding loops performed: %d', counter)
+            warn('PathFinder: main loop aborted after MAX_ITER!')
+        debug('PathFinder: loops performed: %d', counter)
 
     def _apply_all_best_paths(self, G: nx.Graph):
         '''
@@ -591,6 +590,7 @@ class PathFinder():
                     del G[r][n]['kind']
             if 'tentative' in G.graph:
                 del G.graph['tentative']
+            debug('<PathFinder: no crossings, detagged all tentative edges.')
             return G
 
         if self.saved_shortened_contours is not None:
@@ -719,7 +719,11 @@ class PathFinder():
         fnT = np.arange(R + clone_idx)
         fnT[T + B: clone_idx] = clone2prime
         fnT[-R:] = range(-R, 0)
-        G.graph.update(D=clone_idx - T - B - C, fnT=fnT)
-        G.graph['detextra'] = G.size(weight='length')/self.predetour_length - 1
+        D = clone_idx - T - B - C
+        G.graph.update(D=D, fnT=fnT)
+        detextra = G.size(weight='length')/self.predetour_length - 1
+        G.graph['detextra'] = detextra
+        debug('<PathFinder: created %d detour vertices, total length changed '
+              'by %.2f%%', D, 100*detextra)
         # TODO: there might be some lost contour clones that could be prunned
         return G
