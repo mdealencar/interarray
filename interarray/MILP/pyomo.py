@@ -12,6 +12,14 @@ from ..crossings import edgeset_edgeXing_iter, gateXing_iter
 from ..interarraylib import fun_fingerprint
 
 
+# solver option name mapping (pyomo should have taken care of this)
+_common_options = namedtuple('common_options', 'mipgap timelimit')
+_optname = defaultdict(lambda: _common_options(*_common_options._fields))
+_optname['cbc'] = _common_options('ratioGap', 'seconds')
+_optname['highs'] = _common_options('mip_rel_gap', 'time_limit')
+_optname['scip'] = _common_options('limits/gap', 'limits/time')
+
+
 def make_min_length_model(A: nx.Graph, capacity: int, *,
                           gateXings_constraint: bool = False,
                           gates_limit: bool = False,
@@ -277,7 +285,15 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
 
     # Metadata
     R, T, k = len(model.R), len(model.T), model.k.value
-    solver_name = solver._solver_model.__repr__().split('.', maxsplit=1)[0][1:]
+    #  if 'highs.Highs' in str(solver):
+    if hasattr(solver, 'highs_options'):
+        solver_name = 'highs'
+    elif solver.name.endswith('direct'):
+        solver_name = solver.name[:-6].rstrip('_')
+    elif solver.name.endswith('persistent'):
+        solver_name = solver.name[:-10].rstrip('_')
+    else:
+        solver_name = solver.name
     bound = status['Problem'][0]['Lower bound']
     objective = status['Problem'][0]['Upper bound']
     # create a topology graph S from the solution
@@ -294,8 +310,8 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         has_loads=True,
         method_options=dict(
             solver_name=solver_name,
-            mipgap=solver.options['mipgap'],
-            timelimit=solver.options['timelimit'],
+            mipgap=solver.options[_optname[solver_name].mipgap],
+            timelimit=solver.options[_optname[solver_name].timelimit],
             fun_fingerprint=model.fun_fingerprint,
             **model.method_options,
         ),
