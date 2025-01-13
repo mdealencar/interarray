@@ -1,0 +1,14 @@
+bidict
+darkdetect
+matplotlib
+networkx
+numba
+numpy
+pony
+py
+Pyomo
+PyYAML
+scipy
+shapely
+svg.py
+utm

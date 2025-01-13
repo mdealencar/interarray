@@ -1,7 +1,7 @@
 interarray
 ==========
 
-Tools for designing the electrical cable network (collection system) for offshore wind power plants.
+Tools for designing and optimizing the electrical cable network (collection system) for offshore wind power plants.
 
 About interarray
 ----------------
@@ -15,12 +15,12 @@ The design of the collection system is subject to constraints:
 - the maximum current capacity of the cable must be respected.
 
 This problem has similarities with two classic operations research problems:
-- The capacitaded minimum spanning tree (CMST);
+- The capacitated minimum spanning tree (CMST);
 - The open and capacitated vehicle routing problem (OCVRP);
 
-Neither of the classic formulations consider route crossings, which is the main achievement of ``interarray``. Whether the approach is via the CMST or via the OCVRP depends on the viability of branching the circuit on turbines.
+Neither of the classic formulations consider route crossings, which is the main achievement of ``interarray``. Whether the approach is via the CMST or via the OCVRP depends on the viability of branching the circuits on turbines.
 
-The heuristics are based on extensions to the Esau-Williams heuristic. The meta-heuristic is [implemented elsewhere](https://github.com/vidalt/HGS-CVRP), of which `interarray` is just a user. The mathematical optimization uses mixed-integer linear programming (MILP) models, which can be solved using Google's OR-Tools or by calling solvers via ``pyomo``, e.g.: Coin-OR Branch-and-Cut (CBC), IBM's CPLEX, Gurobi, among others.
+The heuristics are based on extensions to the Esau-Williams heuristic. The meta-heuristic is [implemented elsewhere](https://github.com/vidalt/HGS-CVRP), of which `interarray` is just a user. The mathematical optimization uses mixed-integer linear programming (MILP) models, which can be solved using Google's OR-Tools or by calling solvers via ``pyomo``, e.g.: Coin-OR Branch-and-Cut (CBC), IBM's CPLEX, Gurobi, HiGHS, SCIP, among others.
 
 Installation
 ------------
@@ -37,19 +37,88 @@ And add the `interarray` folder to somewhere Python looks for packages.
 Requirements
 ------------
 
-External requirements are in [requirements.txt](requirements.txt). Branch-and-cut solvers for the MILP formulations called via ``pyomo`` are not listed as requirements.
+External requirements are in [requirements.txt](requirements.txt). Branch-and-cut solvers for the MILP formulations called via ``pyomo`` are not included in that file, see the *Solvers* section.
 
-[PythonCDT](https://github.com/artem-ogre/PythonCDT) is a requirement that is not `pip`- nor `conda`-installable. Please install it from the repository as indicated there.
+[PythonCDT](https://github.com/artem-ogre/PythonCDT) is a requirement that is not `pip`- nor `conda`-installable. Please refer to its repository for installation instructions.
 
-```
-conda create --name «env_interarray» --file requirements.txt
-```
+Some of the requirements are not available as conda packages, so the conda environment creation uses two separate requirement files (see subsection *conda* below).
 
-Or create your Python environment, activate it, and call:
+### pip
+
+With you python environment active, call:
 
 ```
 pip install -r requirements.txt
 ```
+
+### conda
+
+```
+conda create --name «env_interarray» --file requirements_conda.txt
+conda activate «env_interarray»
+pip install -r requirements_pip.txt
+```
+
+
+Solvers
+-------
+
+The installation procedure above enables using the heuristics and the meta-heuristic within ``interarray``. To benefit from mathematical programming, at least one MILP solver is necessary. Activate your python environment and choose either the `pip` or the `conda` command.
+
+See the MILP [notebooks](notebooks) for relevant parameters when calling each solver.
+
+### OR-tools
+
+[Google's OR-Tools](https://developers.google.com/optimization) is open source software.
+
+```
+pip install ortools
+```
+
+### Gurobi
+
+[Gurobi](https://www.gurobi.com/academia/academic-program-and-licenses/) is proprietary software (academic license available). The trial version can only handle very small problems.
+
+```
+pip install gurobipy
+conda install -c gurobi gurobi
+```
+
+### CPLEX
+
+[IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio) is proprietary software (academic license available). The Community Edition version can only handle very small problems.
+
+```
+pip install cplex
+```
+
+### HiGHS
+
+[HiGHS](https://highs.dev/) is open source software.
+
+```
+pip install highspy
+conda install highspy
+```
+
+### SCIP
+
+[SCIP](https://www.scipopt.org/) is open source software.
+
+```
+conda install scip
+```
+
+### CBC
+
+[COIN-OR's Optimization Suite](https://coin-or.github.io/user_introduction.html) is open source software and its MILP solver is [coin-or/Cbc: COIN-OR Branch-and-Cut solver](https://github.com/coin-or/Cbc).
+
+Pyomo's interface with CBC is through a system call, so it does not need to be part of a python environment, but Pyomo must be able to find the solver's executable file. Conda has a package for it, but it may also be installed by following the instructions in the links above.
+
+```
+conda install coin-or-cbc
+```
+
 
 Documentation
 -------------
