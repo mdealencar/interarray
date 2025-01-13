@@ -2,6 +2,7 @@
 # https://github.com/mdealencar/interarray
 
 import math
+from collections import namedtuple, defaultdict
 import networkx as nx
 
 import pyomo.environ as pyo
