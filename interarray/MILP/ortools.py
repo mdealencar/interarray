@@ -226,13 +226,13 @@ def warmup_model(model: cp_model.CpModel, S: nx.Graph) -> cp_model.CpModel:
 
 
 def S_from_solution(model: cp_model.CpModel,
-                    solver: cp_model.CpSolver, status: int = 0) -> nx.Graph:
+                    solver: cp_model.CpSolver, result: int = 0) -> nx.Graph:
     '''Create a topology `S` from the OR-tools solution to the MILP model.
 
     Args:
         model: passed to the solver.
         solver: used to solve the model.
-        status: irrelevant, exists only to mirror the Pyomo alternative.
+        result: irrelevant, exists only to mirror the Pyomo alternative.
     Returns:
         Graph topology from the solution.
     '''

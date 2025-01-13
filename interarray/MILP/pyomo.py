@@ -22,7 +22,7 @@ _optname['scip'] = _common_options('limits/gap', 'limits/time')
 
 def make_min_length_model(A: nx.Graph, capacity: int, *,
                           gateXings_constraint: bool = False,
-                          gates_limit: bool = False,
+                          gates_limit: bool | int = False,
                           branching: bool = True) -> pyo.ConcreteModel:
     '''
     Build ILP Pyomo model for the collector system length minimization.
@@ -278,7 +278,7 @@ def warmup_model(model: pyo.ConcreteModel, S: nx.Graph) \
 
 
 def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
-                    status: SolverResults) -> nx.Graph:
+                    result: SolverResults) -> nx.Graph:
     '''
     Create a topology `S` with the solution in `model` by `solver`.
     '''
@@ -294,8 +294,8 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         solver_name = solver.name[:-10].rstrip('_')
     else:
         solver_name = solver.name
-    bound = status['Problem'][0]['Lower bound']
-    objective = status['Problem'][0]['Upper bound']
+    bound = result['Problem'][0]['Lower bound']
+    objective = result['Problem'][0]['Upper bound']
     # create a topology graph S from the solution
     S = nx.Graph(
         R=R, T=T,
@@ -303,8 +303,8 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         capacity=k,
         objective=objective,
         bound=bound,
-        runtime=status['Solver'][0]['Wallclock time'],
-        termination=status['Solver'][0]['Termination condition'].name,
+        runtime=result['Solver'][0]['Wallclock time'],
+        termination=result['Solver'][0]['Termination condition'].name,
         gap=1. - bound/objective,
         creator='MILP.pyomo.' + solver_name,
         has_loads=True,
