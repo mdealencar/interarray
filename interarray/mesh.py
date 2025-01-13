@@ -136,7 +136,7 @@ def planar_from_cdt_triangles(mesh: cdt.Triangulation,
     halfedges = np.empty((num_half_edges, 3), dtype=np.int_)
     ref_is_cw_ = np.empty((num_half_edges,), dtype=np.bool_)
     halfedges_from_triangulation(triangleI, neighborI, halfedges, ref_is_cw_)
-    edges = set((u, v) for u, v in halfedges[:, :2] if u < v)
+    edges = set((u.item(), v.item()) for u, v in halfedges[:, :2] if u < v)
     return (halfedges, ref_is_cw_), edges
 
 
@@ -146,9 +146,10 @@ def P_from_halfedge_pack(halfedge_pack: tuple[np.ndarray, np.ndarray]) \
     P = nx.PlanarEmbedding()
     for (u, v, ref), ref_is_cw in zip(halfedges, ref_is_cw_):
         if ref == NULL:
-            P.add_half_edge(u, v)
+            P.add_half_edge(u.item(), v.item())
         else:
-            P.add_half_edge(u, v, **{('cw' if ref_is_cw else 'ccw'): ref})
+            P.add_half_edge(u.item(), v.item(),
+                            **{('cw' if ref_is_cw else 'ccw'): ref.item()})
     return P
 
 
@@ -816,7 +817,8 @@ def make_planar_embedding(
     source, target = zip(*A_edges)
     # TODO: ¿use d2roots for root-incident edges? probably not worth it
     A_edge_length = dict(
-            zip(A_edges, np.hypot(*(VertexC[source,] - VertexC[target,]).T)))
+        zip(A_edges, (length.item() for length in
+                      np.hypot(*(VertexC[source,] - VertexC[target,]).T))))
     nx.set_edge_attributes(A, A_edge_length, name='length')
 
     # ###############################################################
@@ -905,7 +907,7 @@ def make_planar_embedding(
     #  for u, v in P_paths.edges - A_edge_length:
     for u, v, edgeD in P_paths.edges(data=True):
         if 'length' not in edgeD:
-            edgeD['length'] = np.hypot(*(VertexC[u] - VertexC[v]))
+            edgeD['length'] = np.hypot(*(VertexC[u] - VertexC[v])).item()
 
     # #######################
     # X) Create hull_concave.
@@ -984,7 +986,7 @@ def make_planar_embedding(
                 #       way as to make additional shortcuts possible.
                 del path[i + 1]
                 length -= P_paths[s][b]['length'] + P_paths[b][t]['length']
-                shortcut_length = np.hypot(*(VertexC[s] - VertexC[t]).T)
+                shortcut_length = np.hypot(*(VertexC[s] - VertexC[t]).T).item()
                 length += shortcut_length
                 # changing P_paths for the case of revisiting this block
                 P_paths.add_edge(s, t, length=shortcut_length)

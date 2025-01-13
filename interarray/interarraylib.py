@@ -283,7 +283,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
                     # crossings and the edge will be confirmed a non-A gate.
                     G.add_edge(s, t,
                                kind='tentative', reverse=False, load=load,
-                               length=np.hypot(*(VertexC[s] - VertexC[t]).T))
+                               length=np.hypot(*(VertexC[s] - VertexC[t]).T)).item()
                     tentative.append((s, t))
                     continue
                 G.add_edge(s, t,
@@ -305,11 +305,11 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
             iC += 1
             G.add_node(v, kind='contour', load=load, subtree=subtree_id)
             reverse = st_reverse == (u < v)
-            G.add_edge(u, v, length=length, load=load, kind='contour',
+            G.add_edge(u, v, length=length.item(), load=load, kind='contour',
                        reverse=reverse, A_edge=(s, t))
             u = v
         reverse = st_reverse == (u < t)
-        G.add_edge(u, t, length=lengths[-1], load=load, kind='contour',
+        G.add_edge(u, t, length=lengths[-1].item(), load=load, kind='contour',
                    reverse=reverse, A_edge=(s, t))
     if shortened_contours:
         G.graph['shortened_contours'] = shortened_contours
@@ -326,7 +326,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
         s, t = (s, t) if s < t else (t, s)
         if s < 0:
             # far-reaching gate
-            G.add_edge(s, t, length=d2roots[t, s], kind='tentative',
+            G.add_edge(s, t, length=d2roots[t, s].item(), kind='tentative',
                        load=S.nodes[t]['load'], reverse=False)
             tentative.append((s, t))
         else:
@@ -335,7 +335,7 @@ def G_from_S(S: nx.Graph, A: nx.Graph) -> nx.Graph:
             load = (S.nodes[s]['load']
                     if st_reverse else
                     S.nodes[t]['load'])
-            G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])),
+            G.add_edge(s, t, length=np.hypot(*(VertexC[s] - VertexC[t])).item(),
                        kind='rogue', load=load, reverse=st_reverse)
             rogue.append((s, t))
     if rogue:

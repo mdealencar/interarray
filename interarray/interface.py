@@ -52,12 +52,12 @@ def assign_cables(G, cables):
 
     # for e, data in G.edges.items():
     for u, v, data in G.edges(data=True):
-        i = capacity_.searchsorted(data['load'])
+        i = capacity_.searchsorted(data['load']).item()
         if i >= len(capacity_):
             print(f'ERROR: Load for edge ⟨{u, v}⟩: {data["load"]} '
                   f'exceeds maximum cable capacity {capacity_[-1]}.')
         data['cable'] = i
-        data['cost'] = data['length']*cable_['cost'][i]
+        data['cost'] = data['length']*cable_['cost'][i].item()
         if data['load'] > capacity:
             capacity = data['load']
     G.graph['cables'] = cable_

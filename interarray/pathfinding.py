@@ -257,7 +257,7 @@ class PathFinder():
                        apex: int):
         I_path = self.I_path
         paths = self.paths
-        d_hop = np.hypot(*(self.VertexC[_apex] - self.VertexC[_new]).T)
+        d_hop = np.hypot(*(self.VertexC[_apex] - self.VertexC[_new]).T).item()
         pseudoapex = paths[apex]
         d_new = pseudoapex.dist + d_hop
         new_sector = self._get_sector(_new, portal)
@@ -463,7 +463,8 @@ class PathFinder():
                     if sec_left == r:
                         sec_left = NULL
 
-                d_left, d_right = d2roots[left, r], d2roots[right, r]
+                d_left = d2roots[left, r].item()
+                d_right = d2roots[right, r].item()
                 # add the first pseudo-nodes to paths
                 wedge_end = [paths.add(left, sec_left, r, d_left, d_left),
                              paths.add(right, r, r, d_right, d_right)]
