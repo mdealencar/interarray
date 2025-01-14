@@ -421,7 +421,7 @@ def angle_helpers(L: nx.Graph) -> tuple[np.ndarray, np.ndarray,
                                         np.ndarray, np.ndarray]:
     '''
     Args:
-        L: locations
+        L: location (also works with A or G)
 
     Returns:
         tuple of (angles, anglesRank, anglesYhp, anglesXhp)
@@ -603,7 +603,7 @@ def minimum_spanning_forest(A: nx.Graph) -> nx.Graph:
         creator='minimum_spanning_forest',
     )
     for u, v in zip(U, V):
-        S.add_edge(u, v, length=Q_[u, v])
+        S.add_edge(u.item(), v.item(), length=Q_[u, v].item())
     if R > 1:
         # if multiple roots, split the MST in multiple trees
         removals = R - 1
