@@ -238,8 +238,8 @@ def untersify_to_G(G: nx.Graph, terse: np.ndarray,
         Length = np.hypot(*(VertexC[fnT[terse]] - VertexC[fnT[source]]).T)
     else:
         Length = np.hypot(*(VertexC[terse] - VertexC[source]).T)
-    G.add_weighted_edges_from(zip(source, terse, Length),
-                              weight='length')
+    G.add_weighted_edges_from(
+        zip(source.tolist(), terse, Length.tolist()), weight='length')
     if clone2prime:
         for _, _, edgeD in G.edges(contournodes, data=True):
             edgeD['kind'] = 'contour'
