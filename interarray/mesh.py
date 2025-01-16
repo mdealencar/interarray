@@ -1306,7 +1306,9 @@ def planar_flipped_by_routeset(
                 diagonal_found = True
                 break
         if not diagonal_found:
-            warn('Failed to find flippable for non-planar %d–%d', u, v)
+            if u >= 0:
+                # only warn if the non-planar is not a gate
+                warn('Failed to find flippable for non-planar %d–%d', u, v)
             continue
         if (s, t) in edges_G and u < 0:
             # not replacing edge with gate
