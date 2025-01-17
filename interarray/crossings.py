@@ -8,8 +8,8 @@ import networkx as nx
 from .interarraylib import calcload
 from .geometric import (
     is_same_side,
-    make_graph_metrics,
-    is_bunch_split_by_corner
+    is_bunch_split_by_corner,
+    angle_helpers
 )
 
 
@@ -330,10 +330,10 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
     roots = range(-R, 0)
     anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
-        make_graph_metrics(G)
-        anglesRank = G.graph['anglesRank']
-    anglesXhp = G.graph['anglesXhp']
-    anglesYhp = G.graph['anglesYhp']
+        _, anglesRank, anglesYhp, anglesXhp = angle_helpers(G)
+    else:
+        anglesXhp = G.graph['anglesXhp']
+        anglesYhp = G.graph['anglesYhp']
     # TODO: There is a corner case here: for multiple roots, the gates are not
     #       being checked between different roots. Unlikely but possible case.
     # iterable of non-gate edges:
