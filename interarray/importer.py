@@ -16,7 +16,6 @@ import yaml
 import osmium
 import shapely.wkb as wkblib
 
-from .geometric import make_graph_metrics
 from .utils import NodeTagger
 from .interarraylib import L_from_site
 
