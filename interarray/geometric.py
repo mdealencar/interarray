@@ -451,7 +451,7 @@ def assign_root(A: nx.Graph) -> None:
     '''
     closest_root = -A.graph['R'] + np.argmin(A.graph['d2roots'], axis=1)
     nx.set_node_attributes(
-        A, {n: r for n, r in enumerate(closest_root)}, 'root')
+        A, {n: r.item() for n, r in enumerate(closest_root)}, 'root')
 
 
 def make_graph_metrics(G):
