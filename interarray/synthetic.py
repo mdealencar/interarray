@@ -13,6 +13,7 @@ F = NodeTagger()
 
 def toyfarm():
     VertexC = np.array([
+        # Terminals
         [49., 993.],  # row 0
         [-145., 388.],  # row 1
         [275., 562.],
@@ -25,9 +26,7 @@ def toyfarm():
         [707., -244.],
         [-104., -966.],  # row 4
         [494., -772.],
-        [0., 0.],  # OSS
-    ])
-    BoundaryC = np.array([
+        # Border vertices
         [49., 993.],  # row 0
         [-145., 388.],  # row 1
         [-371., -147.],  # row 2
@@ -37,13 +36,16 @@ def toyfarm():
         [707., -244.],
         [972., 206.],
         [699., 566.],
+        # Root
+        [0., 0.],  # OSS
     ])
     R = 1
-    T = VertexC.shape[0] - R
+    T = 12
+    B = 9
     # create networkx graph
-    G = nx.Graph(R=R, T=T,
+    G = nx.Graph(R=R, T=T, B=B,
                  VertexC=VertexC,
-                 boundary=BoundaryC,
+                 border=np.arange(T, T + B),
                  name='toy',
                  handle='toy')
     G.add_nodes_from(((n, {'label': F[n], 'kind': 'wtg'})
