@@ -6,10 +6,11 @@ import time
 
 import numpy as np
 import networkx as nx
+from scipy.stats import rankdata
 
 from .mesh import delaunay
-from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        is_same_side, make_graph_metrics)
+from .geometric import (angle, apply_edge_exemptions, assign_root, is_crossing,
+                        complete_graph, is_same_side, angle_helpers)
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
 
@@ -30,44 +31,42 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
     options = dict(delaunay_based=delaunay_based)
 
     R = G_base.graph['R']
-    T = G_base.number_of_nodes() - R
-    # roots = range(T, T + R)
+    T = G_base.graph['T']
     roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
     d2roots = G_base.graph.get('d2roots')
-    if d2roots is None:
-        make_graph_metrics(G_base)
-        d2roots = G_base.graph['d2roots']
-    d2rootsRank = G_base.graph['d2rootsRank']
-    anglesRank = G_base.graph['anglesRank']
-    anglesYhp = G_base.graph['anglesYhp']
-    anglesXhp = G_base.graph['anglesXhp']
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
     if delaunay_based:
-        G_edges = delaunay(G_base)
+        A = delaunay(G_base, bind2root=True)
         # apply weightfun on all delaunay edges
         if weightfun is not None:
-            apply_edge_exemptions(G_edges)
+            apply_edge_exemptions(A)
         # TODO: decide whether to keep this 'else' (to get edge arcs)
         # else:
-            # apply_edge_exemptions(G_edges)
+            # apply_edge_exemptions(A)
     else:
-        G_edges = complete_graph(G_base)
+        A = complete_graph(G_base)
+
+    assign_root(A)
+    d2roots = A.graph['d2roots']
+    d2rootsRank = rankdata(d2roots, method='dense', axis=0)
+    _, anglesRank, anglesXhp, anglesYhp = angle_helpers(G_base)
+
     if weightfun is not None:
         options['weightfun'] = weightfun.__name__
         options['weight_attr'] = weight_attr
-        for u, v, data in G_edges.edges(data=True):
+        for u, v, data in A.edges(data=True):
             data[weight_attr] = weightfun(data)
-    # removing root nodes from G_edges to speedup find_option4gate
+    # removing root nodes from A to speedup find_option4gate
     # this may be done because G already starts with gates
-    G_edges.remove_nodes_from(roots)
+    A.remove_nodes_from(roots)
     # END: prepare auxiliary graph with all allowed edges and metrics
 
     # BEGIN: create initial star graph
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n >= 0),
+                               A.nodes(data='root') if n >= 0),
                               weight=weight_attr)
     # END: create initial star graph
 
@@ -137,22 +136,22 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
         if forbidden is None:
             forbidden = set()
         forbidden.add(gate)
-        d2root = d2roots[gate, G_edges.nodes[gate]['root']]
+        d2root = d2roots[gate, A.nodes[gate]['root']]
         capacity_left = capacity - len(subtrees[gate])
         weighted_edges = []
         edges2discard = []
         for u in subtrees[gate]:
-            for v in G_edges[u]:
+            for v in A[u]:
                 if (Gate[v] in forbidden or
                         len(subtrees[v]) > capacity_left):
                     # useless edges
                     edges2discard.append((u, v))
                 else:
-                    W = G_edges[u][v][weight_attr]
+                    W = A[u][v][weight_attr]
                     # if W <= d2root:  # TODO: what if I use <= instead of <?
                     if W < d2root:
                         # useful edges
-                        tiebreaker = d2rootsRank[v, G_edges[u][v]['root']]
+                        tiebreaker = d2rootsRank[v, A[u][v]['root']]
                         weighted_edges.append((W, tiebreaker, u, v))
         return weighted_edges, edges2discard
 
@@ -185,7 +184,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
         # () get component expansion edges with weight
         weighted_edges, edges2discard = component_merging_choices(gate)
         # discard useless edges
-        G_edges.remove_edges_from(edges2discard)
+        A.remove_edges_from(edges2discard)
         # () sort choices
         choices = sort_union_choices(weighted_edges) if weighted_edges else []
         # () check gate crossings
@@ -199,7 +198,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
             # merging is better than gate, submit entry to pq
             weight, u, v = choice
             # tradeoff calculation
-            tradeoff = weight - d2roots[gate, G_edges.nodes[gate]['root']]
+            tradeoff = weight - d2roots[gate, A.nodes[gate]['root']]
             pq.add(tradeoff, gate, (u, v))
             ComponIn[Gate[v]].add(gate)
             debug and print(f'<pushed> g2drop <{F[gate]}>, '
@@ -211,7 +210,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
                 # definitive gates at iteration 0 do not cross any other edges
                 # they are not included in Final_G because the algorithm
                 # considers the gates extending to infinity (not really)
-                root = G_edges.nodes[gate]['root']
+                root = A.nodes[gate]['root']
                 make_gate_final(root, gate)
                 # check_heap4crossings(root, gate)
             debug and print('<cancelling>', F[gate])
@@ -221,11 +220,11 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
                 pq.cancel(gate)
 
     def ban_queued_edge(g2drop, u, v):
-        if (u, v) in G_edges.edges:
-            G_edges.remove_edge(u, v)
+        if (u, v) in A.edges:
+            A.remove_edge(u, v)
         else:
             debug and print('<<<< UNLIKELY <ban_queued_edge()> '
-                            f'({F[u]}, {F[v]}) not in G_edges.edges >>>>')
+                            f'({F[u]}, {F[v]}) not in A.edges >>>>')
         g2keep = Gate[v]
         # TODO: think about why a discard was needed
         ComponIn[g2keep].discard(g2drop)
@@ -260,11 +259,11 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
 
     # TODO: check if this function is necessary (not used)
     def abort_edge_addition(g2drop, u, v):
-        if (u, v) in G_edges.edges:
-            G_edges.remove_edge(u, v)
+        if (u, v) in A.edges:
+            A.remove_edge(u, v)
         else:
             print('<<<< UNLIKELY <abort_edge_addition()> '
-                  f'({F[u]}, {F[v]}) not in G_edges.edges >>>>')
+                  f'({F[u]}, {F[v]}) not in A.edges >>>>')
         ComponIn[Gate[v]].remove(g2drop)
         find_option4gate(g2drop)
 
@@ -282,7 +281,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
             print(f'ERROR: maxiter reached ({i})')
             break
         debug and print(f'[{i}]')
-        # debug and print(f'[{i}] bj–bm root: {G_edges.edges[(F.bj, F.bm)]["root"]}')
+        # debug and print(f'[{i}] bj–bm root: {A.edges[(F.bj, F.bm)]["root"]}')
         if gates2upd8:
             debug and print('gates2upd8:', ', '.join(F[gate] for gate in
                                                      gates2upd8))
@@ -297,7 +296,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
                         f' g2drop: <{F[g2drop]}>')
 
         g2keep = Gate[v]
-        root = G_edges.nodes[g2keep]['root']
+        root = A.nodes[g2keep]['root']
 
         capacity_left = capacity - len(subtrees[u]) - len(subtrees[v])
 
@@ -314,8 +313,8 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
         # edge addition starts here
         subtree = subtrees[v]
         subtree |= subtrees[u]
-        G.remove_edge(G_edges.nodes[u]['root'], g2drop)
-        log.append((i, 'remE', (G_edges.nodes[u]['root'], g2drop)))
+        G.remove_edge(A.nodes[u]['root'], g2drop)
+        log.append((i, 'remE', (A.nodes[u]['root'], g2drop)))
 
         g2keep_entry = pq.tags.get(g2keep)
         if g2keep_entry is not None:
@@ -331,7 +330,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
 
         # assign root, gate and subtree to the newly added nodes
         for n in subtrees[u]:
-            G_edges.nodes[n]['root'] = root
+            A.nodes[n]['root'] = root
             Gate[n] = g2keep
             subtrees[n] = subtree
         debug and print(f'<add edge> «{F[u]}-{F[v]}» gate '
@@ -339,10 +338,10 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
                         f'heap top: <{F[pq[0][-2]]}>, '
                         f'«{chr(8211).join([F[x] for x in pq[0][-1]])}»'
                         f' {pq[0][0]:.1e}' if pq else 'heap EMPTY')
-        G.add_edge(u, v, **G_edges.edges[u, v])
+        G.add_edge(u, v, **{weight_attr: A[u][v][weight_attr]})
         log.append((i, 'addE', (u, v)))
         # remove from consideration edges internal to subtrees
-        G_edges.remove_edge(u, v)
+        A.remove_edge(u, v)
 
         # finished adding the edge, now check the consequences
         if capacity_left > 0:
@@ -362,7 +361,7 @@ def ClassicEW(G_base, capacity=8, delaunay_based=False, maxiter=10000,
                 pq.cancel(g2keep)
             make_gate_final(root, g2keep)
             # don't consider connecting to this full subtree nodes anymore
-            G_edges.remove_nodes_from(subtree)
+            A.remove_nodes_from(subtree)
             for gate in ComponIn[g2drop] | ComponIn[g2keep]:
                 gates2upd8.add(gate)
     # END: main loop

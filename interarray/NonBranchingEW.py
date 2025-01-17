@@ -6,10 +6,11 @@ import time
 
 import numpy as np
 import networkx as nx
+from scipy.stats import rankdata
 
 from .mesh import delaunay
-from .geometric import (angle, apply_edge_exemptions, complete_graph,
-                        is_crossing, is_same_side)
+from .geometric import (angle, apply_edge_exemptions, assign_root, is_crossing,
+                        complete_graph, is_same_side, angle_helpers)
 from .crossings import edge_crossings
 from .utils import NodeTagger
 from .priorityqueue import PriorityQueue
@@ -24,6 +25,8 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
     inputs:
     G_base: networkx.Graph
     c: capacity
+    rootlust: weight of the reduction of gate length in calculating savings
+      (use some value between 0 and 1, e.g. 0.6)
     returns G_cmst: networkx.Graph'''
 
     start_time = time.perf_counter()
@@ -31,20 +34,13 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
     options = dict(delaunay_based=delaunay_based)
 
     R = G_base.graph['R']
-    T = G_base.number_of_nodes() - R
-    # roots = range(T, T + R)
+    T = G_base.graph['T']
     roots = range(-R, 0)
     VertexC = G_base.graph['VertexC']
-    d2roots = G_base.graph['d2roots']
-    d2rootsRank = G_base.graph['d2rootsRank']
-    anglesRank = G_base.graph['anglesRank']
-    anglesYhp = G_base.graph['anglesYhp']
-    anglesXhp = G_base.graph['anglesXhp']
 
     # BEGIN: prepare auxiliary graph with all allowed edges and metrics
     if delaunay_based:
         A = delaunay(G_base, bind2root=True)
-        P = A.graph['planar']
         diagonals = A.graph['diagonals']
         #  A = delaunay_deprecated(G_base)
         #  triangles = A.graph['triangles']
@@ -59,6 +55,12 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
             # apply_edge_exemptions(A)
     else:
         A = complete_graph(G_base)
+
+    assign_root(A)
+    d2roots = A.graph['d2roots']
+    d2rootsRank = rankdata(d2roots, method='dense', axis=0)
+    _, anglesRank, anglesXhp, anglesYhp = angle_helpers(G_base)
+
     if weightfun is not None:
         options['weightfun'] = weightfun.__name__
         options['weight_attr'] = weight_attr
@@ -72,7 +74,7 @@ def NBEW(G_base, capacity=8, delaunay_based=True, rootlust=0., maxiter=10000,
     # BEGIN: create initial star graph
     G = nx.create_empty_copy(G_base)
     G.add_weighted_edges_from(((n, r, d2roots[n, r]) for n, r in
-                               G_base.nodes(data='root') if n >= 0),
+                               A.nodes(data='root') if n >= 0),
                               weight=weight_attr)
     # END: create initial star graph
 
