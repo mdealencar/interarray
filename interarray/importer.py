@@ -153,7 +153,6 @@ def L_from_yaml(filepath: Path | str, handle: str | None = None) -> nx.Graph:
                       for n, tag in zip_longest(range(T), NodeTag))
     G.add_nodes_from((r, {'kind': 'oss', 'label': (tag if tag else F[r])})
                       for r, tag in zip_longest(range(-R, 0), RootTag))
-    make_graph_metrics(G)
     return G
 
 
@@ -280,7 +279,6 @@ def L_from_pbf(filepath: Path | str, handle: str | None = None) -> nx.Graph:
     if abs(angle) > np.pi/2:
         angle += np.pi if angle < 0 else -np.pi
     L.graph['landscape_angle'] = 180*angle/np.pi
-    make_graph_metrics(L)
     return L
 
 
