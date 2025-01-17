@@ -5,7 +5,6 @@ import networkx as nx
 import numpy as np
 from scipy.spatial import ConvexHull
 
-from .geometric import make_graph_metrics
 from .utils import NodeTagger
 
 
@@ -51,8 +50,6 @@ def toyfarm():
                       for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-R, 0)))
-
-    make_graph_metrics(G)
     return G
 
 
@@ -80,8 +77,6 @@ def synthfarm2graph(RootC, NodeC, BoundaryC=None, name='', handle='synthetic'):
                       for n in range(T)))
     G.add_nodes_from(((r, {'label': F[r], 'kind': 'oss'})
                       for r in range(-R, 0)))
-
-    make_graph_metrics(G)
     return G
 
 

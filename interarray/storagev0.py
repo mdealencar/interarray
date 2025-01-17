@@ -83,7 +83,6 @@ def graph_from_edgeset(edgeset):
 
     if edgeset.method.options is not None:
         G.graph['creation_options'] = json.loads(edgeset.method.options)
-    # make_graph_metrics(G)
     calcload(G)
     return G
 

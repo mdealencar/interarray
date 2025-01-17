@@ -454,47 +454,6 @@ def assign_root(A: nx.Graph) -> None:
         A, {n: r.item() for n, r in enumerate(closest_root)}, 'root')
 
 
-def make_graph_metrics(G):
-    ''' DEPRECATED: use angle_helpers() and assign_root() instead
-    This function changes G in place!
-    Calculates for all nodes, for each root node:
-    - distance to root nodes
-    - angle wrt root node
-
-    Any detour nodes in G are ignored.
-    '''
-    T, R, VertexC = (G.graph[k] for k in ('T', 'R', 'VertexC'))
-    B = G.graph.get('B', 0)
-    roots = range(-R, 0)
-    NodeC = VertexC[:T + B]
-    RootC = VertexC[-R:]
-
-    # calculate distance from all nodes to each of the roots
-    d2roots = G.graph.get('d2roots')
-    if d2roots is None:
-        d2roots = cdist(VertexC[:T + B], VertexC[-R:])
-
-    angles = np.empty((T + B, R), dtype=float)
-    for n, nodeC in enumerate(NodeC):
-        if n < T:
-            nodeD = G.nodes[n]
-            # assign the node to the closest root
-            nodeD['root'] = -R + np.argmin(d2roots[n])
-        x, y = (nodeC - RootC).T
-        angles[n] = np.arctan2(y, x)
-    # TODO: ¿is this below actually used anywhere?
-    # assign root nodes to themselves (for completeness?)
-    for root in roots:
-        G.nodes[root]['root'] = root
-
-    G.graph['d2roots'] = d2roots
-    G.graph['d2rootsRank'] = rankdata(d2roots, method='dense', axis=0)
-    G.graph['angles'] = angles
-    G.graph['anglesRank'] = rankdata(angles, method='dense', axis=0)
-    G.graph['anglesYhp'] = angles >= 0.
-    G.graph['anglesXhp'] = abs(angles) < np.pi/2
-
-
 # TODO: get new implementation from Xings.ipynb
 # xingsmat, edge_from_Eidx, Eidx__
 def get_crossings_map(Edge, VertexC, prune=True):
@@ -940,7 +899,6 @@ def normalize_area(G_base: nx.Graph, *, hull_nonroot: np.ndarray) -> nx.Graph:
         'landscape_angle': set to 0
     """
     G = nx.create_empty_copy(G_base)
-    #  make_graph_metrics(G)
     landscape_angle = G.graph.get('landscape_angle')
     VertexC = (rotate(G_base.graph['VertexC'], landscape_angle)
                if landscape_angle else

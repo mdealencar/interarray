@@ -8,7 +8,6 @@ from functools import partial
 
 from .heuristics import CPEW, NBEW, OBEW, ClassicEW
 from .interarraylib import calcload, F
-from .geometric import make_graph_metrics
 
 heuristics = {
     'CPEW': CPEW,
@@ -257,7 +256,6 @@ class HeuristicFactory():
         assert len(X) == len(Y) == self.T
         self.VertexC[:self.T, 0] = X
         self.VertexC[:self.T, 1] = Y
-        make_graph_metrics(self.G_base)
         self.G = self.heuristic(self.G_base, capacity=self.k)
         calcload(self.G)
         assign_cables(self.G, self.cables)
