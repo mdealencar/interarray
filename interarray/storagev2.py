@@ -87,6 +87,9 @@ def G_from_routeset(routeset: object) -> nx.Graph:
         method_options=routeset.method.options,
         **routeset.misc)
 
+    if routeset.detextra is not None:
+        G.graph['detextra'] = routeset.detextra
+
     if routeset.stuntC:
         stuntC=np.lib.format.read_array(io.BytesIO(routeset.stuntC))
         num_stunts = len(stuntC)
