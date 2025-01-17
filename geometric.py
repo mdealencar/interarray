@@ -1101,7 +1101,7 @@ def rotating_calipers(convex_hull: np.ndarray) \
         Toussaint, Godfried T. "Solving geometric problems with
         the rotating calipers." Proc. IEEE Melecon. Vol. 83. 1983.
     """
-    caliper_angles = np.float_([0.5*np.pi, 0, -0.5*np.pi, np.pi])
+    caliper_angles = np.float64([0.5*np.pi, 0, -0.5*np.pi, np.pi])
     area_min = np.inf
     N = convex_hull.shape[0]
     left, bottom = convex_hull.argmin(axis=0)
@@ -1144,7 +1144,7 @@ def rotating_calipers(convex_hull: np.ndarray) \
     t = best_bbox_rot_max
     b = best_bbox_rot_min
     # calculate bbox coordinates in original reference frame, ccw vertices
-    bbox = np.float_(((b[0], b[1]),
+    bbox = np.float64(((b[0], b[1]),
                       (b[0], t[1]),
                       (t[0], t[1]),
                       (t[0], b[1]))) @ np.array(((c, -s), (s, c)))
