@@ -479,20 +479,28 @@ def L_from_G(G: nx.Graph) -> nx.Graph:
     return L
 
 
-def as_single_oss(G: nx.Graph) -> nx.Graph:
+def as_single_root(Lʹ: nx.Graph) -> nx.Graph:
+    '''Make a shallow copy of an instance and reduce its roots to one.
+
+    The output's root is the centroid of the input's roots.
+
+    Args:
+        Lʹ: input location
+
+    Returns:
+        location with a single root.
     '''
-    This is redundant with clusterlib.unify_roots().
-    '''
-    #  But keep this one.
-    Gʹ = G.copy()
-    R, VertexC = (G.graph[k] for k in ('R', 'VertexC'))
-    Gʹ.remove_nodes_from(range(-R, -1))
-    VertexCʹ = VertexC[:-R + 1].copy()
-    VertexCʹ[-1] = VertexC[-R:].mean(axis=0)
-    Gʹ.graph.update(VertexC=VertexCʹ, R=1)
-    Gʹ.graph['name'] += '.1_OSS'
-    Gʹ.graph['handle'] += '_1'
-    return Gʹ
+    R, VertexCʹ = (Lʹ.graph[k] for k in ('R', 'VertexC'))
+    L = Lʹ.copy()
+    if R <= 1:
+        return L
+    L.remove_nodes_from(range(-R, -1))
+    VertexC = VertexCʹ[:-R + 1].copy()
+    VertexC[-1] = VertexCʹ[-R:].mean(axis=0)
+    L.graph.update(VertexC=VertexC, R=1)
+    L.graph['name'] += '.1_OSS'
+    L.graph['handle'] += '_1'
+    return L
 
 
 def as_normalized(Aʹ: nx.Graph) -> nx.Graph:
