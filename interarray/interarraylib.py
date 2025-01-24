@@ -39,7 +39,7 @@ def pathdist(G, path):
     dist = 0.
     p = path[0]
     for n in path[1:]:
-        dist += np.hypot(*(VertexC[p] - VertexC[n]).T)
+        dist += np.hypot(*(VertexC[p] - VertexC[n]).T).item()
         p = n
     return dist
 
@@ -451,10 +451,10 @@ def S_from_G(G: nx.Graph):
 
 
 def L_from_G(G: nx.Graph) -> nx.Graph:
-    '''Return new graph with nodes and site attributes from G.
+    '''Return new location with nodes and site attributes from G.
 
-    The returned locations graph `L` retains only roots, nodes and locations graph
-    attributes. All edges and remaining data are not carried from `G`.
+    The returned location graph `L` retains only roots, nodes and basic graph
+    attributes. All edges and remaining attributes are not carried from `G`.
 
     Args:
         G: routeset graph to extract site data from.
