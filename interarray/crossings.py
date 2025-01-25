@@ -325,12 +325,12 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
     Yields:
         Pair of (edge, gate) that cross (each a 2-tuple of nodes).
     '''
-    R, T, B, VertexC = (G.graph[k] for k in ('R', 'T', 'B', 'VertexC'))
+    R, T, VertexC = (G.graph[k] for k in ('R', 'T', 'VertexC'))
     fnT = G.graph.get('fnT')
     roots = range(-R, 0)
     anglesRank = G.graph.get('anglesRank', None)
     if anglesRank is None:
-        _, anglesRank, anglesYhp, anglesXhp = angle_helpers(G)
+        _, anglesRank, anglesXhp, anglesYhp = angle_helpers(G)
     else:
         anglesXhp = G.graph['anglesXhp']
         anglesYhp = G.graph['anglesYhp']
@@ -372,7 +372,7 @@ def gateXing_iter(G: nx.Graph, *, hooks: Iterable | None = None,
                 # <u, v> does not wrap across zero
                 is_rank_within = np.logical_and(less(lowRank, gaterank),
                                                 less(gaterank, highRank))
-            for n in iGate[np.flatnonzero(is_rank_within)]:
+            for n in iGate[np.flatnonzero(is_rank_within)].tolist():
                 # this test confirms the crossing because `is_rank_within`
                 # established that root–n is on a line crossing u–v
                 if n == u or n == v:
