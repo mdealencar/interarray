@@ -438,7 +438,9 @@ def angle_helpers(L: nx.Graph) -> tuple[np.ndarray, np.ndarray,
         angles[n] = np.arctan2(y, x)
 
     anglesRank = rankdata(angles, method='dense', axis=0)
+    # vertex is in the positive-X half-plane
     anglesXhp = abs(angles) < np.pi/2
+    # vertex is in the positive-Y half-plane
     anglesYhp = angles >= 0.
     return angles, anglesRank, anglesXhp, anglesYhp
 
