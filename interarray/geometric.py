@@ -424,7 +424,7 @@ def angle_helpers(L: nx.Graph) -> tuple[np.ndarray, np.ndarray,
         L: location (also works with A or G)
 
     Returns:
-        tuple of (angles, anglesRank, anglesYhp, anglesXhp)
+        tuple of (angles, anglesRank, anglesXhp, anglesYhp)
     '''
 
     T, R, VertexC = (L.graph[k] for k in ('T', 'R', 'VertexC'))
