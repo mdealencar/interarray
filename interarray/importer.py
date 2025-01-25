@@ -14,6 +14,7 @@ import numpy as np
 import utm
 import yaml
 import osmium
+import shapely as shp
 import shapely.wkb as wkblib
 
 from .utils import NodeTagger
@@ -268,13 +269,14 @@ def L_from_pbf(filepath: Path | str, handle: str | None = None) -> nx.Graph:
             )
     if plant_name is not None:
         L.graph['OSM_name'] = plant_name
-    x, y = boundary.minimum_rotated_rectangle.exterior.coords.xy
+    boundary_utm = shp.Polygon(shell=VertexC[T:T + B])
+    x, y = boundary_utm.minimum_rotated_rectangle.exterior.coords.xy
     side0 = np.hypot(x[1] - x[0], y[1] - y[0])
     side1 = np.hypot(x[2] - x[1], y[2] - y[1])
     if side0 < side1:
-        angle = np.arctan2((x[1] - x[0]), (y[1] - y[0]))
+        angle = np.arctan2((x[1] - x[0]), (y[1] - y[0])).item()
     else:
-        angle = np.arctan2((x[2] - x[1]), (y[2] - y[1]))
+        angle = np.arctan2((x[2] - x[1]), (y[2] - y[1])).item()
     if abs(angle) > np.pi/2:
         angle += np.pi if angle < 0 else -np.pi
     L.graph['landscape_angle'] = 180*angle/np.pi
