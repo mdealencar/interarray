@@ -1,0 +1,28 @@
+name: interarray
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - bidict
+  - darkdetect
+  - matplotlib
+  - networkx
+  - numba
+  - numpy
+  - pony
+  - py
+  - pyomo
+  - pyyaml
+  - scipy
+  - shapely
+  - svg.py
+  - utm
+  # required by osmium
+  - requests
+  # required by gon
+  - typing-extensions
+  - pip:
+      - gon
+      - hygese
+      - osmium

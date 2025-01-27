@@ -22,6 +22,34 @@ Neither of the classic formulations consider route crossings, which is the main 
 
 The heuristics are based on extensions to the Esau-Williams heuristic (for the CMSTP). The meta-heuristic is [implemented elsewhere](https://github.com/vidalt/HGS-CVRP), of which `interarray` is just a user. The mathematical optimization uses mixed-integer linear programming (MILP) models, which can be solved using Google's OR-Tools or by calling solvers via ``pyomo``, e.g.: Coin-OR Branch-and-Cut (CBC), IBM's CPLEX, Gurobi, HiGHS, SCIP, among others.
 
+
+Requirements
+------------
+
+Essential external requirements are in:
+- [requirements.txt](requirements.txt) if using `pip`
+- [environment.yml](environment.yml) if using `conda`
+
+[PythonCDT](https://github.com/artem-ogre/PythonCDT) is an **essential requirement** that is not `pip`- nor `conda`-installable. Please refer to its repository for installation instructions.
+
+See the *Solvers* section for the **optional requirements** for performing mathematical optimization.
+
+### Setup environment with pip
+
+With you python environment active, call:
+
+```
+pip install -r requirements.txt
+```
+
+### Setup environment with conda
+
+```
+conda env create --name «env_interarray» --file environment.yml
+conda activate «env_interarray»
+```
+
+
 Installation
 ------------
 
@@ -32,32 +60,6 @@ git clone https://github.com/mdealencar/interarray.git
 ```
 
 And add the `interarray` folder to somewhere Python looks for packages.
-
-
-Requirements
-------------
-
-External requirements are in [requirements.txt](requirements.txt). See the *Solvers* section for the additional requirement for performing mathematical optimization.
-
-[PythonCDT](https://github.com/artem-ogre/PythonCDT) is a requirement that is not `pip`- nor `conda`-installable. Please refer to its repository for installation instructions.
-
-Some of the requirements are not available as conda packages, so the conda environment creation uses two separate requirement files (see subsection *conda* below).
-
-### pip
-
-With you python environment active, call:
-
-```
-pip install -r requirements.txt
-```
-
-### conda
-
-```
-conda create --name «env_interarray» --file requirements_conda.txt
-conda activate «env_interarray»
-pip install -r requirements_pip.txt
-```
 
 
 Solvers
