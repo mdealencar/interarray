@@ -1,0 +1,28 @@
+[project]
+name = "interarray"
+description = "Tools for optimizing the electrical cable network (collection system) for offshore wind power plants."
+authors = [   { name="DTU Wind Energy"},   { name="Mauricio Souza de Alencar", email="ma___@dtu.dk" }, ]
+dynamic = ["version"]
+keywords = ["optimization", "wind farms", "routing"]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta", 
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)",
+    "Programming Language :: Python :: 3",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build]
+exclude = [
+  "requirements.txt",
+  "environment.yml",
+  "location_template.yml",
+  "notebooks/*",
+]
