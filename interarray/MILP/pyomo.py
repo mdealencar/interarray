@@ -364,6 +364,35 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
     return S
 
 
+def gurobi_investigate_pool(P, A, model, solver, result):
+    '''Go through the Gurobi's solutions checking which has the shortest length
+    after applying the detours with PathFinder.'''
+    # initialize incumbent total length
+    solver_model = solver._solver_model
+    Λ = float('inf')
+    num_solutions = solver_model.getAttr('SolCount')
+    print(f'Solution pool has {num_solutions} solutions.')
+    # Pool = iter(sorted((cplex.solution.pool.get_objective_value(i), i)
+                       # for i in range(cplex.solution.pool.get_num()))[1:])
+    # model comes loaded with minimal-length undetoured solution
+    for i in range(num_solutions):
+        solver_model.setParam('SolutionNumber', i)
+        λ = solver_model.getAttr('PoolObjVal')
+        if λ > Λ:
+            print(f'Pool investigation over - next best undetoured length: {λ:.3f}')
+            break
+        for omovar, gurvar in solver._pyomo_var_to_solver_var_map.items():
+            omovar.set_value(round(gurvar.Xn), skip_validation=True)
+        S = S_from_solution(model, solver=solver, result=result)
+        G = G_from_S(S, A)
+        Hʹ = PathFinder(G, planar=P, A=A).create_detours()
+        Λʹ = Hʹ.size(weight='length')
+        if Λʹ < Λ:
+            H, Λ = Hʹ, Λʹ
+            print(f'Incumbent has (detoured) length: {Λ:.3f}')
+    return H
+
+
 def cplex_load_solution_from_pool(solver, soln):
     cplex = solver._solver_model
     vals = cplex.solution.pool.get_values(soln)
