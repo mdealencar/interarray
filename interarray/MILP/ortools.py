@@ -3,12 +3,100 @@
 
 import math
 from collections import defaultdict
+from itertools import chain
 import networkx as nx
 
 from ortools.sat.python import cp_model
 
+from .. import info
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
-from ..interarraylib import fun_fingerprint
+from ..interarraylib import fun_fingerprint, G_from_S
+from ..pathfinding import PathFinder
+
+
+class _SolutionStore(cp_model.CpSolverSolutionCallback):
+    '''Ad hoc implementation of a callback that stores solutions to a pool.'''
+    def __init__(self, model):
+        super().__init__()
+        self.solutions = []
+        self.int_lits = (
+            list(model.De.values())
+            + list(model.Dg.values())
+        )
+        self.bool_lits = (
+            list(model.Be.values())
+            + list(model.Bg.values())
+        )
+        if hasattr(model, 'upstream'):
+            self.bool_lits.extend(chain(
+                *(v.values() for v in model.upstream.values())
+            ))
+    def on_solution_callback(self):
+        solution = {var: self.boolean_value(var) for var in self.bool_lits}
+        solution |= {var: self.value(var) for var in self.int_lits}
+        self.solutions.append((self.objective_value, solution))
+
+
+class CpSat(cp_model.CpSolver):
+    '''
+    This class wraps and changes the behavior of CpSolver in order to save all
+    solutions found in a pool.
+
+    THIS IS A HACK, it is meant to be used with `investigate_pool()` and
+    nothing else.
+    '''
+    def solve(self, model: cp_model.CpModel) -> cp_model.cp_model_pb2.CpSolverStatus:
+        '''
+        Wrapper for CpSolver.solve() that saves the solutions.
+
+        This method uses a custom CpSolverSolutionCallback to fill a solution
+        pool stored in the attribute self.solutions.
+        '''
+        storer = _SolutionStore(model)
+        result = super().solve(model, storer)
+        self.solutions = storer.solutions
+        self.num_solutions = len(storer.solutions)
+        return result
+
+    def load_solution(self, i: int) -> None:
+        '''Select solution at position `i` in the pool.
+
+        Indices start from 0 (last, aka best) and are ordered by increasing
+        objective function value.
+        It *only* affects methods `value`, `boolean_value` and `objective_value`.
+        '''
+        self._solution.objective_value, self._value_map = self.solutions[-i - 1]
+
+    def boolean_value(self, literal: cp_model.IntVar) -> bool:
+        return self._value_map[literal]
+
+    def value(self, literal: cp_model.IntVar) -> int:
+        return self._value_map[literal]
+
+
+def investigate_pool(P: nx.PlanarEmbedding, A: nx.Graph,
+                     model: cp_model.CpModel, solver: CpSat, result: int = 0) \
+        -> nx.Graph:
+    '''Go through the CpSat's solutions checking which has the shortest length
+    after applying the detours with PathFinder.'''
+    Λ = float('inf')
+    num_solutions = solver.num_solutions
+    info(f'Solution pool has {num_solutions} solutions.')
+    for i in range(num_solutions):
+        solver.load_solution(i)
+        λ = solver.objective_value
+        #  print(f'λ[{i}] = {λ}')
+        if λ > Λ:
+            info(f'Pool investigation over - next best undetoured length: {λ:.3f}')
+            break
+        S = S_from_solution(model, solver=solver)
+        G = G_from_S(S, A)
+        Hʹ = PathFinder(G, planar=P, A=A).create_detours()
+        Λʹ = Hʹ.size(weight='length')
+        if Λʹ < Λ:
+            H, Λ = Hʹ, Λʹ
+            info(f'Incumbent has (detoured) length: {Λ:.3f}')
+    return H
 
 
 def make_min_length_model(A: nx.Graph, capacity: int, *,
