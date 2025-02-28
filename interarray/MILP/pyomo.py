@@ -10,7 +10,8 @@ from pyomo.contrib.solver.base import SolverBase
 from pyomo.opt import SolverResults
 
 from ..crossings import edgeset_edgeXing_iter, gateXing_iter
-from ..interarraylib import fun_fingerprint
+from ..interarraylib import fun_fingerprint, G_from_S
+from ..pathfinding import PathFinder
 
 
 # solver option name mapping (pyomo should have taken care of this)
@@ -361,3 +362,43 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
         S.nodes[r]['load'] = rootload
 
     return S
+
+
+def cplex_load_solution_from_pool(solver, soln):
+    cplex = solver._solver_model
+    vals = cplex.solution.pool.get_values(soln)
+    vars_to_load = solver._pyomo_var_to_ndx_map.keys()
+    for pyomo_var, val in zip(vars_to_load, vals):
+        if solver._referenced_variables[pyomo_var] > 0:
+            pyomo_var.set_value(val, skip_validation=True)
+
+
+def cplex_investigate_pool(P, A, model, solver, result):
+    '''Go through the CPLEX solutions checking which has the shortest length
+    after applying the detours with PathFinder.'''
+    cplex = solver._solver_model
+    # initialize incumbent total length
+    Λ = float('inf')
+    print(f'Solution pool has {cplex.solution.pool.get_num()} solutions.')
+    Pool = iter(sorted((cplex.solution.pool.get_objective_value(i), i)
+                       for i in range(cplex.solution.pool.get_num()))[1:])
+    # model comes loaded with minimal-length undetoured solution
+    while True:
+        S = S_from_solution(model, solver=solver, result=result)
+        G = G_from_S(S, A)
+        Hʹ = PathFinder(G, planar=P, A=A).create_detours()
+        Λʹ = Hʹ.size(weight='length')
+        if Λʹ < Λ:
+            H, Λ = Hʹ, Λʹ
+            print(f'Incumbent has (detoured) length: {Λ:.3f}')
+        # check if next best solution is worth processing
+        try:
+            λ, soln = next(Pool)
+        except StopIteration:
+            print('Pool exhausted.')
+            break
+        if λ > Λ:
+            print(f'Done with pool - next best undetoured length: {λ:.3f}')
+            break
+        cplex_load_solution_from_pool(solver, soln)
+    return H
