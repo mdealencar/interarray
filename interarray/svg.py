@@ -82,7 +82,9 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
     VertexS[:, 1] = h - VertexS[:, 1]
     VertexS = VertexS.round().astype(int)
 
-    # color settings
+    # theme settings
+    kind2alpha = defaultdict(lambda: 1.)
+    kind2alpha['virtual'] = 0.4
     kind2color = {}
     kind2style = dict(
         detour='dashed',
@@ -95,6 +97,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
         contour_delaunay='solid',
         contour_extended='dashed',
         border='dashed',
+        virtual='solid',
         unspecified='solid',
     )
     if dark:
@@ -109,6 +112,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
             contour_delaunay='green',
             contour_extended='green',
             border = 'silver',
+            virtual='gold',
             unspecified='crimson',
         )
         root_color = 'lawngreen'
@@ -127,6 +131,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
             contour_delaunay='darkgreen',
             contour_extended='darkgreen',
             border = 'dimgray',
+            virtual='gold',
             unspecified='firebrick',
         )
         root_color = 'black'
@@ -268,7 +273,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
         elements=[
             styleE, reusableE,
-            svg.G(id=G.graph.get('handle', G.graph.get('name', 'unnamed')),
+            svg.G(id=G.graph.get('handle', G.graph.get('name', 'handleless')),
                   elements=[borderE, *edgesE_, edgesdtE, svgnodesE,
                             svgrootsE, svgdetoursE])
         ]

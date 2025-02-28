@@ -102,7 +102,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             'border': 'silver',
             None: 'crimson',
             'detour': 'darkorange',
-            'virtual': 'yellow',
+            'virtual': 'gold',
         }
         root_color = 'lawngreen'
         node_edge = 'none'
@@ -124,7 +124,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             'border':  'dimgray',
             None: 'black',
             'detour': 'royalblue',
-            'virtual': 'yellow',
+            'virtual': 'gold',
         }
         root_color = 'black'
         node_edge = 'black'
