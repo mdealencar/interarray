@@ -9,9 +9,8 @@ from pathlib import Path
 import networkx as nx
 import numpy as np
 
-from . import length_matrix_single_depot_from_G
-from ..interarraylib import calcload, fun_fingerprint
-from ..pathfinding import PathFinder
+from .utils import length_matrix_single_depot_from_G
+from ..interarraylib import fun_fingerprint
 
 
 # TODO: Deprecate that. Unable to make LKH work in ACVRP with EDGE_FILE
