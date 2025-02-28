@@ -316,6 +316,8 @@ _site_handles_yaml = dict(
     sands='West of Duddon Sands',
     yi_2019='Yi-2019',
     cazzaro_2022='Cazzaro-2022',
+    cazzaro_2022G140='Cazzaro-2022G-140',
+    cazzaro_2022G210='Cazzaro-2022G-210',
     taylor_2023='Taylor-2023',
 )
 
