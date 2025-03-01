@@ -38,7 +38,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
           landscape: bool = True, infobox: bool = True,
           scalebar: tuple[float, str] | None = None,
           hide_ST: bool = True, legend: bool = False,
-          min_dpi: int = 192, dark=None) -> Axes:
+          min_dpi: int = 192, dark=None, **kwargs) -> Axes:
     '''Plot site and routeset contained in G.
 
     Args:
@@ -55,6 +55,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         legend: Add description of linestyles and node shapes.
         min_dpi: Minimum dots per inch to use. matplotlib's default is used if
             it is greater than this value.
+        **kwargs: passed on to matplotlib's subplots()
 
     Returns:
         Axes instance containing the plot.
@@ -68,6 +69,10 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
                    NODESIZE_DETOUR)
     node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
 
+    opt_subplots = (dict(dpi=max(min_dpi, plt.rcParams['figure.dpi']),
+        layout='compressed', facecolor='none',
+        subplot_kw=dict(aspect='equal', xmargin=0.002, ymargin=0.002))
+                    | kwargs)
     # theme settings
     kind2alpha = defaultdict(lambda: 1.)
     kind2alpha['virtual'] = 0.4
@@ -142,11 +147,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         VertexC = rotate(VertexC, landscape_angle)
 
     if ax is None:
-        fig, ax = plt.subplots(layout='compressed', facecolor='none',
-            subplot_kw=dict(
-                aspect='equal', xmargin=0.002, ymargin=0.002  # relative
-            ), dpi=max(min_dpi, plt.rcParams['figure.dpi'])
-        )
+        fig, ax = plt.subplots(**opt_subplots)
         fig.get_layout_engine().set(w_pad=0.01, h_pad=0.01)  # inches
     else:
         ax.set(aspect='equal')
