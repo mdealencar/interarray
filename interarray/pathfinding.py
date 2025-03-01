@@ -235,11 +235,10 @@ class PathFinder():
         _node_degree = self.G.degree[_node]
         if is_gate and _node_degree == 1:
             # special case where a branch with 1 node uses a non_embed gate
-            root = self.G.nodes[_node]['root']
-            return (NULL
-                    if _node == portal[0] else
-                    root)
-            #  return self.G.nodes[_node]['root']
+            if _node == portal[0]:
+                return NULL
+            else:
+                return -self.R + np.argmin(self.d2roots[_node]).item()
 
         _opposite = portal[0] if _node == portal[1] else portal[1]
         _nbr = self.P[_node][_opposite]['ccw']
