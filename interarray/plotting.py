@@ -63,16 +63,16 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
     if dark is None:
         dark = darkdetect.isDark()
 
-    root_size = NODESIZE_LABELED_ROOT if node_tag is not None else NODESIZE
-    detour_size = (NODESIZE_LABELED_DETOUR
-                   if node_tag is not None else
-                   NODESIZE_DETOUR)
-    node_size = NODESIZE_LABELED if node_tag is not None else NODESIZE
+    if node_tag is None:
+        kw_axes = dict(aspect='equal', xmargin=0.005, ymargin=0.005)
+        root_size = node_size = NODESIZE
+        detour_size = NODESIZE_DETOUR
+    else:
+        kw_axes = dict(aspect='equal', xmargin=0.01, ymargin=0.01)
+        root_size = NODESIZE_LABELED_ROOT
+        detour_size = NODESIZE_LABELED_DETOUR
+        node_size = NODESIZE_LABELED
 
-    opt_subplots = (dict(dpi=max(min_dpi, plt.rcParams['figure.dpi']),
-        layout='compressed', facecolor='none',
-        subplot_kw=dict(aspect='equal', xmargin=0.002, ymargin=0.002))
-                    | kwargs)
     # theme settings
     kind2alpha = defaultdict(lambda: 1.)
     kind2alpha['virtual'] = 0.4
@@ -147,11 +147,13 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         VertexC = rotate(VertexC, landscape_angle)
 
     if ax is None:
-        fig, ax = plt.subplots(**opt_subplots)
-        fig.get_layout_engine().set(w_pad=0.01, h_pad=0.01)  # inches
+        dpi=max(min_dpi, plt.rcParams['figure.dpi'])
+        kw_fig=dict(facecolor='none', layout='constrained', dpi=dpi)
+        fig = plt.figure(**(kw_fig | kwargs))
+        ax = fig.add_subplot(**kw_axes)
     else:
-        ax.set(aspect='equal')
-    ax.axis(False)
+        ax.set(**kw_axes)
+    ax.set_axis_off()
     # draw farm border
     if border is not None:
         border_opt = dict(facecolor=border_face, linestyle='dashed',
@@ -172,7 +174,6 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
             path = Path(points, codes)
             patch = PathPatch(path, **border_opt)
             ax.add_patch(patch)
-            ax.autoscale()
 
     # setup
     roots = range(-R, 0)
