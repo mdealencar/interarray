@@ -1,0 +1,66 @@
+# from seaborn dark
+legend.frameon: True
+legend.numpoints: 1
+legend.scatterpoints: 1
+xtick.direction: out
+ytick.direction: out
+axes.axisbelow: True
+axes.grid: True
+# relative margin from data lims when autoscaling
+axes.xmargin: 0.02
+axes.ymargin: 0.02
+grid.linestyle: -
+lines.solid_capstyle: round
+axes.linewidth: 0
+xtick.major.size: 0
+ytick.major.size: 0
+xtick.minor.size: 0
+ytick.minor.size: 0
+
+# lines
+lines.linewidth: 1
+
+#image.cmap: cool
+
+# font color: very light grey
+text.color: 0.9
+axes.labelcolor: 0.9
+xtick.color: 0.9
+ytick.color: 0.9
+
+# background
+# figure.facecolor: 1b1c17
+figure.facecolor: 010409
+# figure.facecolor: none
+# axes.facecolor: 111111
+axes.facecolor: 000000
+# savefig.facecolor: 1b1c17
+# savefig.facecolor: 010409
+# savefig.facecolor: none
+
+# font
+font.family: sans-serif
+font.size: 10
+#font.sans-serif: DejaVu Sans, Liberation Sans, Bitstream Vera Sans, sans-serif
+font.sans-serif: Roboto Condensed, sans-serif
+mathtext.fontset: dejavusans # stixsans|dejavuserif|stix|cm
+
+figure.constrained_layout.use: True
+# Padding (in inches) around axes
+figure.constrained_layout.h_pad:  0.02
+figure.constrained_layout.w_pad:  0.02
+# Spacing between subplots, relative to the subplot sizes.
+figure.constrained_layout.hspace: 0.01
+figure.constrained_layout.wspace: 0.01
+#figure.autolayout: True
+savefig.bbox: tight
+figure.figsize: 7, 3
+# figure.figsize: 9, 3.4
+figure.dpi: 360
+#figure.dpi: 480
+#figure.dpi: 600
+figure.frameon: True
+figure.edgecolor: 616161
+#figure.linewidth: 1
+grid.color: 010409
+grid.linewidth: 1.7
