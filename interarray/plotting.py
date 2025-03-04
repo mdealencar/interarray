@@ -41,6 +41,10 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
           min_dpi: int = 192, dark=None, **kwargs) -> Axes:
     '''Plot site and routeset contained in G.
 
+    This function relies on matplotlib and networkx's drawing functions. If no
+    Axes instance is provided, a Figure with a single Axes will be created.
+    Extra arguments given to gplot() will be forwarded to Figure(). 
+    
     Args:
         ax: Axes instance to plot into. If `None`, opens a new figure.
         node_tag: text label inside each node `None`, 'load' or 'label' (or
@@ -55,7 +59,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
         legend: Add description of linestyles and node shapes.
         min_dpi: Minimum dots per inch to use. matplotlib's default is used if
             it is greater than this value.
-        **kwargs: passed on to matplotlib's subplots()
+        **kwargs: passed on to matplotlib's Figure()
 
     Returns:
         Axes instance containing the plot.
@@ -148,7 +152,7 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
 
     if ax is None:
         dpi=max(min_dpi, plt.rcParams['figure.dpi'])
-        kw_fig=dict(facecolor='none', layout='constrained', dpi=dpi)
+        kw_fig=dict(frameon=False, layout='constrained', dpi=dpi)
         fig = plt.figure(**(kw_fig | kwargs))
         ax = fig.add_subplot(**kw_axes)
     else:
