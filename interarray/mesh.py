@@ -323,7 +323,8 @@ def make_planar_embedding(
     # X) Create hull_concave.
 
     R, T, B, VertexCʹ = (L.graph[k] for k in 'R T B VertexC'.split())
-    border, obstacles = (L.graph.get(k, []) for k in ('border', 'obstacles'))
+    border = L.graph.get('border')
+    obstacles = L.graph.get('obstacles', [])
 
     # #############################################
     # A) Scale the coordinates to avoid CDT errors.
@@ -352,26 +353,31 @@ def make_planar_embedding(
     # A.1) Transform border concavities in polygons.
     # ##############################################
     debug('PART A')
-    border_poly = Polygon(border=Contour(points[border]))
+    if border is None:
+        hull_minus_border = EMPTY
+        border_vertex_from_point = {}
+        roots_outside = []
+    else:
+        border_poly = Polygon(border=Contour(points[border]))
 
-    # Check if roots are outside the border. If so, extend the border to them.
-    roots_outside = [
-        r_pt for r_pt in points[-R:]
-        if point_in_polygon(r_pt, border_poly) is Location.EXTERIOR]
-    #  print('roots_outside', len(roots_outside), roots_outside, border_poly)
-    hull = context.points_convex_hull(roots_outside
-                                      + border_poly.border.vertices)
-    hull_poly = Polygon(border=Contour(hull))
+        # Check if roots are outside the border. If so, extend the border to them.
+        roots_outside = [
+            r_pt for r_pt in points[-R:]
+            if point_in_polygon(r_pt, border_poly) is Location.EXTERIOR]
+        #  print('roots_outside', len(roots_outside), roots_outside, border_poly)
+        hull = context.points_convex_hull(roots_outside
+                                          + border_poly.border.vertices)
+        hull_poly = Polygon(border=Contour(hull))
 
-    border_vertex_from_point = {
-            point: i for i, point in enumerate(points[T:-R], start=T)}
+        border_vertex_from_point = {
+                point: i for i, point in enumerate(points[T:-R], start=T)}
 
-    hull_border_vertices = [border_vertex_from_point[hullpt]
-                            for hullpt in hull
-                            if hullpt in border_vertex_from_point]
+        hull_border_vertices = [border_vertex_from_point[hullpt]
+                                for hullpt in hull
+                                if hullpt in border_vertex_from_point]
 
-    # Turn the main border's concave zones into concavity polygons.
-    hull_minus_border = hull_poly - border_poly
+        # Turn the main border's concave zones into concavity polygons.
+        hull_minus_border = hull_poly - border_poly
 
     concavities = []
     if hull_minus_border is EMPTY:
@@ -641,7 +647,7 @@ def make_planar_embedding(
     # prevent edges that cross the boudaries from going into PlanarEmbedding
     # an exception is made for edges that include a root node
     hull_concave = []
-    if len(border) > 0:
+    if border is not None:
         hull_prunned_cont = Contour(points[hull_prunned])
         border_cont = border_poly.border
         hull__border = contour_in_region(hull_prunned_cont, border_cont)
@@ -1062,8 +1068,11 @@ def make_planar_embedding(
     # ##########################################
     # J) Calculate the area of the concave hull.
     # ##########################################
-    # for the bounding box, use border, roots and stunts
-    bX, bY = np.vstack((VertexC[border], VertexC[-R:], *stuntC)).T
+    if border is None:
+        bX, bY = VertexC[convex_hull_A].T
+    else:
+        # for the bounding box, use border, roots and stunts
+        bX, bY = np.vstack((VertexC[border], VertexC[-R:], *stuntC)).T
     # assuming that coordinates are UTM -> min() as bbox's offset to origin
     norm_offset = np.array((bX.min(), bY.min()), dtype=np.float64)
     # Take the sqrt() of the area and invert for the linear factor such that
