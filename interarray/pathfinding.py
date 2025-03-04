@@ -144,6 +144,7 @@ class PathFinder():
             Rank = A.graph.get('d2rootsRank')
             diagonals = A.graph['diagonals']
         self.saved_shortened_contours = saved_shortened_contours = []
+        self.contour_primes = contour_primes = set(clone2prime)
         shortened_contours = G.graph.get('shortened_contours')
         if shortened_contours is not None:
             # G has edges that shortcut some longer paths along P edges.
@@ -152,6 +153,7 @@ class PathFinder():
             clone_offset = T + B
             for (s, t), (midpath, shortpath) in shortened_contours.items():
                 # G follows shortpath, but we want it to follow midpath
+                contour_primes.update(midpath)
                 subtree_id = G.nodes[t]['subtree']
                 stored_edges = []
                 path = [s] + shortpath + [t]
@@ -225,6 +227,9 @@ class PathFinder():
         sector. The sector is a way of identifying from which side of a
         non-traversable barrier the path is reaching `_node`.
         '''
+        if portal[0] == portal[1]:
+            # this is a pinched portal, which has itself as the sector
+            return _node
         if _node >= self.T:
             # _node is in a border or is in the supertriangle, which means it
             # is only reachable from one side, hence an arbitrary sector id.
@@ -275,39 +280,158 @@ class PathFinder():
 
     def _advance_portal(self, left: int, right: int):
         P = self.P
+        edges_G_primed = self.edges_G_primed
+        constraint_edges = P.graph['constraint_edges']
+        contour_primes = self.contour_primes
+        portal_set = self.portal_set
+
+        def walk_pinch(pinch_vert, border_vert):
+            # decide on which side to walk the border, i.e. the forbidden side
+            #  nb_str = '|'.join(f'{F[n]}' for n in P.neighbors_cw_order(pinch_vert))
+            #  print(f'walking pinch at {F[pinch_vert]} (border {F[border_vert]}) [{nb_str}]')
+            probe_vert = P[pinch_vert][border_vert]['cw']
+            probe_edge = ((pinch_vert, probe_vert)
+                          if pinch_vert < probe_vert
+                          else (probe_vert, pinch_vert))
+            # ¿should we just check if T <= probe_vert < T + B?
+            rot = 'cw' if probe_edge in constraint_edges else 'ccw'
+
+            next_border = pinch_vert
+            pinch_vert = border_vert
+            pinched = []
+            still_pinched = True
+            while still_pinched:
+                pinch_vert, prev_border = next_border, pinch_vert
+                pinched.append(pinch_vert)
+                #  print(f'appended {F[pinch_vert]} to pinch walk, coming from {F[prev_border]}')
+                next_border = P[pinch_vert][prev_border][rot]
+                constraint_edge = ((pinch_vert, next_border)
+                                   if pinch_vert < next_border
+                                   else (next_border, pinch_vert))
+                assert constraint_edge in constraint_edges, 'constraint_edge not in constraint_edges'
+                still_pinched = constraint_edge in edges_G_primed
+
+            # this is not guaranteed to get to an edge in G
+            # it may work in the majority of cases
+            # if the pinch walk ends in a side pinch, we need to fork the traverser
+            terminal_primed = P[pinch_vert][next_border][rot]
+            #  print(f'terminal_primed = {F[terminal_primed]}')
+            edge_in_G = ((terminal_primed, pinch_vert)
+                         if terminal_primed < pinch_vert
+                         else (pinch_vert, terminal_primed))
+            #  assert edge_in_G in edges_G_primed, 'edge_in_G is not in G'
+            if rot == 'cw':
+                left, right = next_border, terminal_primed
+            else:
+                left, right = next_border, terminal_primed
+            return pinched, left, right
+
+        pinched = []
         while True:
             # look for children portals
             n = P[left][right]['ccw']
             if n not in P[right] or P[left][n]['ccw'] == right or n < 0:
                 # (left, right, n) is not a triangle or n is a root
                 return
-            # examine the other two sides of the triangle
+            # there are two ways of entering a pinched portal, both require the
+            # current ⟨left, right⟩ portal to be in the wedge of a border and a
+            # contoured path that meet in a contour node:
+            #   - n is the prime of a contour node (FRONT)
+            #   - either left or right is the prime of a contour node (SIDE)
+
+            # SIDE entrance block
+            side_pinch = None
+            for u, v, rot, irot in ((left, right, 'cw', 'ccw'),
+                                    (right, left, 'ccw', 'cw')):
+                if u in contour_primes:
+                    probe_vert = P[u][v][rot]
+                    probe_edge = ((u, probe_vert) if u < probe_vert
+                                  else (probe_vert, u))
+                    # This check is to enter only once if consecutive
+                    # portals pivot on the contour prime.
+                    if probe_edge not in portal_set:
+                        side_pinch = u
+                        if probe_edge in constraint_edges:
+                            border_vert = probe_vert
+                        else:
+                            probe_vert = v
+                            while True:
+                                probe_vert = P[side_pinch][probe_vert][irot]
+                                probe_edge = ((side_pinch, probe_vert)
+                                              if side_pinch < probe_vert
+                                              else (probe_vert, side_pinch))
+                                if probe_edge in constraint_edges:
+                                    border_vert = probe_vert
+                                    break
+                        #  print(f'side pinch entrance at {F[side_pinch]}')
+                        pinched, _left, _right = walk_pinch(u, border_vert)
+                        # entering a side pinch requires a fork of the traverser
+                        # this branch follows the pinch; fork follows the portals
+                        # find out the border vertex for walk_pinch
+
+                        # assuming never a double side pinch in a single portal
+                        break
+
+            # FRONT entrance block
+            # IF ⟨left, n⟩ and ⟨n, right⟩ are a constraint edge and a G edge
+            # THEN we have a pinched portal
+            left_edge = (left, n) if left < n else (n, left)
+            right_edge = (n, right) if n < right else (right, n)
+            if (left_edge in constraint_edges
+                and right_edge in edges_G_primed):
+                # n is a pinch-node
+                pinched, _left, _right = walk_pinch(n, left)
+            elif (right_edge in constraint_edges
+                  and left_edge in edges_G_primed):
+                # n is a pinch-node
+                pinched, _left, _right = walk_pinch(n, right)
+            # we should probably find a way of sending the pinch-node only once to _traverse_channel
+
+            while pinched:
+                #  print(f'pinched sequence: {pinched}')
+                # this loop will walk the pinch until reaching the exit portal
+                # `pinched holds` a sequence of pinch-nodes
+                # ⟨left, right⟩ holds the exit portal (after the pinched path)
+                new = pinched.pop(0)
+
+                # DO STUFF HERE
+                # probably ends with a `yield`
+
+                # finally, we need to test if the pinch is over
+                if not pinched:
+                    # pinch is over: make a last pseudo-portal traversal
+                    # probably ends with a `yield`
+                    pass
+
+            # HERE IS THE USUAL STUFF without pinches
             next_portals = []
+            # examine the other two sides of the triangle
             for (s, t, side) in ((left, n, 1), (n, right, 0)):
                 st_sorted = (s, t) if s < t else (t, s)
                 if st_sorted not in self.portal_set:
                     debug('discarding %s', self.n2s(s, t))
                     continue
                 debug('including %s', self.n2s(s, t))
-                next_portals.append(((s, t), side))
+                pinched = []
+                next_portals.append(((s, t), side, pinched))
             try:
                 # this `pop()` will raise IndexError if we are at a dead-end
-                first, fside = next_portals.pop()
+                first, fside, fpinched = next_portals.pop()
                 # use this instead of the if-else-block when done debugging
-                #  yield left, right, (
+                #  yield (left, right), pinched, (
                 #          self._portal_iter(*next_portals[0])
                 #          if next_portals
                 #          else None)
                 if next_portals:
-                    second, sside = next_portals[0]
+                    second, sside, spinched = next_portals[0]
                     debug('branching %s and %s', self.n2s(*first),
                           self.n2s(*second))
-                    yield (first, fside,
-                           chain(((second, sside, None),),
+                    yield (first, fside, fpinched,
+                           chain(((second, sside, spinched, None),),
                                  self._advance_portal(*second)))
                 else:
                     debug('%s', self.n2s(*first))
-                    yield first, fside, None
+                    yield first, fside, fpinched, None
             except IndexError:
                 # dead-end reached
                 debug('dead-end: %s–%s', F[left], F[right])
@@ -325,7 +449,7 @@ class PathFinder():
         paths = self.paths
 
         # for next_left, next_right, new_portal_iter in portal_iter:
-        for portal, side, new_portal_iter in portal_iter:
+        for portal, side, pinched, new_portal_iter in portal_iter:
             #  print('[tra]')
             if new_portal_iter is not None:
                 # spawn a branched traverser
@@ -336,6 +460,10 @@ class PathFinder():
                         new_portal_iter)
                 self.bifurcation = branched_traverser
 
+            if pinched:
+                # TODO: pinched portal (contour node)
+                # do some updates here on apex, funnel and wedge
+                continue
             _new = portal[side]
             _nearside = _funnel[side]
             _farside = _funnel[not side]
@@ -409,7 +537,7 @@ class PathFinder():
         prioqueue = []
         # `uncharted` records whether portals have been traversed
         # (it is orientation-sensitive – two permutations)
-        uncharted = defaultdict(lambda: 2)
+        uncharted = defaultdict(lambda: 4)
         paths = self.paths = PathNodes()
         self.uncharted = uncharted
         self.bifurcation = None
@@ -424,6 +552,8 @@ class PathFinder():
         else:
             edges_G_primed = {((u, v) if u < v else (v, u))
                               for u, v in G.edges}
+        #  print(', '.join(f'{F[u]}–{F[v]}' for u, v in edges_G_primed))
+        self.edges_G_primed = edges_G_primed
         ST = T + B
         edges_P = {((u, v) if u < v else (v, u))
                    for u, v in P.edges if u < ST or v < ST}
@@ -484,7 +614,7 @@ class PathFinder():
                 ))
         # TODO: this is arbitrary, should be documented somewhere (or removed)
         MAX_ITER = 10000
-        #  MAX_ITER = 300
+        #  MAX_ITER = 150
         # process edges in the prioqueue
         counter = 0
         #  print(f'[exp] starting main loop, |prioqueue| = {len(prioqueue)}')
