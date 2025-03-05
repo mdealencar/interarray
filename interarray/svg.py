@@ -11,7 +11,7 @@ from ground.base import get_context
 import svg
 
 from .geometric import rotate
-from .interarraylib import calcload
+from .interarraylib import calcload, describe_G
 
 
 class SvgRepr():
@@ -115,6 +115,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
             virtual='gold',
             unspecified='crimson',
         )
+        text_color = 'white'
         root_color = 'lawngreen'
         node_edge = 'none'
         detour_ring = 'orange'
@@ -134,6 +135,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
             virtual='gold',
             unspecified='firebrick',
         )
+        text_color = 'black'
         root_color = 'black'
         node_edge = 'black'
         detour_ring = 'deepskyblue'
@@ -250,6 +252,12 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
                    stroke=detour_ring, stroke_width=4, r=23),
     ])
 
+    # Info text
+    linesE = [svg.TSpan(x=w, dx="-0.2em", dy=f"-{0.2 + (i > 0)}em", text=line)
+             for i, line in enumerate(describe_G(G)[::-1])]
+    textE = svg.Text(x=w, y=h, elements=linesE, fill=text_color, font_size=40,
+                     text_anchor='end', font_family='sans-serif')
+
     # Style
     # TODO: use kind2style below
     styleE = svg.Style(text=(
@@ -275,7 +283,7 @@ def svgplot(G, landscape=True, dark=None, node_size=12):
             styleE, reusableE,
             svg.G(id=G.graph.get('handle', G.graph.get('name', 'handleless')),
                   elements=[borderE, *edgesE_, edgesdtE, svgnodesE,
-                            svgrootsE, svgdetoursE])
+                            svgrootsE, svgdetoursE, textE])
         ]
     )
     return SvgRepr(out.as_str())
