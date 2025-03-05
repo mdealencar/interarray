@@ -2,7 +2,6 @@
 # https://github.com/mdealencar/interarray
 
 from collections import defaultdict
-import math
 from collections.abc import Sequence
 from itertools import chain, product
 
@@ -16,7 +15,7 @@ import networkx as nx
 import numpy as np
 
 from .geometric import rotate
-from .interarraylib import NodeTagger
+from .interarraylib import NodeTagger, describe_G
 
 
 FONTSIZE_LABEL = 5
@@ -261,23 +260,11 @@ def gplot(G: nx.Graph, ax: Axes | None = None,
 
     capacity = G.graph.get('capacity')
     if infobox and capacity is not None:
-        info = []
-        info.append(f'κ = {capacity}, T = {T}')
-        feeder_info = [f'{rootL}: {G.degree[r]}'
-                       for r, rootL in RootL.items()]
-        excess_feeders = sum(G.degree[r] for r in roots) - math.ceil(T/capacity)
-        info.append(f'({excess_feeders:+d}) {", ".join(feeder_info)}')
-        length = G.size(weight="length")
-        if length > 0:
-            intdigits = int(np.floor(np.log10(length))) + 1
-            info.append(f'Σλ = {round(length, max(0, 5 - intdigits))} m')
-        if ('has_costs' in G.graph):
-            info.append('{:.0f} €'.format(G.size(weight='cost')))
         # using the `legend()` method is a hack to get the `loc='best'` search
         # algorithm of matplotlib to place the info box not covering nodes
         info_art = ax.legend([], labelspacing=0, facecolor=border_face,
-            edgecolor=text_color, title='\n'.join(info), framealpha=0.6,
-            title_fontproperties={'size': FONTSIZE_INFO_BOX})
+            edgecolor=text_color, title='\n'.join(describe_G(G)),
+            framealpha=0.6, title_fontproperties={'size': FONTSIZE_INFO_BOX})
         plt.setp(info_art.get_title(), multialignment='center',
                  color=text_color)
     else:

@@ -21,6 +21,27 @@ _essential_graph_attrs = (
 )
 
 
+def describe_G(G):
+    R = G.graph['R']
+    T = G.graph['T']
+    capacity = G.graph['capacity']
+    roots = range(1, R + 1)
+    RootL = {-r: G.nodes[-r].get('label', F[-r]) for r in roots}
+    info = []
+    info.append(f'κ = {capacity}, T = {T}')
+    feeder_info = [f'{rootL}: {G.degree[r]}'
+                   for r, rootL in RootL.items()]
+    excess_feeders = sum(G.degree[-r] for r in roots) - math.ceil(T/capacity)
+    info.append(f'({excess_feeders:+d}) {", ".join(feeder_info)}')
+    length = G.size(weight="length")
+    if length > 0:
+        intdigits = int(np.floor(np.log10(length))) + 1
+        info.append(f'Σλ = {round(length, max(0, 5 - intdigits))} m')
+    if ('has_costs' in G.graph):
+        info.append('{:.0f} €'.format(G.size(weight='cost')))
+    return info
+
+
 def update_lengths(G):
     '''Adds missing edge lengths.
     Changes G in place.'''
