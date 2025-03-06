@@ -153,7 +153,6 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
     #############################
     # generate the SVG elements #
     #############################
-    styleEntries = []
     # elements should be added according to the desired z-order
     graphElements = []
 
@@ -182,42 +181,28 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
         graphElements.append(borderE)
 
     # Edges
-    class_dict = {'delaunay': 'del',
-                  'tentative': 'ttt',
-                  'rogue': 'rog',
-                  'contour': 'con',
-                  'contour_delaunay': 'cod',
-                  'contour_extended': 'coe',
-                  'extended': 'ext',
-                  'scaffold': 'scf',
-                  'unspecified': 'std'}
     edges_with_kind = G.edges(data='kind')
     edge_lines = defaultdict(list)
-    edge_kinds_used = set()
     for u, v, edge_kind in edges_with_kind:
         if edge_kind == 'detour':
             # detours are drawn separately as polylines
             continue
         if edge_kind is None:
             edge_kind = 'unspecified'
-        edge_kinds_used.add(edge_kind)
         u, v = (u, v) if u < v else (v, u)
-        edge_lines[class_dict[edge_kind]].append(
+        edge_lines[edge_kind].append(
             svg.Line(x1=VertexS[fnT[u], 0], y1=VertexS[fnT[u], 1],
                      x2=VertexS[fnT[v], 0], y2=VertexS[fnT[v], 1]))
     if edge_lines:
-        styleEntries.append(f'line {{stroke-width: 4}}')
-        for edge_kind in edge_kinds_used:
-            attrs = dict(stroke=kind2color[edge_kind])
+        for edge_kind, lines in edge_lines.items():
+            group_attrs = dict(stroke_width=4, stroke=kind2color[edge_kind])
             if edge_kind in kind2dasharray:
-                attrs['stroke-dasharray'] = kind2dasharray[edge_kind]
-            styleEntries.append(
-                f'.{class_dict[edge_kind]} '
-                f'{{{"; ".join(f"{k}: {v}" for k, v in attrs.items())}}}'
-            )
-        edgesE_ = [svg.G(id='edges', class_=[class_], elements=lines)
-                   for class_, lines in edge_lines.items()]
-        graphElements.extend(edgesE_)
+                group_attrs['stroke_dasharray'] = kind2dasharray[edge_kind]
+            graphElements.append(svg.G(
+                id='edges_' + edge_kind,
+                **group_attrs,
+                elements=lines,
+            ))
 
     # detour elements
     if D > 0:
@@ -238,7 +223,11 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
                     s, t = t, u
                 Points.append(' '.join(str(c) for c in VertexS[hops].flat))
         edgesdtE = svg.G(
-            id='detours', class_=['dt'],
+            id='detours',
+            stroke=kind2color['detour'],
+            stroke_width=4,
+            stroke_dasharray=(18, 15),
+            fill='none',
             elements=[svg.Polyline(points=points) for points in Points])
         graphElements.append(edgesdtE)
 
@@ -249,11 +238,6 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
                 for d in fnT[T + B + C: T + B + C + D]]
         )
         graphElements.append(svgdetoursE)
-        styleEntries.extend((
-            f'polyline {{stroke-width: 4}}',
-            f'.dt {{stroke-dasharray: 18 15; fill: none; '
-                f'stroke: {kind2color["detour"]}}}',
-        ))
 
     # wtg nodes
     subtrees = defaultdict(list)
@@ -289,7 +273,7 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
 
     # Aggregate the SVG root elements
     rootElements = [
-        svg.Style(text=' '.join(styleEntries)), svg.Defs(elements=reusableE),
+        svg.Defs(elements=reusableE),
         svg.G(id=G.graph.get('handle', G.graph.get('name', 'handleless')),
               elements=graphElements),
         ]
