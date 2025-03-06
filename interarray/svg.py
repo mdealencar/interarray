@@ -73,13 +73,13 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
     hr = (h - 2*margin)/H
     if W/H < w/h:
         # tall aspect
-        r = hr
+        scale = hr
     else:
         # wide aspect
-        r = wr
-        h = round(H*r + 2*margin)
+        scale = wr
+        h = round(H*scale + 2*margin)
     offset = np.array((Woff, Hoff))
-    VertexS = (VertexC - offset)*r + margin
+    VertexS = (VertexC - offset)*scale + margin
     # y axis flipping
     VertexS[:, 1] = h - VertexS[:, 1]
     VertexS = VertexS.round().astype(int)
@@ -296,7 +296,7 @@ def svgplot(G, landscape=True, dark=None, infobox: bool = True,
 
     # Infobox
     if infobox and G.graph.get('has_loads', False):
-        w_drawn = round(W*r + 2*margin)
+        w_drawn = round(W*scale + 2*margin)
         desc_lines = describe_G(G)[::-1]
 
         if github_bugfix:
