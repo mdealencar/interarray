@@ -255,8 +255,8 @@ def make_min_length_model(A: nx.Graph, capacity: int, *,
     # Objective #
     #############
 
-    m.Minimize(cp_model.LinearExpr.WeightedSum(Be.values(), w_E)
-               + cp_model.LinearExpr.WeightedSum(Bg.values(), w_G))
+    m.Minimize(cp_model.LinearExpr.WeightedSum(tuple(Be.values()), w_E)
+               + cp_model.LinearExpr.WeightedSum(tuple(Bg.values()), w_G))
 
     # save data structure as model attributes
     m.Be, m.Bg, m.De, m.Dg, m.R, m.T, m.k = Be, Bg, De, Dg, R, T, k
