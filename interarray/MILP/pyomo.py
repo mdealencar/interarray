@@ -699,7 +699,7 @@ def S_from_solution(model: pyo.ConcreteModel, solver: SolverBase,
     return S
 
 
-def gurobi_investigate_pool_balanced(P, A, model, solver, result):
+def gurobi_investigate_pool_balanced(P, A, model, solver, result, over_search=1.01):
     '''Go through the Gurobi's solutions checking which has the shortest length
     after applying the detours with PathFinder.'''
     # initialize incumbent total length
@@ -713,7 +713,7 @@ def gurobi_investigate_pool_balanced(P, A, model, solver, result):
     for i in range(num_solutions):
         solver_model.setParam('SolutionNumber', i)
         λ = solver_model.getAttr('PoolObjVal')
-        if λ > Λ:
+        if λ > over_search*Λ:
             print(f'Pool investigation over - next best undetoured length: {λ:.3f}')
             break
         for omovar, gurvar in solver._pyomo_var_to_solver_var_map.items():
@@ -728,7 +728,7 @@ def gurobi_investigate_pool_balanced(P, A, model, solver, result):
     return H
 
 
-def gurobi_investigate_pool(P, A, model, solver, result):
+def gurobi_investigate_pool(P, A, model, solver, result, over_search=1.01):
     '''Go through the Gurobi's solutions checking which has the shortest length
     after applying the detours with PathFinder.'''
     # initialize incumbent total length
@@ -742,7 +742,7 @@ def gurobi_investigate_pool(P, A, model, solver, result):
     for i in range(num_solutions):
         solver_model.setParam('SolutionNumber', i)
         λ = solver_model.getAttr('PoolObjVal')
-        if λ > Λ:
+        if λ > over_search*Λ:
             print(f'Pool investigation over - next best undetoured length: {λ:.3f}')
             break
         for omovar, gurvar in solver._pyomo_var_to_solver_var_map.items():
@@ -766,7 +766,7 @@ def cplex_load_solution_from_pool(solver, soln):
             pyomo_var.set_value(val, skip_validation=True)
 
 
-def cplex_investigate_pool_balanced(P, A, model, solver, result):
+def cplex_investigate_pool_balanced(P, A, model, solver, result, over_search=1.01):
     '''Go through the CPLEX solutions checking which has the shortest length
     after applying the detours with PathFinder.'''
     cplex = solver._solver_model
@@ -781,7 +781,7 @@ def cplex_investigate_pool_balanced(P, A, model, solver, result):
         G = G_from_S(S, A)
         Hʹ = PathFinder(G, planar=P, A=A).create_detours()
         Λʹ = Hʹ.size(weight='length')
-        if Λʹ < Λ:
+        if over_search*Λʹ < Λ:
             H, Λ = Hʹ, Λʹ
             print(f'Incumbent has (detoured) length: {Λ:.3f}')
         # check if next best solution is worth processing
@@ -797,7 +797,7 @@ def cplex_investigate_pool_balanced(P, A, model, solver, result):
     return H
 
 
-def cplex_investigate_pool(P, A, model, solver, result):
+def cplex_investigate_pool(P, A, model, solver, result, over_search=1.01):
     '''Go through the CPLEX solutions checking which has the shortest length
     after applying the detours with PathFinder.'''
     cplex = solver._solver_model
@@ -812,7 +812,7 @@ def cplex_investigate_pool(P, A, model, solver, result):
         G = G_from_S(S, A)
         Hʹ = PathFinder(G, planar=P, A=A).create_detours()
         Λʹ = Hʹ.size(weight='length')
-        if Λʹ < Λ:
+        if over_search*Λʹ < Λ:
             H, Λ = Hʹ, Λʹ
             print(f'Incumbent has (detoured) length: {Λ:.3f}')
         # check if next best solution is worth processing
