@@ -1045,19 +1045,23 @@ def make_planar_embedding(
             lengths, paths = nx.single_source_dijkstra(P_paths, r,
                                                        weight='length')
             for n, path in paths.items():
-                if n >= T or n < 0:
-                    # skip border and root vertices
+                if n >= T or n < 0 or all(p < T for p in path[1:-1]):
+                    # skip border and root vertices and paths without borders
                     continue
-                if any(p >= T for p in path):
-                    # This estimate may be slightly longer that just going
-                    # around the border.
-                    debug('changing %d with path %s', n, path)
-                    node_d2roots = A.nodes[n].get('d2roots')
-                    if node_d2roots is None:
-                        A.nodes[n]['d2roots'] = {r: d2roots[n, r]}
-                    else:
-                        node_d2roots.update({r: d2roots[n, r]})
-                    d2roots[n, r] = lengths[n]
+                debug('updating d2root of ⟨%d, %d⟩ (path %s)', r, n, path)
+                node_d2roots = A.nodes[n].get('d2roots')
+                if node_d2roots is None:
+                    A.nodes[n]['d2roots'] = {r: d2roots[n, r]}
+                else:
+                    node_d2roots.update({r: d2roots[n, r]})
+                new_length = 0.
+                s = path[0]
+                for t in (p for p in path[1:-1] if p >= T):
+                    # only add the lengths between constraint vertices
+                    new_length += np.hypot(*(VertexC[s] - VertexC[t]).T).item()
+                    s = t
+                new_length += np.hypot(*(VertexC[s] - VertexC[n]).T).item()
+                d2roots[n, r] = new_length
 
     # ##########################################
     # J) Calculate the area of the concave hull.
