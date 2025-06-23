@@ -1,4 +1,21 @@
-interarray
+~interarray~ OptiWindNet
+========================
+
+[OptiWindNet](https://gitlab.windenergy.dtu.dk/TOPFARM/OptiWindNet/) is the successor of interarray.
+
+```
+pip install optiwindnet
+```
+
+- [Quickstart](https://topfarm.pages.windenergy.dtu.dk/OptiWindNet/Quickstart)
+- [Documentation](https://topfarm.pages.windenergy.dtu.dk/OptiWindNet)
+- [Issues at the OptiWindNet mirror on Github](https://github.com/DTUWindEnergy/OptiWindNet/issues)
+
+interarray will no longer be maintained. Use OptiWindNet instead.
+
+
+
+Old Readme
 ==========
 
 Tool for designing and optimizing the electrical cable network (collection system) for offshore wind power plants.
